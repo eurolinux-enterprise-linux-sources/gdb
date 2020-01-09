@@ -10,7 +10,7 @@ Index: gdb-7.2/gdb/elfread.c
 ===================================================================
 --- gdb-7.2.orig/gdb/elfread.c
 +++ gdb-7.2/gdb/elfread.c
-@@ -669,13 +669,13 @@ elf_rel_plt_read (struct objfile *objfil
+@@ -670,13 +670,13 @@ elf_rel_plt_read (struct objfile *objfil
  	 OBJFILE the symbol is undefined and the objfile having NAME defined
  	 may not yet have been loaded.  */
  

@@ -27,7 +27,7 @@ Version: 7.2
 
 # The release always contains a leading reserved number, start it at 1.
 # `upstream' is not a part of `name' to stay fully rpm dependencies compatible for the testing.
-Release: 64%{?_with_upstream:.upstream}%{?dist}.2
+Release: 75%{?_with_upstream:.upstream}%{dist}
 
 License: GPLv3+ and GPLv3+ with exceptions and GPLv2+ and GPLv2+ with exceptions and GPL+ and LGPLv2+ and GFDL and BSD and Public Domain
 Group: Development/Debuggers
@@ -344,6 +344,10 @@ Patch519: gdb-6.6-buildid-locate-rpm-librpm-workaround.patch
 # Fix `Backport gdb fix to handle identical binaries via additional build-id
 # symlinks' (RH BZ 836966).
 Patch717: gdb-6.6-buildid-locate-seqno.patch
+# Fix 'gdb gives highly misleading error when debuginfo pkg is present,
+# but not corresponding binary pkg' (RH BZ 981154).
+#=push
+Patch862: gdb-6.6-buildid-locate-misleading-warning-missing-debuginfo-rhbz981154.patch
 
 # Fix displaying of numeric char arrays as strings (BZ 224128).
 #=fedoratest: But it is failing anyway, one should check the behavior more.
@@ -914,12 +918,39 @@ Patch824: gdb-rhbz921685-maint-set-python-print-stack.patch
 # failed.' (RH BZ 947564)
 Patch831: gdb-rhbz947564-findvar-assertion-frame-failed.patch
 
+# Fix 'gdb miscalculates bitfield address in nested struct' (RH BZ 903734)
+Patch853: gdb-rhbz903734-bitfield-nested-struct.patch
+
+# Fix 'Add $_signo convenience variable' (RH BZ 971849)
+# It is worth mentioning that the convenience variable was finally named
+# $_exitsignal instead of $_signo.
+Patch854: gdb-rhbz971849-signo-exitsignal-1of7.patch
+Patch855: gdb-rhbz971849-signo-exitsignal-2of7.patch
+Patch856: gdb-rhbz971849-signo-exitsignal-3of7.patch
+Patch857: gdb-rhbz971849-signo-exitsignal-4of7.patch
+Patch858: gdb-rhbz971849-signo-exitsignal-5of7.patch
+Patch859: gdb-rhbz971849-signo-exitsignal-6of7.patch
+Patch860: gdb-rhbz971849-signo-exitsignal-7of7.patch
+
+# Fix 'memory leak in infpy_read_memory()' (RH BZ 1007614)
+Patch861: gdb-rhbz1007614-memleak-infpy_read_memory.patch
+
+# Fix 'gdb deadlock due to gdb calling calloc() in signal handler.'
+# (RH BZ 913146).
+Patch882: gdb-rhbz913146-fix-sigterm-safety-1of2.patch
+Patch883: gdb-rhbz913146-fix-sigterm-safety-2of2.patch
+
+# Fix '[RHEL6] Can't access TLS variables in statically linked
+# binaries' (RH BZ 1080656).
+Patch884: gdb-rhbz1080656-tls-variable-static-linked-binary-1of3.patch
+Patch885: gdb-rhbz1080656-tls-variable-static-linked-binary-2of3.patch
+
 # Fix 'gdb crashes while thread apply all bt is run on the core file'
-# (RH BZ 1108490).
-Patch888: gdb-rhbz1108490-thread-apply-all-bt-corefile-1of4.patch
-Patch918: gdb-rhbz1108490-thread-apply-all-bt-corefile-2of4.patch
-Patch919: gdb-rhbz1108490-thread-apply-all-bt-corefile-3of4.patch
-Patch920: gdb-rhbz1108490-thread-apply-all-bt-corefile-4of4.patch
+# (RH BZ 1104587).
+Patch886: gdb-rhbz1104587-thread-apply-all-bt-corefile-1of4.patch
+Patch921: gdb-rhbz1104587-thread-apply-all-bt-corefile-2of4.patch
+Patch922: gdb-rhbz1104587-thread-apply-all-bt-corefile-3of4.patch
+Patch923: gdb-rhbz1104587-thread-apply-all-bt-corefile-4of4.patch
 
 BuildRequires: ncurses-devel%{?_isa} texinfo gettext flex bison expat-devel%{?_isa}
 Requires: readline%{?_isa}
@@ -1360,10 +1391,24 @@ rm -f gdb/jv-exp.c gdb/m2-exp.c gdb/objc-exp.c gdb/p-exp.c
 %patch823 -p1
 %patch824 -p1
 %patch831 -p1
-%patch888 -p1
-%patch918 -p1
-%patch919 -p1
-%patch920 -p1
+%patch853 -p1
+%patch854 -p1
+%patch855 -p1
+%patch856 -p1
+%patch857 -p1
+%patch858 -p1
+%patch859 -p1
+%patch860 -p1
+%patch861 -p1
+%patch862 -p1
+%patch882 -p1
+%patch883 -p1
+%patch884 -p1
+%patch885 -p1
+%patch886 -p1
+%patch921 -p1
+%patch922 -p1
+%patch923 -p1
 
 %patch390 -p1
 %patch393 -p1
@@ -1763,13 +1808,48 @@ fi
 %endif
 
 %changelog
-* Fri Jun 27 2014 Sergio Durigan Junior <sergiodj@redhat.com> - 7.2-64.el6_5.2
-- Improve fix to ''gdb crashes while thread apply all bt is run on the core
-  file' (Jan Kratochvil, Tom Tromey, Paul Pluzhnikov, RH BZ 1108490).
+* Fri Jun 27 2014 Sergio Durigan Junior <sergiodj@redhat.com> - 7.2-75.el6
+- Additional fixes needed by 'gdb crashes while thread apply all bt is
+  run on the core file' (Jan Kratochvil, Tom Tromey, Paul Pluzhnikov,
+  RH BZ 1104587).
 
-* Thu Jun 12 2014 Sergio Durigan Junior <sergiodj@redhat.com> - 7.2-64.el6_5.1
+* Thu Jun 12 2014 Sergio Durigan Junior <sergiodj@redhat.com> - 7.2-74.el6
+- Improve fix for 'gdb crashes while thread apply all bt is run on the core
+  file' (RH BZ 1104587).
+
+* Wed Jun 04 2014 Sergio Durigan Junior <sergiodj@redhat.com> - 7.2-73.el6
 - Fix 'gdb crashes while thread apply all bt is run on the core file'
-  (Jan Kratochvil, RH BZ 1108490).
+  (Jan Kratochvil, RH BZ 1104587).
+
+* Sat May 31 2014 Sergio Durigan Junior <sergiodj@redhat.com> - 7.2-72.el6
+- Fix '[RHEL6] Can't access TLS variables in statically linked binaries'
+  (Jan Kratochvil, RH BZ 1080656).
+
+* Tue May 27 2014 Sergio Durigan Junior <sergiodj@redhat.com> - 7.2-71.el6
+- Improve fix for 'gdb deadlock due to gdb calling calloc() in signal
+  handler.', because it was failing on i686.  (Pedro Alves, RH BZ 913146).
+
+* Wed May 21 2014 Sergio Durigan Junior <sergiodj@redhat.com> - 7.2-70.el6
+- Fix 'gdb deadlock due to gdb calling calloc() in signal handler.'
+  (Jan Kratochvil, RH BZ 913146).
+
+* Mon May 05 2014 Sergio Durigan Junior <sergiodj@redhat.com> - 7.2-69.el6
+- Improve testcase message for RH BZ 981154.
+
+* Wed Apr 16 2014 Sergio Durigan Junior <sergiodj@redhat.com> - 7.2-68.el6
+- Fix 'gdb gives highly misleading error when debuginfo pkg is present,
+  but not corresponding binary pkg' (Jan Kratochvil, backported from Fedora,
+  RH BZ 981154).
+
+* Mon Apr 15 2014 Sergio Durigan Junior <sergiodj@redhat.com> - 7.2-67.el6
+- Fix 'memory leak in infpy_read_memory()' (Tom Tromey, RH BZ 1007614).
+
+* Sat Apr 12 2014 Sergio Durigan Junior <sergiodj@redhat.com> - 7.2-66.el6
+- Fix 'Add $_signo convenience variable'.  It is worth mentioning that the
+  variable was finally named $_exitsignal instead of $_signo (RH BZ 971849).
+
+* Fri Apr 04 2014 Sergio Durigan Junior <sergiodj@redhat.com> - 7.2-65.el6
+- Fix 'gdb miscalculates bitfield address in nested struct' (RH BZ 903734).
 
 * Fri Apr 19 2013 Sergio Durigan Junior <sergiodj@redhat.com> - 7.2-64.el6
 - Fix `gdb/findvar.c:417: internal-error: read_var_value: Assertion `frame'
