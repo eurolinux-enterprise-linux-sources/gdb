@@ -17,7 +17,7 @@ Version: 7.2
 
 # The release always contains a leading reserved number, start it at 1.
 # `upstream' is not a part of `name' to stay fully rpm dependencies compatible for the testing.
-Release: 90%{?_with_upstream:.upstream}%{?dist}
+Release: 92%{?_with_upstream:.upstream}%{?dist}
 
 License: GPLv3+ and GPLv3+ with exceptions and GPLv2+ and GPLv2+ with exceptions and GPL+ and LGPLv2+ and GFDL and BSD and Public Domain
 Group: Development/Debuggers
@@ -334,6 +334,11 @@ Patch415: gdb-6.6-buildid-locate-core-as-arg.patch
 # Workaround librpm BZ 643031 due to its unexpected exit() calls (BZ 642879).
 #=push
 Patch519: gdb-6.6-buildid-locate-rpm-librpm-workaround.patch
+# Fix loading of core files without build-ids but with build-ids in executables.
+# Load strictly build-id-checked core files only if no executable is specified
+# (Jan Kratochvil, RH BZ 1339862).
+#=push
+Patch659: gdb-6.6-buildid-locate-solib-missing-ids.patch
 # Fix `Backport gdb fix to handle identical binaries via additional build-id
 # symlinks' (RH BZ 836966).
 Patch717: gdb-6.6-buildid-locate-seqno.patch
@@ -997,6 +1002,16 @@ Patch1051: gdb-rhbz1221351-gdbserver-stdio-3of3.patch
 # Never kill PID on: gdb exec PID (Jan Kratochvil, RH BZ 1219747).
 Patch1053: gdb-bz1219747-attach-kills.patch
 
+# Implement gdbserver support for containers (Gary Benson, RH BZ 1316539).
+Patch1103: gdb-rhbz1316539-gdbserver-in-container-1of8.patch
+Patch1104: gdb-rhbz1316539-gdbserver-in-container-2of8.patch
+Patch1105: gdb-rhbz1316539-gdbserver-in-container-3of8.patch
+Patch1106: gdb-rhbz1316539-gdbserver-in-container-4of8.patch
+Patch1114: gdb-rhbz1316539-gdbserver-in-container-5of8.patch
+Patch1115: gdb-rhbz1316539-gdbserver-in-container-6of8.patch
+Patch1116: gdb-rhbz1316539-gdbserver-in-container-7of8.patch
+Patch1118: gdb-rhbz1316539-gdbserver-in-container-8of8.patch
+
 BuildRequires: ncurses-devel%{buildisa} texinfo gettext flex bison expat-devel%{buildisa}
 Requires: readline%{buildisa}
 BuildRequires: readline-devel%{buildisa}
@@ -1252,6 +1267,7 @@ rm -f gdb/jv-exp.c gdb/m2-exp.c gdb/objc-exp.c gdb/p-exp.c
 %patch486 -p1
 %patch415 -p1
 %patch519 -p1
+%patch659 -p1
 %patch489 -p1
 %patch490 -p1
 %patch491 -p1
@@ -1474,6 +1490,14 @@ rm -f gdb/jv-exp.c gdb/m2-exp.c gdb/objc-exp.c gdb/p-exp.c
 %patch1050 -p1
 %patch1051 -p1
 %patch1053 -p1
+%patch1103 -p1
+%patch1104 -p1
+%patch1105 -p1
+%patch1106 -p1
+%patch1114 -p1
+%patch1115 -p1
+%patch1116 -p1
+%patch1118 -p1
 
 %patch390 -p1
 %patch393 -p1
@@ -1873,6 +1897,14 @@ fi
 %endif
 
 %changelog
+* Fri Aug  5 2016 Jan Kratochvil <jan.kratochvil@redhat.com> - 7.2-92.el6
+- Implement gdbserver support for containers (upstream patches by Gary Benson,
+  RH BZ 1316539).
+
+* Tue Aug  2 2016 Jan Kratochvil <jan.kratochvil@redhat.com> - 7.2-91.el6
+- Load strictly build-id-checked core files only if no executable is specified
+  (Jan Kratochvil, RH BZ 1339862).
+
 * Fri Dec 11 2015 Jan Kratochvil <jan.kratochvil@redhat.com> - 7.2-90.el6
 - Partial drop of the RHEL-5 support (Jan Kratochvil, RH BZ 1290261).
 
