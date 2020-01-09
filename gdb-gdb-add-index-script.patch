@@ -86,7 +86,7 @@ new file mode 100755
 index 0000000..c9a03b0
 --- /dev/null
 +++ b/gdb/gdb-add-index
-@@ -0,0 +1,30 @@
+@@ -0,0 +1,31 @@
 +#! /bin/sh
 +
 +# Add a .gdb_index section to a file.
@@ -107,6 +107,7 @@ index 0000000..c9a03b0
 +
 +file="$1"
 +dir="${file%/*}"
++test "$dir" = "$file" && dir="."
 +
 +# We don't care if gdb gives an error.
 +gdb -nx --batch-silent -ex "file $file" -ex "save gdb-index $dir"

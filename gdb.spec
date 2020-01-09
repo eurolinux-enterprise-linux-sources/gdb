@@ -1,21 +1,11 @@
 # rpmbuild parameters:
 # --with testsuite: Run the testsuite (biarch if possible).  Default is without.
+# --with buildisa: Use %%{?_isa} for BuildRequires
 # --with debug: Build without optimizations and without splitting the debuginfo.
 # --with upstream: No Fedora specific patches get applied.
 # --without python: No python support.
 # --with profile: gcc -fprofile-generate / -fprofile-use: Before better
 #                 workload gets run it decreases the general performance now.
-
-# RHEL-5 was the last not providing `/etc/rpm/macros.dist'.
-%if 0%{!?dist:1}
-%define rhel 5
-%define dist .el5
-%define el5 1
-%endif
-# RHEL-5 Brew does not set %{el5}.
-%if "%{dist}" == ".el5"
-%define el5 1
-%endif
 
 Summary: A GNU source-level debugger for C, C++, Java and other languages
 Name: gdb%{?_with_debug:-debug}
@@ -27,7 +17,7 @@ Version: 7.2
 
 # The release always contains a leading reserved number, start it at 1.
 # `upstream' is not a part of `name' to stay fully rpm dependencies compatible for the testing.
-Release: 83%{?_with_upstream:.upstream}%{dist}
+Release: 90%{?_with_upstream:.upstream}%{?dist}
 
 License: GPLv3+ and GPLv3+ with exceptions and GPLv2+ and GPLv2+ with exceptions and GPL+ and LGPLv2+ and GFDL and BSD and Public Domain
 Group: Development/Debuggers
@@ -65,6 +55,9 @@ Provides: pstack = 1.2-7.2.2.1
 
 # eu-strip: -g recognizes .gdb_index as a debugging section. (#631997)
 Conflicts: elfutils < 0.149
+
+# https://fedoraproject.org/wiki/Packaging:Guidelines#BuildRequires_and_.25.7B_isa.7D
+%global buildisa %{?_with_buildisa:%{?_isa}}
 
 # GDB patches have the format `gdb-<version>-bz<red-hat-bz-#>-<desc>.patch'.
 # They should be created using patch level 1: diff -up ./gdb (or gdb-6.3/gdb).
@@ -990,38 +983,52 @@ Patch992: gdb-rhbz1162264-internal-error-linux_nat_post_attach_wait.patch
 # crashes GDB] (Pedro Alves, RH BZ 1099929).
 Patch993: gdb-rhbz1099929-thread-call-clone.patch
 
-BuildRequires: ncurses-devel%{?_isa} texinfo gettext flex bison expat-devel%{?_isa}
-Requires: readline%{?_isa}
-BuildRequires: readline-devel%{?_isa}
+# Support for /proc/PID/coredump_filter (Sergio Durigan Junior, RH BZ 1085906).
+Patch1045: gdb-rhbz1085906-coredump_filter-1of4.patch
+Patch1046: gdb-rhbz1085906-coredump_filter-2of4.patch
+Patch1047: gdb-rhbz1085906-coredump_filter-3of4.patch
+Patch1048: gdb-rhbz1085906-coredump_filter-4of4.patch
+
+# Support stdio connections for GDBserver (upstream, RH BZ 1221351).
+Patch1049: gdb-rhbz1221351-gdbserver-stdio-1of3.patch
+Patch1050: gdb-rhbz1221351-gdbserver-stdio-2of3.patch
+Patch1051: gdb-rhbz1221351-gdbserver-stdio-3of3.patch
+
+# Never kill PID on: gdb exec PID (Jan Kratochvil, RH BZ 1219747).
+Patch1053: gdb-bz1219747-attach-kills.patch
+
+BuildRequires: ncurses-devel%{buildisa} texinfo gettext flex bison expat-devel%{buildisa}
+Requires: readline%{buildisa}
+BuildRequires: readline-devel%{buildisa}
 %if 0%{!?el5:1}
 # dlopen() no longer makes rpm-libs a mandatory dependency.
-#Requires: rpm-libs%{?_isa}
-BuildRequires: rpm-devel%{?_isa}
+#Requires: rpm-libs%{buildisa}
+BuildRequires: rpm-devel%{buildisa}
 %endif # 0%{!?el5:1}
-Requires: zlib%{?_isa}
-BuildRequires: zlib-devel%{?_isa}
+Requires: zlib%{buildisa}
+BuildRequires: zlib-devel%{buildisa}
 %if 0%{!?_without_python:1}
 %if 0%{!?el5:1}
-Requires: python-libs%{?_isa}
+Requires: python-libs%{buildisa}
 %else
 # This RHEL-5.6 python version got split out python-libs for ppc64.
 # RHEL-5 rpm does not support .%{_arch} dependencies.
 Requires: python-libs-%{_arch} >= 2.4.3-32.el5
 %endif
-BuildRequires: python-devel%{?_isa}
+BuildRequires: python-devel%{buildisa}
 %if 0%{?rhel:1}
 # Temporarily before python files get moved to libstdc++.rpm
 # libstdc++%{bits_other} is not present in Koji, the .spec script generating
 # gdb/python/libstdcxx/ also does not depend on the %{bits_other} files.
-BuildRequires: libstdc++%{?_isa}
+BuildRequires: libstdc++%{buildisa}
 %endif # 0%{?rhel:1}
 %endif # 0%{!?_without_python:1}
 
 %if 0%{?_with_testsuite:1}
 
 # Ensure the devel libraries are installed for both multilib arches.
-%define bits_local %{?_isa}
-%define bits_other %{?_isa}
+%define bits_local %{buildisa}
+%define bits_other %{buildisa}
 %if 0%{!?el5:1}
 %ifarch s390x
 %define bits_other (%{__isa_name}-32)
@@ -1459,6 +1466,14 @@ rm -f gdb/jv-exp.c gdb/m2-exp.c gdb/objc-exp.c gdb/p-exp.c
 %patch991 -p1
 %patch992 -p1
 %patch993 -p1
+%patch1045 -p1
+%patch1046 -p1
+%patch1047 -p1
+%patch1048 -p1
+%patch1049 -p1
+%patch1050 -p1
+%patch1051 -p1
+%patch1053 -p1
 
 %patch390 -p1
 %patch393 -p1
@@ -1858,6 +1873,29 @@ fi
 %endif
 
 %changelog
+* Fri Dec 11 2015 Jan Kratochvil <jan.kratochvil@redhat.com> - 7.2-90.el6
+- Partial drop of the RHEL-5 support (Jan Kratochvil, RH BZ 1290261).
+
+* Fri Dec 11 2015 Jan Kratochvil <jan.kratochvil@redhat.com> - 7.2-89.el6
+- Fix up the --with buildisa option (Jan Kratochvil, RH BZ 1287044).
+
+* Thu Dec  3 2015 Jan Kratochvil <jan.kratochvil@redhat.com> - 7.2-88.el6
+- Add --with buildisa, remove %%{?_isa} from BuildRequires by default:
+  https://github.com/msimacek/koschei/issues/54 (Jan Kratochvil, RH BZ 1287044)
+
+* Mon Oct 16 2015 Jan Kratochvil <jan.kratochvil@redhat.com> - 7.2-87.el6
+- Never kill PID on: gdb exec PID (Jan Kratochvil, RH BZ 1219747).
+
+* Mon Oct  5 2015 Jan Kratochvil <jan.kratochvil@redhat.com> - 7.2-86.el6
+- Support stdio connections for GDBserver (upstream, RH BZ 1221351).
+
+* Sat Oct  3 2015 Jan Kratochvil <jan.kratochvil@redhat.com> - 7.2-85.el6
+- Support for /proc/PID/coredump_filter (Sergio Durigan Junior, RH BZ 1085906).
+
+* Tue Sep 22 2015 Jan Kratochvil <jan.kratochvil@redhat.com> - 7.2-84.el6
+- Adjust gdb-add-index script to work with binaries in the CWD (RH BZ
+  1202918).
+
 * Mon Feb 23 2015 Sergio Durigan Junior <sergiodj@redhat.com> - 7.2-83.el6
 - Fix 'gdb internal error' [Threaded program calls clone, which
   crashes GDB] (Pedro Alves, RH BZ 1099929).

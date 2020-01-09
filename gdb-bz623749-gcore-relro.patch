@@ -14,24 +14,6 @@ gdb/testsuite/
 	* gdb.base/gcore-relro-main.c: New file.
 	* gdb.base/gcore-relro-lib.c: New file.
 
---- ./gdb/gcore.c	2010-09-23 20:14:56.000000000 +0200
-+++ ./gdb/gcore.c	2010-09-23 20:37:56.000000000 +0200
-@@ -401,6 +401,7 @@ gcore_create_callback (CORE_ADDR vaddr, 
- 
-   if (write == 0 && !solib_keep_data_in_core (vaddr, size))
-     {
-+#if 0 /* https://bugzilla.redhat.com/show_bug.cgi?id=636937  */
-       /* See if this region of memory lies inside a known file on disk.
- 	 If so, we can avoid copying its contents by clearing SEC_LOAD.  */
-       struct objfile *objfile;
-@@ -433,6 +434,7 @@ gcore_create_callback (CORE_ADDR vaddr, 
- 	}
- 
-     keep:
-+#endif
-       flags |= SEC_READONLY;
-     }
- 
 --- /dev/null
 +++ b/gdb/testsuite/gdb.base/gcore-relro-lib.c
 @@ -0,0 +1,21 @@
