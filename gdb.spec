@@ -27,7 +27,7 @@ Version: 7.2
 
 # The release always contains a leading reserved number, start it at 1.
 # `upstream' is not a part of `name' to stay fully rpm dependencies compatible for the testing.
-Release: 75%{?_with_upstream:.upstream}%{dist}
+Release: 83%{?_with_upstream:.upstream}%{dist}
 
 License: GPLv3+ and GPLv3+ with exceptions and GPLv2+ and GPLv2+ with exceptions and GPL+ and LGPLv2+ and GFDL and BSD and Public Domain
 Group: Development/Debuggers
@@ -952,6 +952,44 @@ Patch921: gdb-rhbz1104587-thread-apply-all-bt-corefile-2of4.patch
 Patch922: gdb-rhbz1104587-thread-apply-all-bt-corefile-3of4.patch
 Patch923: gdb-rhbz1104587-thread-apply-all-bt-corefile-4of4.patch
 
+# Testcase for '[SAP] Recursive dlopen causes SAP HANA installer to
+# crash.' (RH BZ 1156192).
+Patch977: gdb-rhbz1156192-recursive-dlopen.patch
+
+# Fix 'Coredump during initialization in find_charset_names' (Tom
+# Tromey, RH BZ 1119119).
+Patch983: gdb-rhbz1119119-find-charset-names.patch
+
+# Fix '`catch syscall' doesn't work for parent after `fork' is called'
+# (Philippe Waroquiers, RH BZ 1149205).
+Patch984: gdb-rhbz1149205-catch-syscall-after-fork.patch
+
+# Fix 'gdb has a bug that prevents it from breaking in anonymous
+# namespace functions.' (RH BZ 1139405)
+Patch985: gdb-rhbz1139405-break-anonymous-namespace-functions-1of5.patch
+Patch986: gdb-rhbz1139405-break-anonymous-namespace-functions-2of5.patch
+Patch987: gdb-rhbz1139405-break-anonymous-namespace-functions-3of5.patch
+Patch988: gdb-rhbz1139405-break-anonymous-namespace-functions-4of5.patch
+Patch989: gdb-rhbz1139405-break-anonymous-namespace-functions-5of5.patch
+
+# Fix 'stack overflow in splay_tree_foreach_helper' (Doug Evans, RH BZ
+# 1117841).
+Patch990: gdb-rhbz1117841-splay_tree_foreach_helper.patch
+
+# Fix 'backport GDB 7.4 fix to RHEL 6.6 GDB' [Original Sourceware bug
+# description: 'C++ (and objc): Internal error on unqualified name
+# re-set', PR 11657] (RH BZ 1186476).
+Patch991: gdb-rhbz1186476-internal-error-unqualified-name-re-set.patch
+
+# Fix 'gdb/linux-nat.c:1411: internal-error:
+# linux_nat_post_attach_wait: Assertion `pid == new_pid' failed.'
+# (Pedro Alves, RH BZ 1162264).
+Patch992: gdb-rhbz1162264-internal-error-linux_nat_post_attach_wait.patch
+
+# Fix 'gdb internal error' [Threaded program calls clone, which
+# crashes GDB] (Pedro Alves, RH BZ 1099929).
+Patch993: gdb-rhbz1099929-thread-call-clone.patch
+
 BuildRequires: ncurses-devel%{?_isa} texinfo gettext flex bison expat-devel%{?_isa}
 Requires: readline%{?_isa}
 BuildRequires: readline-devel%{?_isa}
@@ -1409,6 +1447,18 @@ rm -f gdb/jv-exp.c gdb/m2-exp.c gdb/objc-exp.c gdb/p-exp.c
 %patch921 -p1
 %patch922 -p1
 %patch923 -p1
+%patch977 -p1
+%patch983 -p1
+%patch984 -p1
+%patch985 -p1
+%patch986 -p1
+%patch987 -p1
+%patch988 -p1
+%patch989 -p1
+%patch990 -p1
+%patch991 -p1
+%patch992 -p1
+%patch993 -p1
 
 %patch390 -p1
 %patch393 -p1
@@ -1808,6 +1858,40 @@ fi
 %endif
 
 %changelog
+* Mon Feb 23 2015 Sergio Durigan Junior <sergiodj@redhat.com> - 7.2-83.el6
+- Fix 'gdb internal error' [Threaded program calls clone, which
+  crashes GDB] (Pedro Alves, RH BZ 1099929).
+
+* Sun Feb 22 2015 Sergio Durigan Junior <sergiodj@redhat.com> - 7.2-82.el6
+- Fix 'gdb/linux-nat.c:1411: internal-error:
+ linux_nat_post_attach_wait: Assertion `pid == new_pid' failed.'
+ (Pedro Alves, RH BZ 1162264).
+
+* Thu Feb 19 2015 Sergio Durigan Junior <sergiodj@redhat.com> - 7.2-81.el6
+- Fix 'backport GDB 7.4 fix to RHEL 6.6 GDB' [Original Sourceware bug
+  description: 'C++ (and objc): Internal error on unqualified name
+  re-set', PR 11657] (RH BZ 1186476).
+
+* Wed Feb 11 2015 Sergio Durigan Junior <sergiodj@redhat.com> - 7.2-80.el6
+- Fix 'stack overflow in splay_tree_foreach_helper' (Doug Evans, RH BZ
+  1117841).
+
+* Tue Feb 10 2015 Sergio Durigan Junior <sergiodj@redhat.com> - 7.2-79.el6
+- Fix 'gdb has a bug that prevents it from breaking in anonymous
+  namespace functions.' (Keith Seitz, RH BZ 1139405).
+
+* Mon Feb 09 2015 Sergio Durigan Junior <sergiodj@redhat.com> - 7.2-78.el6
+- Fix '`catch syscall' doesn't work for parent after `fork' is called'
+  (Philippe Waroquiers, RH BZ 1149205).
+
+* Mon Feb 09 2015 Sergio Durigan Junior <sergiodj@redhat.com> - 7.2-77.el6
+- Fix 'Coredump during initialization in find_charset_names' (Tom
+  Tromey, RH BZ 1119119).
+
+* Fri Dec 19 2014 Sergio Durigan Junior <sergiodj@redhat.com> - 7.2-76.el6
+- Fix '[SAP] Recursive dlopen causes SAP HANA installer to crash.' (RH
+  BZ 1156192).
+
 * Fri Jun 27 2014 Sergio Durigan Junior <sergiodj@redhat.com> - 7.2-75.el6
 - Additional fixes needed by 'gdb crashes while thread apply all bt is
   run on the core file' (Jan Kratochvil, Tom Tromey, Paul Pluzhnikov,
