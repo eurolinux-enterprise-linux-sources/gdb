@@ -1,0 +1,51 @@
+commit d44c67f38178c5ad0c083ebff6429d6e477ea42e
+Author: Edjunior Barbosa Machado <emachado@linux.vnet.ibm.com>
+Date:   Thu Aug 18 10:45:12 2016 -0300
+
+    ppc: Fix record of HTM instructions
+    
+    The patch fixes the record support of Hardware Transactional Memory
+    instructions on Power. It also solves a large number of unexpected failures
+    from gdb.reverse testcases sigall-precsave.exp and sigall-reverse.exp that
+    occur on distros which glibc uses HTM instructions.
+    
+    gdb/ChangeLog
+    2016-08-18  Edjunior Barbosa Machado  <emachado@linux.vnet.ibm.com>
+    
+            * rs6000-tdep.c (ppc_process_record_op31): Handle HTM instructions.
+
+### a/gdb/ChangeLog
+### b/gdb/ChangeLog
+## -1,3 +1,7 @@
++2016-08-18  Edjunior Barbosa Machado  <emachado@linux.vnet.ibm.com>
++
++	* rs6000-tdep.c (ppc_process_record_op31): Handle HTM instructions.
++
+ 2016-08-17  Simon Marchi  <simon.marchi@ericsson.com>
+ 
+ 	* inferior.c (remove_inferior_command): Fix error message.
+--- a/gdb/rs6000-tdep.c
++++ b/gdb/rs6000-tdep.c
+@@ -4613,17 +4613,17 @@ ppc_process_record_op31 (struct gdbarch *gdbarch, struct regcache *regcache,
+ 
+     case 654:		/* Transaction Begin */
+     case 686:		/* Transaction End */
+-    case 718:		/* Transaction Check */
+     case 750:		/* Transaction Suspend or Resume */
+     case 782:		/* Transaction Abort Word Conditional */
+     case 814:		/* Transaction Abort Doubleword Conditional */
+     case 846:		/* Transaction Abort Word Conditional Immediate */
+     case 878:		/* Transaction Abort Doubleword Conditional Immediate */
+     case 910:		/* Transaction Abort */
+-      fprintf_unfiltered (gdb_stdlog, "Cannot record Transaction instructions. "
+-			  "%08x at %s, 31-%d.\n",
+-			  insn, paddress (gdbarch, addr), ext);
+-      return -1;
++      record_full_arch_list_add_reg (regcache, tdep->ppc_ps_regnum);
++      /* FALL-THROUGH */
++    case 718:		/* Transaction Check */
++      record_full_arch_list_add_reg (regcache, tdep->ppc_cr_regnum);
++      return 0;
+ 
+     case 1014:		/* Data Cache Block set to Zero */
+       if (target_auxv_search (&current_target, AT_DCACHEBSIZE, &at_dcsz) <= 0

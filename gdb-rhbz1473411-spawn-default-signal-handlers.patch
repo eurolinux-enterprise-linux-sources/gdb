@@ -1,0 +1,670 @@
+commit 35fcb4fc81e51295d14125785765e0ea3e132cd9
+Author: Pedro Alves <palves@redhat.com>
+Date:   Tue Aug 9 20:21:08 2016 +0100
+
+    Fix PR gdb/18653: gdb disturbs inferior's inherited signal dispositions
+    
+    gdb's (or gdbserver's) own signal handling should not interfere with
+    the signal dispositions their spawned children inherit.  However, it
+    currently does.  For example, some paths in gdb cause SIGPIPE to be
+    set to SIG_IGN, and as consequence, the child starts with SIGPIPE to
+    set to SIG_IGN too, even though gdb was started with SIGPIPE set to
+    SIG_DFL.
+    
+    This is because the exec family of functions does not reset the signal
+    disposition of signals that are set to SIG_IGN:
+    
+      http://pubs.opengroup.org/onlinepubs/7908799/xsh/execve.html
+    
+      Signals set to the default action (SIG_DFL) in the calling process
+      image are set to the default action in the new process
+      image. Signals set to be ignored (SIG_IGN) by the calling process
+      image are set to be ignored by the new process image. Signals set to
+      be caught by the calling process image are set to the default action
+      in the new process image (see <signal.h>).
+    
+    And neither does it reset signal masks or flags.
+    
+    In order to be transparent, when spawning new child processes to debug
+    (with "run", etc.), reset signal actions and mask back to what was
+    originally inherited from gdb/gdbserver's parent, just before execing
+    the target program to debug.
+    
+    gdb/ChangeLog:
+    2016-08-09  Pedro Alves  <palves@redhat.com>
+    
+            PR gdb/18653
+            * Makefile.in (SFILES): Add
+            common/signals-state-save-restore.c.
+            (HFILES_NO_SRCDIR): Add common/signals-state-save-restore.h.
+            (COMMON_OBS): Add signals-state-save-restore.o.
+            (signals-state-save-restore.o): New rule.
+            * configure: Regenerate.
+            * fork-child.c: Include "signals-state-save-restore.h".
+            (fork_inferior): Call restore_original_signals_state.
+            * main.c: Include "signals-state-save-restore.h".
+            (captured_main): Call save_original_signals_state.
+            * common/common.m4: Add sigaction to AC_CHECK_FUNCS checks.
+            * common/signals-state-save-restore.c: New file.
+            * common/signals-state-save-restore.h: New file.
+    
+    gdb/gdbserver/ChangeLog:
+    2016-08-09  Pedro Alves  <palves@redhat.com>
+    
+            PR gdb/18653
+            * Makefile.in (OBS): Add signals-state-save-restore.o.
+            (signals-state-save-restore.o): New rule.
+            * config.in: Regenerate.
+            * configure: Regenerate.
+            * linux-low.c: Include "signals-state-save-restore.h".
+            (linux_create_inferior): Call
+            restore_original_signals_state.
+            * server.c: Include "dispositions-save-restore.h".
+            (captured_main): Call save_original_signals_state.
+    
+    gdb/testsuite/ChangeLog:
+    2016-08-09  Pedro Alves  <palves@redhat.com>
+    
+            PR gdb/18653
+            * gdb.base/signals-state-child.c: New file.
+            * gdb.base/signals-state-child.exp: New file.
+            * gdb.gdb/selftest.exp (do_steps_and_nexts): Add new pattern.
+
+### a/gdb/ChangeLog
+### b/gdb/ChangeLog
+## -1,5 +1,22 @@
+ 2016-08-09  Pedro Alves  <palves@redhat.com>
+ 
++	PR gdb/18653
++	* Makefile.in (SFILES): Add
++	common/signals-state-save-restore.c.
++	(HFILES_NO_SRCDIR): Add common/signals-state-save-restore.h.
++	(COMMON_OBS): Add signals-state-save-restore.o.
++	(signals-state-save-restore.o): New rule.
++	* configure: Regenerate.
++	* fork-child.c: Include "signals-state-save-restore.h".
++	(fork_inferior): Call restore_original_signals_state.
++	* main.c: Include "signals-state-save-restore.h".
++	(captured_main): Call save_original_signals_state.
++	* common/common.m4: Add sigaction to AC_CHECK_FUNCS checks.
++	* common/signals-state-save-restore.c: New file.
++	* common/signals-state-save-restore.h: New file.
++
++2016-08-09  Pedro Alves  <palves@redhat.com>
++
+ 	* value.c (unpack_value_bitfield): Skip unpacking if the parent
+ 	has no contents buffer to begin with.
+ 
+Index: gdb-7.6.1/gdb/Makefile.in
+===================================================================
+--- gdb-7.6.1.orig/gdb/Makefile.in	2017-11-03 19:22:10.364013263 +0100
++++ gdb-7.6.1/gdb/Makefile.in	2017-11-03 19:22:11.452021206 +0100
+@@ -763,7 +763,8 @@
+ 	regset.c sol-thread.c windows-termcap.c \
+ 	common/gdb_vecs.c common/common-utils.c common/xml-utils.c \
+ 	common/ptid.c common/buffer.c gdb-dlfcn.c common/agent.c \
+-	common/format.c btrace.c record-btrace.c
++	common/format.c btrace.c record-btrace.c \
++	common/signals-state-save-restore.c \
+ 
+ LINTFILES = $(SFILES) $(YYFILES) $(CONFIG_SRCS) init.c
+ 
+@@ -841,7 +842,8 @@
+ common/format.h common/host-defs.h utils.h common/queue.h common/gdb_string.h \
+ common/linux-osdata.h gdb-dlfcn.h auto-load.h probe.h stap-probe.h \
+ gdb_bfd.h sparc-ravenscar-thread.h ppc-ravenscar-thread.h common/linux-btrace.h \
+-nat/linux-namespaces.h
++nat/linux-namespaces.h \
++common/signals-state-save-restore.h
+ 
+ # Header files that already have srcdir in them, or which are in objdir.
+ 
+@@ -898,6 +900,7 @@
+ 	memattr.o mem-break.o target.o parse.o language.o buildsym.o \
+ 	findcmd.o \
+ 	std-regs.o \
++	signals-state-save-restore.o \
+ 	signals.o \
+ 	exec.o reverse.o \
+ 	bcache.o objfiles.o observer.o minsyms.o maint.o demangle.o \
+@@ -2116,6 +2119,10 @@
+ 	$(COMPILE) $(srcdir)/tui/tui-winsource.c
+ 	$(POSTCOMPILE)
+ 
++signals-state-save-restore.o: $(srcdir)/common/signals-state-save-restore.c
++	$(COMPILE) $(srcdir)/common/signals-state-save-restore.c
++	$(POSTCOMPILE)
++
+ #
+ # gdb/python/ dependencies
+ #
+Index: gdb-7.6.1/gdb/common/signals-state-save-restore.c
+===================================================================
+--- /dev/null	1970-01-01 00:00:00.000000000 +0000
++++ gdb-7.6.1/gdb/common/signals-state-save-restore.c	2017-11-03 19:33:46.346074718 +0100
+@@ -0,0 +1,99 @@
++/* Copyright (C) 2016 Free Software Foundation, Inc.
++
++   This file is part of GDB.
++
++   This program is free software; you can redistribute it and/or modify
++   it under the terms of the GNU General Public License as published by
++   the Free Software Foundation; either version 3 of the License, or
++   (at your option) any later version.
++
++   This program is distributed in the hope that it will be useful,
++   but WITHOUT ANY WARRANTY; without even the implied warranty of
++   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++   GNU General Public License for more details.
++
++   You should have received a copy of the GNU General Public License
++   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
++
++#ifdef GDBSERVER
++#include "server.h"
++#else
++#include "defs.h"
++#endif
++
++#include "signals-state-save-restore.h"
++
++#include <signal.h>
++
++/* The original signal actions and mask.  */
++
++#ifdef HAVE_SIGACTION
++static struct sigaction original_signal_actions[NSIG];
++
++/* Note that we use sigprocmask without worrying about threads because
++   the save/restore functions are called either from main, or after a
++   fork.  In both cases, we know the calling process is single
++   threaded.  */
++static sigset_t original_signal_mask;
++#endif
++
++/* See signals-state-save-restore.h.   */
++
++void
++save_original_signals_state (void)
++{
++#ifdef HAVE_SIGACTION
++  int i;
++  int res;
++
++  res = sigprocmask (0,  NULL, &original_signal_mask);
++  if (res == -1)
++    perror_with_name ("sigprocmask");
++
++  for (i = 1; i < NSIG; i++)
++    {
++      struct sigaction *oldact = &original_signal_actions[i];
++
++      res = sigaction (i, NULL, oldact);
++      if (res == -1 && errno == EINVAL)
++	{
++	  /* Some signal numbers in the range are invalid.  */
++	  continue;
++	}
++      else if (res == -1)
++	perror_with_name ("sigaction");
++
++      /* If we find a custom signal handler already installed, then
++	 this function was called too late.  */
++      if (oldact->sa_handler != SIG_DFL && oldact->sa_handler != SIG_IGN)
++	internal_error (__FILE__, __LINE__, _("unexpected signal handler"));
++    }
++#endif
++}
++
++/* See signals-state-save-restore.h.   */
++
++void
++restore_original_signals_state (void)
++{
++#ifdef HAVE_SIGACTION
++  int i;
++  int res;
++
++  for (i = 1; i < NSIG; i++)
++    {
++      res = sigaction (i, &original_signal_actions[i], NULL);
++      if (res == -1 && errno == EINVAL)
++	{
++	  /* Some signal numbers in the range are invalid.  */
++	  continue;
++	}
++      else if (res == -1)
++	perror_with_name ("sigaction");
++    }
++
++  res = sigprocmask (SIG_SETMASK,  &original_signal_mask, NULL);
++  if (res == -1)
++    perror_with_name ("sigprocmask");
++#endif
++}
+Index: gdb-7.6.1/gdb/common/signals-state-save-restore.h
+===================================================================
+--- /dev/null	1970-01-01 00:00:00.000000000 +0000
++++ gdb-7.6.1/gdb/common/signals-state-save-restore.h	2017-11-03 19:22:11.453021213 +0100
+@@ -0,0 +1,39 @@
++/* Copyright (C) 2016 Free Software Foundation, Inc.
++
++   This file is part of GDB.
++
++   This program is free software; you can redistribute it and/or modify
++   it under the terms of the GNU General Public License as published by
++   the Free Software Foundation; either version 3 of the License, or
++   (at your option) any later version.
++
++   This program is distributed in the hope that it will be useful,
++   but WITHOUT ANY WARRANTY; without even the implied warranty of
++   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++   GNU General Public License for more details.
++
++   You should have received a copy of the GNU General Public License
++   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
++
++#ifndef COMMON_SIGNALS_STATE_SAVE_RESTORE_H
++#define COMMON_SIGNALS_STATE_SAVE_RESTORE_H
++
++/* Save/restore the signal actions of all signals, and the signal
++   mask.
++
++   Since the exec family of functions does not reset the signal
++   disposition of signals set to SIG_IGN, nor does it reset the signal
++   mask, in order to be transparent, when spawning new child processes
++   to debug (with "run", etc.), we must reset signal actions and mask
++   back to what was originally inherited from gdb/gdbserver's parent,
++   just before execing the target program to debug.  */
++
++/* Save the signal state of all signals.  */
++
++extern void save_original_signals_state (void);
++
++/* Restore the signal state of all signals.  */
++
++extern void restore_original_signals_state (void);
++
++#endif /* COMMON_SIGNALS_STATE_SAVE_RESTORE_H */
+Index: gdb-7.6.1/gdb/configure
+===================================================================
+--- gdb-7.6.1.orig/gdb/configure	2017-11-03 19:22:08.181997334 +0100
++++ gdb-7.6.1/gdb/configure	2017-11-03 19:22:11.455021228 +0100
+@@ -10667,7 +10667,7 @@
+ 		sbrk setpgid setpgrp setsid \
+ 		sigaction sigprocmask sigsetmask socketpair syscall \
+ 		ttrace wborder wresize setlocale iconvlist libiconvlist btowc \
+-		setrlimit getrlimit posix_madvise waitpid lstat
++		setrlimit getrlimit posix_madvise waitpid lstat sigaction
+ do :
+   as_ac_var=`$as_echo "ac_cv_func_$ac_func" | $as_tr_sh`
+ ac_fn_c_check_func "$LINENO" "$ac_func" "$as_ac_var"
+Index: gdb-7.6.1/gdb/fork-child.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/fork-child.c	2013-01-01 07:32:42.000000000 +0100
++++ gdb-7.6.1/gdb/fork-child.c	2017-11-03 19:22:11.455021228 +0100
+@@ -32,7 +32,7 @@
+ #include "command.h" /* for dont_repeat () */
+ #include "gdbcmd.h"
+ #include "solib.h"
+-
++#include "signals-state-save-restore.h"
+ #include <signal.h>
+ 
+ /* This just gets used as a default if we can't find SHELL.  */
+@@ -350,6 +350,8 @@
+         saying "not parent".  Sorry; you'll have to use print
+         statements!  */
+ 
++      restore_original_signals_state ();
++
+       /* There is no execlpe call, so we have to set the environment
+          for our child in the global variable.  If we've vforked, this
+          clobbers the parent, but environ is restored a few lines down
+Index: gdb-7.6.1/gdb/gdbserver/Makefile.in
+===================================================================
+--- gdb-7.6.1.orig/gdb/gdbserver/Makefile.in	2017-11-03 19:22:10.364013263 +0100
++++ gdb-7.6.1/gdb/gdbserver/Makefile.in	2017-11-03 19:22:11.455021228 +0100
+@@ -170,6 +170,7 @@
+ 	mem-break.o hostio.o event-loop.o tracepoint.o \
+ 	xml-utils.o common-utils.o ptid.o buffer.o format.o \
+ 	dll.o notif.o \
++	signals-state-save-restore.o \
+ 	$(XML_BUILTIN) \
+ 	$(DEPFILES) $(LIBOBJS)
+ GDBREPLAY_OBS = gdbreplay.o version.o
+@@ -572,6 +573,9 @@
+ linux-namespaces.o: ../nat/linux-namespaces.c
+ 	$(COMPILE) $<
+ 	$(POSTCOMPILE)
++signals-state-save-restore.o: ../common/signals-state-save-restore.c
++	$(COMPILE) $<
++	$(POSTCOMPILE)
+ 
+ win32_low_h = $(srcdir)/win32-low.h
+ 
+Index: gdb-7.6.1/gdb/gdbserver/config.in
+===================================================================
+--- gdb-7.6.1.orig/gdb/gdbserver/config.in	2017-11-03 19:22:10.364013263 +0100
++++ gdb-7.6.1/gdb/gdbserver/config.in	2017-11-03 19:22:11.455021228 +0100
+@@ -152,6 +152,9 @@
+ /* Define to 1 if you have the <sgtty.h> header file. */
+ #undef HAVE_SGTTY_H
+ 
++/* Define to 1 if you have the `sigaction' function. */
++#undef HAVE_SIGACTION
++
+ /* Define to 1 if you have the <signal.h> header file. */
+ #undef HAVE_SIGNAL_H
+ 
+Index: gdb-7.6.1/gdb/gdbserver/configure
+===================================================================
+--- gdb-7.6.1.orig/gdb/gdbserver/configure	2017-11-03 19:22:10.366013278 +0100
++++ gdb-7.6.1/gdb/gdbserver/configure	2017-11-03 19:22:11.456021235 +0100
+@@ -4796,7 +4796,7 @@
+ 
+ done
+ 
+-for ac_func in pread pwrite pread64 readlink setns
++for ac_func in pread pwrite pread64 readlink setns sigaction
+ do :
+   as_ac_var=`$as_echo "ac_cv_func_$ac_func" | $as_tr_sh`
+ ac_fn_c_check_func "$LINENO" "$ac_func" "$as_ac_var"
+Index: gdb-7.6.1/gdb/gdbserver/linux-low.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/gdbserver/linux-low.c	2017-11-03 19:22:10.380013380 +0100
++++ gdb-7.6.1/gdb/gdbserver/linux-low.c	2017-11-03 19:22:11.457021243 +0100
+@@ -20,7 +20,7 @@
+ #include "linux-low.h"
+ #include "linux-osdata.h"
+ #include "agent.h"
+-
++#include "signals-state-save-restore.h"
+ #include "gdb_wait.h"
+ #include <stdio.h>
+ #include <sys/param.h>
+@@ -699,6 +699,8 @@
+ 	    close (remote_desc);
+ 	}
+ 
++      restore_original_signals_state ();
++
+       execv (program, allargs);
+       if (errno == ENOENT)
+ 	execvp (program, allargs);
+Index: gdb-7.6.1/gdb/gdbserver/server.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/gdbserver/server.c	2017-11-03 19:22:10.380013380 +0100
++++ gdb-7.6.1/gdb/gdbserver/server.c	2017-11-03 19:22:11.457021243 +0100
+@@ -20,7 +20,7 @@
+ #include "gdbthread.h"
+ #include "agent.h"
+ #include "notif.h"
+-
++#include "signals-state-save-restore.h"
+ #if HAVE_UNISTD_H
+ #include <unistd.h>
+ #endif
+@@ -2896,6 +2896,8 @@
+       exit (1);
+     }
+ 
++  save_original_signals_state ();
++
+   /* We need to know whether the remote connection is stdio before
+      starting the inferior.  Inferiors created in this scenario have
+      stdin,stdout redirected.  So do this here before we call
+Index: gdb-7.6.1/gdb/main.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/main.c	2017-11-03 19:22:10.319012935 +0100
++++ gdb-7.6.1/gdb/main.c	2017-11-03 19:22:11.458021250 +0100
+@@ -45,6 +45,7 @@
+ #include "auto-load.h"
+ 
+ #include "filenames.h"
++#include "signals-state-save-restore.h"
+ 
+ /* The selected interpreter.  This will be used as a set command
+    variable, so it should always be malloc'ed - since
+@@ -393,6 +394,7 @@
+   textdomain (PACKAGE);
+ 
+   bfd_init ();
++  save_original_signals_state ();
+ 
+   make_cleanup (VEC_cleanup (cmdarg_s), &cmdarg_vec);
+   dirsize = 1;
+Index: gdb-7.6.1/gdb/testsuite/gdb.base/signals-state-child.c
+===================================================================
+--- /dev/null	1970-01-01 00:00:00.000000000 +0000
++++ gdb-7.6.1/gdb/testsuite/gdb.base/signals-state-child.c	2017-11-03 19:22:11.458021250 +0100
+@@ -0,0 +1,101 @@
++/* Copyright 2016 Free Software Foundation, Inc.
++
++   This file is part of GDB.
++
++   This program is free software; you can redistribute it and/or modify
++   it under the terms of the GNU General Public License as published by
++   the Free Software Foundation; either version 3 of the License, or
++   (at your option) any later version.
++
++   This program is distributed in the hope that it will be useful,
++   but WITHOUT ANY WARRANTY; without even the implied warranty of
++   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++   GNU General Public License for more details.
++
++   You should have received a copy of the GNU General Public License
++   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
++
++#include <stdlib.h>
++#include <stdio.h>
++#include <signal.h>
++#include <assert.h>
++#include <errno.h>
++
++#ifndef OUTPUT_TXT
++# define OUTPUT_TXT "output.txt"
++#endif
++
++static void
++perror_and_exit (const char *s)
++{
++  perror (s);
++  exit (1);
++}
++
++int
++main (int argc, char **argv)
++{
++  int i;
++  FILE *out;
++  sigset_t sigset;
++  int res;
++
++  res = sigprocmask (0,  NULL, &sigset);
++  if (res != 0)
++    perror_and_exit ("sigprocmask");
++
++  if (argc > 1)
++    out = stdout;
++  else
++    {
++      out = fopen (OUTPUT_TXT, "w");
++      if (out == NULL)
++	perror_and_exit ("fopen");
++    }
++
++  for (i = 1; i < NSIG; i++)
++    {
++      struct sigaction oldact;
++
++      fprintf (out, "signal %d: ", i);
++
++      res = sigaction (i, NULL, &oldact);
++      if (res == -1 && errno == EINVAL)
++	{
++	  /* Some signal numbers in the range are invalid.  E.g.,
++	     signals 32 and 33 on GNU/Linux.  */
++	  fprintf (out, "invalid");
++	}
++      else if (res == -1)
++	{
++	  perror_and_exit ("sigaction");
++	}
++      else
++	{
++	  int m;
++
++	  fprintf (out, "sigaction={sa_handler=", i);
++
++	  if (oldact.sa_handler == SIG_DFL)
++	    fprintf (out, "SIG_DFL");
++	  else if (oldact.sa_handler == SIG_IGN)
++	    fprintf (out, "SIG_IGN");
++	  else
++	    abort ();
++
++	  fprintf (out, ", sa_mask=");
++	  for (m = 1; m < NSIG; m++)
++	    fprintf (out, "%c", sigismember (&oldact.sa_mask, m) ? '1' : '0');
++
++	  fprintf (out, ", sa_flags=%d", oldact.sa_flags);
++
++	  fprintf (out, "}, masked=%d", sigismember (&sigset, i));
++	}
++      fprintf (out, "\n");
++    }
++
++  if (out != stdout)
++    fclose (out);
++
++  return 0;
++}
+Index: gdb-7.6.1/gdb/testsuite/gdb.base/signals-state-child.exp
+===================================================================
+--- /dev/null	1970-01-01 00:00:00.000000000 +0000
++++ gdb-7.6.1/gdb/testsuite/gdb.base/signals-state-child.exp	2017-11-03 19:22:11.458021250 +0100
+@@ -0,0 +1,82 @@
++# Copyright 2016 Free Software Foundation, Inc.
++
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 3 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License
++# along with this program.  If not, see <http://www.gnu.org/licenses/>.
++
++# Test that gdb's (or gdbserver's) own signal handling does not
++# interfere with the signal actions (dispositions, etc.) and mask
++# their spawned children inherit.
++#
++# - If gdb inherits some signal set to SIG_IGN, so should the
++#   inferior, even if gdb itself chooses not to ignore the signal.
++#
++# - If gdb inherits some signal set to SIG_DFL, so should the inferior
++#   even if gdb itself ignores that signal.
++#
++# This requires special support in gdb/gdbserver because the exec
++# family of functions does not reset the signal disposition of signals
++# that are set to SIG_IGN, nor signal masks and flags.
++
++standard_testfile
++
++set gdb_txt [standard_output_file gdb.txt]
++set standalone_txt [standard_output_file standalone.txt]
++remote_exec host "rm -f $gdb_txt"
++remote_exec host "rm -f $standalone_txt"
++
++set options [list debug "additional_flags=-DOUTPUT_TXT=\"$gdb_txt\""]
++if {[build_executable $testfile.exp $testfile $srcfile $options]} {
++    untested $testfile.exp
++    return -1
++}
++
++set options [list debug "additional_flags=-DOUTPUT_TXT=\"$standalone_txt\""]
++if {[build_executable $testfile.exp $testfile-standalone $srcfile $options]} {
++    untested $testfile.exp
++    return -1
++}
++
++# Run the program directly, and dump its initial signal actions and
++# mask in "standalone.txt".
++
++# Use remote_spawn instead of remote_exec, like how we spawn gdb.
++# This is in order to take the same code code paths in dejagnu
++# compared to when running the program through gdb.  E.g., because
++# local_exec uses -ignore SIGHUP, while remote_spawn does not, if we
++# used remote_exec, the test program would start with SIGHUP ignored
++# when run standalone, but not when run through gdb.
++set res [remote_spawn host "$binfile-standalone"]
++if { $res < 0 || $res == "" } {
++    untested "spawning $binfile-standalone failed"
++    return 1
++} else {
++    pass "collect standalone signals state"
++}
++remote_close host
++
++# Now run the program through gdb, and dump its initial signal actions
++# and mask in "gdb.txt".
++
++clean_restart $binfile
++
++if { ! [ runto_main ] } then {
++    untested $testfile.exp
++    return -1
++}
++
++gdb_continue_to_end "collect signals state under gdb"
++
++# Diff the .txt files.  They should be identical.
++gdb_test "shell diff -s $standalone_txt $gdb_txt" \
++    "Files .* are identical.*" \
++    "signals states are identical"
+Index: gdb-7.6.1/gdb/testsuite/gdb.gdb/selftest.exp
+===================================================================
+--- gdb-7.6.1.orig/gdb/testsuite/gdb.gdb/selftest.exp	2017-11-03 19:22:06.904988012 +0100
++++ gdb-7.6.1/gdb/testsuite/gdb.gdb/selftest.exp	2017-11-03 19:22:11.458021250 +0100
+@@ -158,6 +158,10 @@
+ 		set description "next over bfd_init"
+ 		set command "next"
+ 	    }
++	    -re ".*save_original_signals_state ..;.*$gdb_prompt $" {
++		set description "next over save_original_signals_state"
++		set command "next"
++	    }
+ 	    -re ".*VEC_cleanup .cmdarg_s.*$gdb_prompt $" {
+ 		set description "next over cmdarg_s VEC_cleanup"
+ 		set command "next"
+Index: gdb-7.6.1/gdb/configure.ac
+===================================================================
+--- gdb-7.6.1.orig/gdb/configure.ac	2017-11-03 19:22:08.164997210 +0100
++++ gdb-7.6.1/gdb/configure.ac	2017-11-03 19:22:11.459021257 +0100
+@@ -1365,7 +1365,7 @@
+ 		sbrk setpgid setpgrp setsid \
+ 		sigaction sigprocmask sigsetmask socketpair syscall \
+ 		ttrace wborder wresize setlocale iconvlist libiconvlist btowc \
+-		setrlimit getrlimit posix_madvise waitpid lstat])
++		setrlimit getrlimit posix_madvise waitpid lstat sigaction])
+ AM_LANGINFO_CODESET
+ 
+ # Check the return and argument types of ptrace.  No canned test for
+Index: gdb-7.6.1/gdb/gdbserver/configure.ac
+===================================================================
+--- gdb-7.6.1.orig/gdb/gdbserver/configure.ac	2017-11-03 19:22:10.366013278 +0100
++++ gdb-7.6.1/gdb/gdbserver/configure.ac	2017-11-03 19:22:11.459021257 +0100
+@@ -70,7 +70,7 @@
+ 		 sys/ioctl.h netinet/in.h sys/socket.h netdb.h dnl
+ 		 netinet/tcp.h arpa/inet.h sys/wait.h wait.h sys/un.h dnl
+ 		 linux/perf_event.h)
+-AC_CHECK_FUNCS(pread pwrite pread64 readlink setns)
++AC_CHECK_FUNCS(pread pwrite pread64 readlink setns sigaction)
+ AC_REPLACE_FUNCS(vasprintf vsnprintf)
+ 
+ # Check for UST

@@ -1,0 +1,286 @@
+commit 7f03bd92e389a32da490bb55037881cf374d0f69
+Author: Pedro Alves <palves@redhat.com>
+Date:   Thu Aug 6 18:23:00 2015 +0100
+
+    PPC64: Fix gdb.arch/ppc64-atomic-inst.exp with displaced stepping
+    
+    The ppc64 displaced step code can't handle atomic sequences.  Fallback
+    to stepping over the breakpoint in-line if we detect one.
+    
+    gdb/ChangeLog:
+    2015-08-07  Pedro Alves  <palves@redhat.com>
+    
+            * infrun.c (displaced_step_prepare_throw): Return -1 if
+            gdbarch_displaced_step_copy_insn returns NULL.  Update intro
+            comment.
+            * rs6000-tdep.c (LWARX_MASK, LWARX_INSTRUCTION, LDARX_INSTRUCTION)
+            (STWCX_MASK, STWCX_INSTRUCTION, STDCX_INSTRUCTION): Move higher up
+            in file.
+            (ppc_displaced_step_copy_insn): New function.
+            (ppc_displaced_step_fixup): Update comment.
+            (rs6000_gdbarch_init): Install ppc_displaced_step_copy_insn as
+            gdbarch_displaced_step_copy_insn hook.
+            * gdbarch.sh (displaced_step_copy_insn): Document what happens on
+            NULL return.
+            * gdbarch.h: Regenerate.
+    
+    gdb/testsuite/ChangeLog:
+    2015-08-07  Pedro Alves  <palves@redhat.com>
+    
+            * gdb.arch/ppc64-atomic-inst.exp (do_test): New procedure, move
+            tests here.
+            (top level): Run do_test with and without displaced stepping.
+
+### a/gdb/ChangeLog
+### b/gdb/ChangeLog
+## -1,5 +1,21 @@
+ 2015-08-07  Pedro Alves  <palves@redhat.com>
+ 
++	* infrun.c (displaced_step_prepare_throw): Return -1 if
++	gdbarch_displaced_step_copy_insn returns NULL.  Update intro
++	comment.
++	* rs6000-tdep.c (LWARX_MASK, LWARX_INSTRUCTION, LDARX_INSTRUCTION)
++	(STWCX_MASK, STWCX_INSTRUCTION, STDCX_INSTRUCTION): Move higher up
++	in file.
++	(ppc_displaced_step_copy_insn): New function.
++	(ppc_displaced_step_fixup): Update comment.
++	(rs6000_gdbarch_init): Install ppc_displaced_step_copy_insn as
++	gdbarch_displaced_step_copy_insn hook.
++	* gdbarch.sh (displaced_step_copy_insn): Document what happens on
++	NULL return.
++	* gdbarch.h: Regenerate.
++
++2015-08-07  Pedro Alves  <palves@redhat.com>
++
+ 	* inferior.h (struct inferior) <displaced_stepping_failed>: New
+ 	field.
+ 	* infrun.c (use_displaced_stepping_now_p): New parameter 'inf'.
+Index: gdb-7.6.1/gdb/gdbarch.h
+===================================================================
+--- gdb-7.6.1.orig/gdb/gdbarch.h	2017-08-29 21:41:21.400218851 +0200
++++ gdb-7.6.1/gdb/gdbarch.h	2017-08-29 21:41:29.832299833 +0200
+@@ -870,7 +870,11 @@
+   
+    If your architecture doesn't need to adjust instructions before
+    single-stepping them, consider using simple_displaced_step_copy_insn
+-   here. */
++   here.
++
++   If the instruction cannot execute out of line, return NULL.  The
++   core falls back to stepping past the instruction in-line instead in
++   that case. */
+ 
+ extern int gdbarch_displaced_step_copy_insn_p (struct gdbarch *gdbarch);
+ 
+Index: gdb-7.6.1/gdb/gdbarch.sh
+===================================================================
+--- gdb-7.6.1.orig/gdb/gdbarch.sh	2017-08-29 21:41:21.401218861 +0200
++++ gdb-7.6.1/gdb/gdbarch.sh	2017-08-29 21:41:29.833299843 +0200
+@@ -724,6 +724,10 @@
+ # If your architecture doesn't need to adjust instructions before
+ # single-stepping them, consider using simple_displaced_step_copy_insn
+ # here.
++#
++# If the instruction cannot execute out of line, return NULL.  The
++# core falls back to stepping past the instruction in-line instead in
++# that case.
+ M:struct displaced_step_closure *:displaced_step_copy_insn:CORE_ADDR from, CORE_ADDR to, struct regcache *regs:from, to, regs
+ 
+ # Return true if GDB should use hardware single-stepping to execute
+Index: gdb-7.6.1/gdb/infrun.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/infrun.c	2017-08-29 21:41:21.404218890 +0200
++++ gdb-7.6.1/gdb/infrun.c	2017-08-29 21:41:29.835299862 +0200
+@@ -1323,7 +1323,9 @@
+    explain how we handle this case instead.
+ 
+    Returns 1 if preparing was successful -- this thread is going to be
+-   stepped now; or 0 if displaced stepping this thread got queued.  */
++   stepped now; 0 if displaced stepping this thread got queued; or -1
++   if this instruction can't be displaced stepped.  */
++
+ static int
+ displaced_step_prepare (ptid_t ptid)
+ {
+@@ -1412,9 +1414,14 @@
+ 
+   closure = gdbarch_displaced_step_copy_insn (gdbarch,
+ 					      original, copy, regcache);
+-
+-  /* We don't support the fully-simulated case at present.  */
+-  gdb_assert (closure);
++  if (closure == NULL)
++    {
++      /* The architecture doesn't know how or want to displaced step
++	 this instruction or instruction sequence.  Fallback to
++	 stepping over the breakpoint in-line.  */
++      do_cleanups (old_cleanups);
++      return -1;
++    }
+ 
+   /* Save the information we need to fix things up if the step
+      succeeds.  */
+Index: gdb-7.6.1/gdb/rs6000-tdep.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/rs6000-tdep.c	2017-08-29 21:41:21.407218918 +0200
++++ gdb-7.6.1/gdb/rs6000-tdep.c	2017-08-29 21:41:29.837299881 +0200
+@@ -975,6 +975,61 @@
+ #define BXL_INSN 0x4c000000
+ #define BP_INSN 0x7C000008
+ 
++/* Instruction masks used during single-stepping of atomic
++   sequences.  */
++#define LWARX_MASK 0xfc0007fe
++#define LWARX_INSTRUCTION 0x7c000028
++#define LDARX_INSTRUCTION 0x7c0000A8
++#define STWCX_MASK 0xfc0007ff
++#define STWCX_INSTRUCTION 0x7c00012d
++#define STDCX_INSTRUCTION 0x7c0001ad
++
++/* We can't displaced step atomic sequences.  Otherwise this is just
++   like simple_displaced_step_copy_insn.  */
++
++static struct displaced_step_closure *
++ppc_displaced_step_copy_insn (struct gdbarch *gdbarch,
++			      CORE_ADDR from, CORE_ADDR to,
++			      struct regcache *regs)
++{
++  size_t len = gdbarch_max_insn_length (gdbarch);
++  gdb_byte *buf = xmalloc (len);
++  struct cleanup *old_chain = make_cleanup (xfree, buf);
++  enum bfd_endian byte_order = gdbarch_byte_order (gdbarch);
++  int insn;
++
++  read_memory (from, buf, len);
++
++  insn = extract_signed_integer (buf, PPC_INSN_SIZE, byte_order);
++
++  /* Assume all atomic sequences start with a lwarx/ldarx instruction.  */
++  if ((insn & LWARX_MASK) == LWARX_INSTRUCTION
++      || (insn & LWARX_MASK) == LDARX_INSTRUCTION)
++    {
++      if (debug_displaced)
++	{
++	  fprintf_unfiltered (gdb_stdlog,
++			      "displaced: can't displaced step "
++			      "atomic sequence at %s\n",
++			      paddress (gdbarch, from));
++	}
++      do_cleanups (old_chain);
++      return NULL;
++    }
++
++  write_memory (to, buf, len);
++
++  if (debug_displaced)
++    {
++      fprintf_unfiltered (gdb_stdlog, "displaced: copy %s->%s: ",
++                          paddress (gdbarch, from), paddress (gdbarch, to));
++      displaced_step_dump_bytes (gdb_stdlog, buf, len);
++    }
++
++  discard_cleanups (old_chain);
++  return (struct displaced_step_closure *) buf;
++}
++
+ /* Fix up the state of registers and memory after having single-stepped
+    a displaced instruction.  */
+ static void
+@@ -984,8 +1039,7 @@
+ 			  struct regcache *regs)
+ {
+   enum bfd_endian byte_order = gdbarch_byte_order (gdbarch);
+-  /* Since we use simple_displaced_step_copy_insn, our closure is a
+-     copy of the instruction.  */
++  /* Our closure is a copy of the instruction.  */
+   ULONGEST insn  = extract_unsigned_integer ((gdb_byte *) closure,
+ 					      PPC_INSN_SIZE, byte_order);
+   ULONGEST opcode = 0;
+@@ -1078,14 +1132,6 @@
+   return 1;
+ }
+ 
+-/* Instruction masks used during single-stepping of atomic sequences.  */
+-#define LWARX_MASK 0xfc0007fe
+-#define LWARX_INSTRUCTION 0x7c000028
+-#define LDARX_INSTRUCTION 0x7c0000A8
+-#define STWCX_MASK 0xfc0007ff
+-#define STWCX_INSTRUCTION 0x7c00012d
+-#define STDCX_INSTRUCTION 0x7c0001ad
+-
+ /* Checks for an atomic sequence of instructions beginning with a LWARX/LDARX
+    instruction and ending with a STWCX/STDCX instruction.  If such a sequence
+    is found, attempt to step through it.  A breakpoint is placed at the end of 
+@@ -6427,7 +6473,7 @@
+ 
+   /* Setup displaced stepping.  */
+   set_gdbarch_displaced_step_copy_insn (gdbarch,
+-					simple_displaced_step_copy_insn);
++					ppc_displaced_step_copy_insn);
+   set_gdbarch_displaced_step_hw_singlestep (gdbarch,
+ 					    ppc_displaced_step_hw_singlestep);
+   set_gdbarch_displaced_step_fixup (gdbarch, ppc_displaced_step_fixup);
+Index: gdb-7.6.1/gdb/testsuite/gdb.arch/ppc64-atomic-inst.exp
+===================================================================
+--- gdb-7.6.1.orig/gdb/testsuite/gdb.arch/ppc64-atomic-inst.exp	2017-08-29 21:41:21.408218928 +0200
++++ gdb-7.6.1/gdb/testsuite/gdb.arch/ppc64-atomic-inst.exp	2017-08-29 21:41:29.837299881 +0200
+@@ -32,27 +32,41 @@
+     return -1
+ }
+ 
+-if ![runto_main] then {
+-    untested "could not run to main"
+-    return -1
+-}
++# The test proper.  DISPLACED is true if we should try with displaced
++# stepping.
++proc do_test { displaced } {
++    global decimal hex
++
++    if ![runto_main] then {
++	untested "could not run to main"
++	return -1
++    }
++
++    gdb_test_no_output "set displaced-stepping $displaced"
+ 
+-set bp1 [gdb_get_line_number "lwarx"]
+-gdb_breakpoint "$bp1" "Breakpoint $decimal at $hex" \
+-  "Set the breakpoint at the start of the lwarx/stwcx sequence"
++    set bp1 [gdb_get_line_number "lwarx"]
++    gdb_breakpoint "$bp1" "Breakpoint $decimal at $hex" \
++	"Set the breakpoint at the start of the lwarx/stwcx sequence"
+ 
+-set bp2 [gdb_get_line_number "ldarx"]
+-gdb_breakpoint "$bp2" "Breakpoint $decimal at $hex" \
+-  "Set the breakpoint at the start of the ldarx/stdcx sequence"
++    set bp2 [gdb_get_line_number "ldarx"]
++    gdb_breakpoint "$bp2" "Breakpoint $decimal at $hex" \
++	"Set the breakpoint at the start of the ldarx/stdcx sequence"
+ 
+-gdb_test continue "Continuing.*Breakpoint $decimal.*" \
+-  "Continue until lwarx/stwcx start breakpoint"
++    gdb_test continue "Continuing.*Breakpoint $decimal.*" \
++	"Continue until lwarx/stwcx start breakpoint"
+ 
+-gdb_test nexti "bne.*1b" \
+-  "Step through the lwarx/stwcx sequence"
++    gdb_test nexti "bne.*1b" \
++	"Step through the lwarx/stwcx sequence"
+ 
+-gdb_test continue "Continuing.*Breakpoint $decimal.*" \
+-  "Continue until ldarx/stdcx start breakpoint"
++    gdb_test continue "Continuing.*Breakpoint $decimal.*" \
++	"Continue until ldarx/stdcx start breakpoint"
+ 
+-gdb_test nexti "bne.*1b" \
+-  "Step through the ldarx/stdcx sequence"
++    gdb_test nexti "bne.*1b" \
++	"Step through the ldarx/stdcx sequence"
++}
++
++foreach displaced { "off" "on" } {
++    with_test_prefix "displaced=$displaced" {
++	do_test $displaced
++    }
++}

@@ -1,0 +1,90 @@
+commit a1da2672bdc5adc551ad30d73eccea902063f583
+Author: Ulrich Weigand <ulrich.weigand@de.ibm.com>
+Date:   Fri Jun 12 17:43:48 2015 +0200
+
+    ppc64: Handle short vectors as function return types
+    
+    Short synthetic vector types (i.e. those defined using GCC's
+    attribute ((vector_size)) instead of AltiVec vector types)
+    are returned in r3.  Fix ppc64_sysv_abi_return_value to
+    correctly handle this.
+    
+    gdb/ChangeLog:
+    
+            * ppc-sysv-tdep.c (ppc64_sysv_abi_return_value_base): Handle short
+            synthetic (non-AltiVec) vector types.
+            (ppc64_sysv_abi_return_value): Likewise.
+
+### a/gdb/ChangeLog
+### b/gdb/ChangeLog
+## -1,3 +1,9 @@
++2015-05-12 Ulrich Weigand  <uweigand@de.ibm.com>
++
++	* ppc-sysv-tdep.c (ppc64_sysv_abi_return_value_base): Handle short
++	synthetic (non-AltiVec) vector types.
++	(ppc64_sysv_abi_return_value): Likewise.
++
+ 2015-06-12  Antoine Tremblay  <antoine.tremblay@ericsson.com>
+ 
+ 	PR breakpoints/16465
+--- a/gdb/ppc-sysv-tdep.c
++++ b/gdb/ppc-sysv-tdep.c
+@@ -1892,7 +1892,8 @@ ppc64_sysv_abi_return_value_base (struct gdbarch *gdbarch, struct type *valtype,
+     }
+ 
+   /* AltiVec vectors are returned in VRs starting at v2.  */
+-  if (TYPE_CODE (valtype) == TYPE_CODE_ARRAY && TYPE_VECTOR (valtype)
++  if (TYPE_LENGTH (valtype) == 16
++      && TYPE_CODE (valtype) == TYPE_CODE_ARRAY && TYPE_VECTOR (valtype)
+       && tdep->vector_abi == POWERPC_VEC_ALTIVEC)
+     {
+       int regnum = tdep->ppc_vr0_regnum + 2 + index;
+@@ -1904,6 +1905,25 @@ ppc64_sysv_abi_return_value_base (struct gdbarch *gdbarch, struct type *valtype,
+       return 1;
+     }
+ 
++  /* Short vectors are returned in GPRs starting at r3.  */
++  if (TYPE_LENGTH (valtype) <= 8
++      && TYPE_CODE (valtype) == TYPE_CODE_ARRAY && TYPE_VECTOR (valtype))
++    {
++      int regnum = tdep->ppc_gp0_regnum + 3 + index;
++      int offset = 0;
++
++      if (gdbarch_byte_order (gdbarch) == BFD_ENDIAN_BIG)
++	offset = 8 - TYPE_LENGTH (valtype);
++
++      if (writebuf != NULL)
++	regcache_cooked_write_part (regcache, regnum,
++				    offset, TYPE_LENGTH (valtype), writebuf);
++      if (readbuf != NULL)
++	regcache_cooked_read_part (regcache, regnum,
++				   offset, TYPE_LENGTH (valtype), readbuf);
++      return 1;
++    }
++
+   return 0;
+ }
+ 
+@@ -1993,6 +2013,7 @@ ppc64_sysv_abi_return_value (struct gdbarch *gdbarch, struct value *function,
+ 
+   /* Small character arrays are returned, right justified, in r3.  */
+   if (TYPE_CODE (valtype) == TYPE_CODE_ARRAY
++      && !TYPE_VECTOR (valtype)
+       && TYPE_LENGTH (valtype) <= 8
+       && TYPE_CODE (TYPE_TARGET_TYPE (valtype)) == TYPE_CODE_INT
+       && TYPE_LENGTH (TYPE_TARGET_TYPE (valtype)) == 1)
+@@ -2012,7 +2033,13 @@ ppc64_sysv_abi_return_value (struct gdbarch *gdbarch, struct value *function,
+   /* In the ELFv2 ABI, homogeneous floating-point or vector
+      aggregates are returned in registers.  */
+   if (tdep->elf_abi == POWERPC_ELF_V2
+-      && ppc64_elfv2_abi_homogeneous_aggregate (valtype, &eltype, &nelt))
++      && ppc64_elfv2_abi_homogeneous_aggregate (valtype, &eltype, &nelt)
++      && (TYPE_CODE (eltype) == TYPE_CODE_FLT
++	  || TYPE_CODE (eltype) == TYPE_CODE_DECFLOAT
++	  || (TYPE_CODE (eltype) == TYPE_CODE_ARRAY
++	      && TYPE_VECTOR (eltype)
++	      && tdep->vector_abi == POWERPC_VEC_ALTIVEC
++	      && TYPE_LENGTH (eltype) == 16)))
+     {
+       for (i = 0; i < nelt; i++)
+ 	{

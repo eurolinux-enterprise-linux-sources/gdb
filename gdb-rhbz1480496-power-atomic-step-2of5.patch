@@ -1,0 +1,51 @@
+commit 3114cea14b326c1d429388559f020103108b3019
+Author: Anton Blanchard <anton@samba.org>
+Date:   Mon Mar 31 12:03:01 2014 +1100
+
+    gdb.arch/ppc64-atomic-inst.exp: Use standard_testfile, prepare_for_testing.
+    
+    gdb/testsuite/
+    2014-04-01  Anton Blanchard  <anton@samba.org>
+    
+            * gdb.arch/ppc64-atomic-inst.exp: Use standard_testfile,
+            prepare_for_testing.
+
+### a/gdb/testsuite/ChangeLog
+### b/gdb/testsuite/ChangeLog
+## -1,5 +1,10 @@
+ 2014-04-01  Anton Blanchard  <anton@samba.org>
+ 
++	* gdb.arch/ppc64-atomic-inst.exp: Use standard_testfile,
++	prepare_for_testing.
++
++2014-04-01  Anton Blanchard  <anton@samba.org>
++
+ 	* gdb.arch/ppc64-atomic-inst.c: Remove.
+ 	* gdb.arch/ppc64-atomic-inst.S: New file.
+ 	* gdb.arch/ppc64-atomic-inst.exp: Adapt for asm based testcase.
+--- a/gdb/testsuite/gdb.arch/ppc64-atomic-inst.exp
++++ b/gdb/testsuite/gdb.arch/ppc64-atomic-inst.exp
+@@ -26,21 +26,12 @@ if {![istarget "powerpc*"] || ![is_lp64_target]} {
+     return
+ }
+ 
+-set testfile "ppc64-atomic-inst"
+-set srcfile ${testfile}.S
+-set binfile ${objdir}/${subdir}/${testfile}
+-set compile_flags {debug quiet}
++standard_testfile .S
+ 
+-if { [gdb_compile "${srcdir}/${subdir}/${srcfile}" "${binfile}" executable $compile_flags] != "" } {
+-    unsupported "Testcase compile failed."
++if { [prepare_for_testing ${testfile}.exp ${testfile} ${srcfile} {debug quiet}] } {
+     return -1
+ }
+ 
+-gdb_exit
+-gdb_start
+-gdb_reinitialize_dir $srcdir/$subdir
+-gdb_load ${binfile}
+-
+ if ![runto_main] then {
+     perror "Couldn't run to breakpoint"
+     continue

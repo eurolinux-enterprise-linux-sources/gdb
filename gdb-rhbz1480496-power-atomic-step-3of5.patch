@@ -1,0 +1,61 @@
+commit 98d1b8dcd84bb39ba5d0731162f241890d4ce5f5
+Author: Anton Blanchard <anton@samba.org>
+Date:   Mon Mar 31 13:32:07 2014 +1100
+
+    gdb.arch/ppc64-atomic-inst.exp: Improve error handling.
+    
+    gdb/testsuite/
+    2014-04-01  Anton Blanchard  <anton@samba.org>
+    
+            * gdb.arch/ppc64-atomic-inst.exp: Use untested.  Make test
+            messages unique.
+
+### a/gdb/testsuite/ChangeLog
+### b/gdb/testsuite/ChangeLog
+## -1,5 +1,10 @@
+ 2014-04-01  Anton Blanchard  <anton@samba.org>
+ 
++	* gdb.arch/ppc64-atomic-inst.exp: Use untested.  Make test
++	messages unique.
++
++2014-04-01  Anton Blanchard  <anton@samba.org>
++
+ 	* gdb.arch/ppc64-atomic-inst.exp: Use standard_testfile,
+ 	prepare_for_testing.
+ 
+--- a/gdb/testsuite/gdb.arch/ppc64-atomic-inst.exp
++++ b/gdb/testsuite/gdb.arch/ppc64-atomic-inst.exp
+@@ -33,26 +33,26 @@ if { [prepare_for_testing ${testfile}.exp ${testfile} ${srcfile} {debug quiet}]
+ }
+ 
+ if ![runto_main] then {
+-    perror "Couldn't run to breakpoint"
+-    continue
++    untested "could not run to main"
++    return -1
+ }
+ 
+ set bp1 [gdb_get_line_number "lwarx"]
+ gdb_breakpoint "$bp1" "Breakpoint $decimal at $hex" \
+-  "Set the breakpoint at the start of the sequence"
++  "Set the breakpoint at the start of the lwarx/stwcx sequence"
+ 
+ set bp2 [gdb_get_line_number "ldarx"]
+ gdb_breakpoint "$bp2" "Breakpoint $decimal at $hex" \
+-  "Set the breakpoint at the start of the sequence"
++  "Set the breakpoint at the start of the ldarx/stdcx sequence"
+ 
+ gdb_test continue "Continuing.*Breakpoint $decimal.*" \
+-  "Continue until breakpoint"
++  "Continue until lwarx/stwcx start breakpoint"
+ 
+ gdb_test nexti "bne.*1b" \
+   "Step through the lwarx/stwcx sequence"
+ 
+ gdb_test continue "Continuing.*Breakpoint $decimal.*" \
+-  "Continue until breakpoint"
++  "Continue until ldarx/stdcx start breakpoint"
+ 
+ gdb_test nexti "bne.*1b" \
+-  "Step through the lwarx/stwcx sequence"
++  "Step through the ldarx/stdcx sequence"

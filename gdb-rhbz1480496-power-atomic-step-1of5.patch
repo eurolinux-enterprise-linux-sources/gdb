@@ -1,0 +1,173 @@
+commit 62f7182c14492421b8d59ba5c6640d6c27ad6ea2
+Author: Anton Blanchard <anton@samba.org>
+Date:   Fri Mar 28 12:37:37 2014 +1100
+
+    Fix ppc64 single step over atomic sequence testcase.
+    
+    The current ppc64 single step over atomic sequence testcase is written
+    in C and breaks with some versions of gcc. Convert the test to
+    assembly and use stepi to step through it.
+    
+    gdb/testsuite/
+    2014-04-01  Anton Blanchard  <anton@samba.org>
+    
+            * gdb.arch/ppc64-atomic-inst.c: Remove.
+            * gdb.arch/ppc64-atomic-inst.S: New file.
+            * gdb.arch/ppc64-atomic-inst.exp: Adapt for asm based testcase.
+
+### a/gdb/testsuite/ChangeLog
+### b/gdb/testsuite/ChangeLog
+## -1,3 +1,9 @@
++2014-04-01  Anton Blanchard  <anton@samba.org>
++
++	* gdb.arch/ppc64-atomic-inst.c: Remove.
++	* gdb.arch/ppc64-atomic-inst.S: New file.
++	* gdb.arch/ppc64-atomic-inst.exp: Adapt for asm based testcase.
++
+ 2014-03-31  Doug Evans  <dje@google.com>
+ 
+ 	* gdb.base/print-symbol-loading-lib.c: New file.
+--- /dev/null
++++ b/gdb/testsuite/gdb.arch/ppc64-atomic-inst.S
+@@ -0,0 +1,61 @@
++/* This file is part of GDB, the GNU debugger.
++
++   Copyright 2008-2014 Free Software Foundation, Inc.
++
++   This program is free software; you can redistribute it and/or modify
++   it under the terms of the GNU General Public License as published by
++   the Free Software Foundation; either version 3 of the License, or
++   (at your option) any later version.
++
++   This program is distributed in the hope that it will be useful,
++   but WITHOUT ANY WARRANTY; without even the implied warranty of
++   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++   GNU General Public License for more details.
++
++   You should have received a copy of the GNU General Public License
++   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
++
++	.align 2
++	.globl main
++#if _CALL_ELF == 2
++	.type main,@function
++main:
++#else
++	.section ".opd","aw"
++	.align 3
++main:
++	.quad .main,.TOC.@tocbase,0
++	.size main,.-main
++	.previous
++	.globl .main
++	.type .main,@function
++.main:
++#endif
++
++	li	0,0
++	addi	4,1,-8
++
++	stw	0,0(4)
++1:	lwarx	5,0,4
++	cmpwi	5,0
++	bne	2f
++	addi	5,5,1
++	stwcx.	5,0,4
++	bne	1b
++
++	std	0,0(4)
++2:	ldarx	5,0,4
++	cmpdi	5,0
++	bne	3f
++	addi	5,5,1
++	stdcx.	5,0,4
++	bne	1b
++
++3:	li	3,0
++	blr
++
++#if _CALL_ELF == 2
++	.size main,.-main
++#else
++	.size .main,.-.main
++#endif
+--- a/gdb/testsuite/gdb.arch/ppc64-atomic-inst.c
++++ /dev/null
+@@ -1,44 +0,0 @@
+-/* This file is part of GDB, the GNU debugger.
+-
+-   Copyright 2008-2013 Free Software Foundation, Inc.
+-
+-   This program is free software; you can redistribute it and/or modify
+-   it under the terms of the GNU General Public License as published by
+-   the Free Software Foundation; either version 3 of the License, or
+-   (at your option) any later version.
+-
+-   This program is distributed in the hope that it will be useful,
+-   but WITHOUT ANY WARRANTY; without even the implied warranty of
+-   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+-   GNU General Public License for more details.
+-
+-   You should have received a copy of the GNU General Public License
+-   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
+-
+-#include <stdio.h>
+-
+-int main()
+-{
+-  unsigned int word = 0;
+-  unsigned int *word_addr = &word;
+-  unsigned long dword = 0;
+-  unsigned long *dword_addr = &dword;
+-
+-  __asm __volatile ("1:     lwarx   %0,0,%2\n"              \
+-                    "       addi    %0,%0,1\n"              \
+-                    "       stwcx.  %0,0,%2\n"              \
+-                    "       bne-    1b"			    \
+-                    : "=&b" (word), "=m" (*word_addr)       \
+-                    : "b" (word_addr), "m" (*word_addr)     \
+-                    : "cr0", "memory");			    \
+-
+-  __asm __volatile ("1:     ldarx   %0,0,%2\n"              \
+-                    "       addi    %0,%0,1\n"              \
+-                    "       stdcx.  %0,0,%2\n"              \
+-                    "       bne-    1b"                     \
+-                    : "=&b" (dword), "=m" (*dword_addr)     \
+-                    : "b" (dword_addr), "m" (*dword_addr)   \
+-                    : "cr0", "memory");                     \
+-
+-  return 0;
+-}
+--- a/gdb/testsuite/gdb.arch/ppc64-atomic-inst.exp
++++ b/gdb/testsuite/gdb.arch/ppc64-atomic-inst.exp
+@@ -27,7 +27,7 @@ if {![istarget "powerpc*"] || ![is_lp64_target]} {
+ }
+ 
+ set testfile "ppc64-atomic-inst"
+-set srcfile ${testfile}.c
++set srcfile ${testfile}.S
+ set binfile ${objdir}/${subdir}/${testfile}
+ set compile_flags {debug quiet}
+ 
+@@ -50,11 +50,18 @@ set bp1 [gdb_get_line_number "lwarx"]
+ gdb_breakpoint "$bp1" "Breakpoint $decimal at $hex" \
+   "Set the breakpoint at the start of the sequence"
+ 
++set bp2 [gdb_get_line_number "ldarx"]
++gdb_breakpoint "$bp2" "Breakpoint $decimal at $hex" \
++  "Set the breakpoint at the start of the sequence"
++
+ gdb_test continue "Continuing.*Breakpoint $decimal.*" \
+   "Continue until breakpoint"
+ 
+-gdb_test next ".*__asm __volatile.*" \
++gdb_test nexti "bne.*1b" \
+   "Step through the lwarx/stwcx sequence"
+ 
+-gdb_test next ".*return 0.*" \
+-  "Step through the ldarx/stdcx sequence"
++gdb_test continue "Continuing.*Breakpoint $decimal.*" \
++  "Continue until breakpoint"
++
++gdb_test nexti "bne.*1b" \
++  "Step through the lwarx/stwcx sequence"

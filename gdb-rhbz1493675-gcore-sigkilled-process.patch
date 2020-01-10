@@ -1,0 +1,47 @@
+https://bugzilla.redhat.com/show_bug.cgi?id=1493675
+
+diff -dup -rup gdb-7.6.1-orig/gdb/gcore.c gdb-7.6.1/gdb/gcore.c
+--- gdb-7.6.1-orig/gdb/gcore.c	2017-10-20 22:28:50.990391003 +0200
++++ gdb-7.6.1/gdb/gcore.c	2017-10-20 22:29:26.797710799 +0200
+@@ -111,8 +111,8 @@ do_bfd_delete_cleanup (void *arg)
+   bfd *obfd = arg;
+   const char *filename = obfd->filename;
+ 
+-  gdb_bfd_unref (arg);
+   unlink (filename);
++  gdb_bfd_unref (arg);
+ }
+ 
+ /* gcore_command -- implements the 'gcore' command.
+--- ./gdb/inf-ptrace.c	2017-09-28 20:14:05.802344770 +0200
++++ ./gdb/inf-ptrace.c	2017-09-28 22:04:30.417779859 +0200
+@@ -280,6 +280,7 @@ inf_ptrace_detach (struct target_ops *op
+ {
+   pid_t pid = ptid_get_pid (inferior_ptid);
+   int sig = 0;
++  int saved_errno;
+ 
+   if (from_tty)
+     {
+@@ -300,8 +301,7 @@ inf_ptrace_detach (struct target_ops *op
+      started the process ourselves.  */
+   errno = 0;
+   ptrace (PT_DETACH, pid, (PTRACE_TYPE_ARG3)1, sig);
+-  if (errno != 0)
+-    perror_with_name (("ptrace"));
++saved_errno = errno;
+ #else
+   error (_("This system does not support detaching from a process"));
+ #endif
+@@ -311,6 +311,11 @@ inf_ptrace_detach (struct target_ops *op
+ 
+   if (!have_inferiors ())
+     unpush_target (ops);
++
++if (saved_errno != 0) {
++  errno = saved_errno;
++  perror_with_name (("ptrace"));
++}
+ }
+ 
+ /* Kill the inferior.  */

@@ -42,7 +42,7 @@ Version: 7.6.1
 
 # The release always contains a leading reserved number, start it at 1.
 # `upstream' is not a part of `name' to stay fully rpm dependencies compatible for the testing.
-Release: 100%{?dist}.1
+Release: 110%{?dist}
 
 License: GPLv3+ and GPLv3+ with exceptions and GPLv2+ and GPLv2+ with exceptions and GPL+ and LGPLv2+ and BSD and Public Domain
 Group: Development/Debuggers
@@ -888,12 +888,43 @@ Patch1207: gdb-rhbz1320945-power9-36of38.patch
 Patch1208: gdb-rhbz1320945-power9-37of38.patch
 Patch1209: gdb-rhbz1320945-power9-38of38.patch
 
-# Fix gcore for memory regions with VM_DONTDUMP (RH BZ 1524312, Sergio Lopez).
+# [ppc64le] Fix short vector return values (RH BZ 1480497).
+Patch1245: gdb-rhbz1480497-ppc64le-shortvec-retval.patch
+
+# [ppc*] Fix ppc* record/replay (RH BZ 1480498).
+Patch1246: gdb-rhbz1480498-power-record-1of3.patch
+Patch1247: gdb-rhbz1480498-power-record-2of3.patch
+Patch1248: gdb-rhbz1480498-power-record-3of3.patch
+
+# [ppc64le] Fix ppc64le atomic sequences single-stepping (RH BZ 1480496).
+patch1249: gdb-rhbz1480496-power-atomic-step-1of5.patch
+patch1250: gdb-rhbz1480496-power-atomic-step-2of5.patch
+patch1251: gdb-rhbz1480496-power-atomic-step-3of5.patch
+patch1252: gdb-rhbz1480496-power-atomic-step-4of5.patch
+patch1253: gdb-rhbz1480496-power-atomic-step-5of5.patch
+
+# Fix default signal handlers for spawned processes (RH BZ 1473411).
+Patch1260: gdb-rhbz1473411-spawn-default-signal-handlers.patch
+
+# Use inlined func name for printing breakpoints (RH BZ 1228556, Keith Seitz).
+Patch1261: gdb-rhbz1228556-bpt-inlined-func-name-1of2.patch
+Patch1262: gdb-rhbz1228556-bpt-inlined-func-name-2of2.patch
+
+# Fix gcore of process being SIGKILLed (RH BZ 1493675).
+Patch1263: gdb-rhbz1493675-gcore-sigkilled-process.patch
+
+# Fix gcore for memory regions with VM_DONTDUMP (RH BZ 1518243, Sergio Lopez).
 Patch1264: gdb-rhbz1518243-gcore-VM_DONTDUMP-1of5.patch
 Patch1265: gdb-rhbz1518243-gcore-VM_DONTDUMP-2of5.patch
 Patch1266: gdb-rhbz1518243-gcore-VM_DONTDUMP-3of5.patch
 Patch1267: gdb-rhbz1518243-gcore-VM_DONTDUMP-4of5.patch
 Patch1268: gdb-rhbz1518243-gcore-VM_DONTDUMP-5of5.patch
+
+# [ppc64] Fix exec-reverse regression with relro ld (RH BZ 1522798, Alan Modra).
+Patch1269: gdb-rhbz1522798-ppc64-plt-reverse.patch
+
+# Fix signal handlers (RH BZ 1473411) regression (RH BZ 1531838, Pedro Alves).
+Patch1270: gdb-rhbz1531838-rhbz1473411-spawn-default-signal-handlers-regression.patch
 
 %if 0%{!?rhel:1} || 0%{?rhel} > 6
 # RL_STATE_FEDORA_GDB would not be found for:
@@ -1421,11 +1452,26 @@ find -name "*.info*"|xargs rm -f
 %patch1207 -p1
 %patch1208 -p1
 %patch1209 -p1
+%patch1245 -p1
+%patch1246 -p1
+%patch1247 -p1
+%patch1248 -p1
+%patch1249 -p1
+%patch1250 -p1
+%patch1251 -p1
+%patch1252 -p1
+%patch1253 -p1
+%patch1260 -p1
+%patch1261 -p1
+%patch1262 -p1
+%patch1263 -p1
 %patch1264 -p1
 %patch1265 -p1
 %patch1266 -p1
 %patch1267 -p1
 %patch1268 -p1
+%patch1269 -p1
+%patch1270 -p1
 
 %if 0%{?scl:1}
 %patch836 -p1 -R
@@ -1951,8 +1997,36 @@ fi
 %endif # 0%{!?el5:1} || "%{_target_cpu}" == "noarch"
 
 %changelog
-* Mon Dec 11 2017 Jan Kratochvil <jan.kratochvil@redhat.com> - 7.6.1-100.el7_4.1
-- Fix gcore for memory regions with VM_DONTDUMP (RH BZ 1524312, Sergio Lopez).
+* Mon Jan  8 2018 Jan Kratochvil <jan.kratochvil@redhat.com> - 7.6.1-110.el7
+- Fix signal handlers (RH BZ 1473411) regression (RH BZ 1531838, Pedro Alves).
+
+* Tue Dec 12 2017 Jan Kratochvil <jan.kratochvil@redhat.com> - 7.6.1-109.el7
+- [ppc64] Fix exec-reverse regression with relro ld (RH BZ 1522798, Alan Modra).
+
+* Wed Dec  6 2017 Jan Kratochvil <jan.kratochvil@redhat.com> - 7.6.1-108.el7
+- Fix gcore for memory regions with VM_DONTDUMP (RH BZ 1518243, Sergio Lopez).
+
+* Fri Nov  3 2017 Jan Kratochvil <jan.kratochvil@redhat.com> - 7.6.1-107.el7
+- Fix backport of default signal handlers for spawned processes
+  (RH BZ 1473411, found by Michal Kolar).
+
+* Fri Oct 27 2017 Jan Kratochvil <jan.kratochvil@redhat.com> - 7.6.1-106.el7
+- Use inlined func name for printing breakpoints (RH BZ 1228556, Keith Seitz).
+
+* Fri Oct 20 2017 Jan Kratochvil <jan.kratochvil@redhat.com> - 7.6.1-105.el7
+- Fix gcore of process being SIGKILLed (RH BZ 1493675).
+
+* Wed Oct 18 2017 Jan Kratochvil <jan.kratochvil@redhat.com> - 7.6.1-104.el7
+- Fix default signal handlers for spawned processes (RH BZ 1473411).
+
+* Tue Aug 29 2017 Jan Kratochvil <jan.kratochvil@redhat.com> - 7.6.1-103.el7
+- [ppc64le] Fix ppc64le atomic sequences single-stepping (RH BZ 1480496).
+
+* Tue Aug 29 2017 Jan Kratochvil <jan.kratochvil@redhat.com> - 7.6.1-102.el7
+- [ppc*] Fix ppc* record/replay (RH BZ 1480498).
+
+* Mon Aug 21 2017 Jan Kratochvil <jan.kratochvil@redhat.com> - 7.6.1-101.el7
+- [ppc64le] Fix short vector return values (RH BZ 1480497).
 
 * Tue Jun 13 2017 Jan Kratochvil <jan.kratochvil@redhat.com> - 7.6.1-100.el7
 - [ppc*] IBM Power9 backport extension (RH BZ 1320945).
