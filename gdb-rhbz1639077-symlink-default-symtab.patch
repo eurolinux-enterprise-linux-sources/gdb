@@ -1,0 +1,177 @@
+commit bb995d00b3eef2f48d0be895c3509a7ddd8280a1
+Author: Keith Seitz <keiths@redhat.com>
+Date:   Fri Feb 22 09:39:35 2019 -0800
+
+    Fix symtab/23853: symlinked default symtab
+    
+    This patch attempts to fix a bug dealing with setting breakpoints
+    in default symtabs that are symlinks.  For example:
+    
+    (gdb) list
+    11         GNU General Public License for more details.
+    12
+    13         You should have received a copy of the GNU General Public License
+    14         along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
+    15
+    16      static int
+    17      foo (void)
+    18      {
+    19        return 0; /* break here  */
+    20      }
+    (gdb)
+    21
+    22      int
+    23      main (void)
+    24      {
+    25        return foo ();
+    26      }
+    (gdb) b 19
+    No line 19 in the current file.
+    Make breakpoint pending on future shared library load? (y or [n])
+    
+    The problem here is that when create_sals_line_offset sets the default
+    symtab, it immediately calls symtab_to_fullname, passing that fullname
+    to collect_symtabs_from_filename to find all matching symtabs.  This
+    fails because we end up looking for a symtab with the name of the
+    actual file on disk (which is different in this case because of the
+    symlink) instead of the one stored in the debug info.
+    
+    Since we already have the lookup name of the default symtab, use it
+    instead of the fullname. [This fullname thing was originally added
+    in 2007 in a series dealing with *displaying* absolute file names.
+    Clearly, this instance has nothing to do with the display of file names.]
+    
+    gdb/ChangeLog
+    
+            PR symtab/23853
+            * linespec.c (create_sals_line_offset): Search for the default
+            symtab's filename instead of its fullname.
+    
+    gdb/testsuite/ChangeLog
+    
+            PR symtab/23853
+            * gdb.base/symlink-sourcefile.c: New file.
+            * gdb.base/symlink-sourcefile.exp: New file.
+
+Index: gdb-7.6.1/gdb/linespec.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/linespec.c
++++ gdb-7.6.1/gdb/linespec.c
+@@ -1844,17 +1844,15 @@ create_sals_line_offset (struct linespec
+   if (VEC_length (symtab_p, ls->file_symtabs) == 1
+       && VEC_index (symtab_p, ls->file_symtabs, 0) == NULL)
+     {
+-      const char *fullname;
+-
+       set_current_program_space (self->program_space);
+ 
+       /* Make sure we have at least a default source line.  */
+       set_default_source_symtab_and_line ();
+       initialize_defaults (&self->default_symtab, &self->default_line);
+-      fullname = symtab_to_fullname (self->default_symtab);
+       VEC_pop (symtab_p, ls->file_symtabs);
+       VEC_free (symtab_p, ls->file_symtabs);
+-      ls->file_symtabs = collect_symtabs_from_filename (fullname);
++      ls->file_symtabs
++	= collect_symtabs_from_filename (self->default_symtab->filename);
+       use_default = 1;
+     }
+ 
+Index: gdb-7.6.1/gdb/testsuite/gdb.base/symlink-sourcefile.c
+===================================================================
+--- /dev/null
++++ gdb-7.6.1/gdb/testsuite/gdb.base/symlink-sourcefile.c
+@@ -0,0 +1,26 @@
++/* Copyright 2019 Free Software Foundation, Inc.
++
++   This program is free software; you can redistribute it and/or modify
++   it under the terms of the GNU General Public License as published by
++   the Free Software Foundation; either version 3 of the License, or
++   (at your option) any later version.
++
++   This program is distributed in the hope that it will be useful,
++   but WITHOUT ANY WARRANTY; without even the implied warranty of
++   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++   GNU General Public License for more details.
++
++   You should have received a copy of the GNU General Public License
++   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
++
++static int
++foo (void)
++{
++  return 0; /* break here  */
++}
++
++int
++main (void)
++{
++  return foo ();
++}
+Index: gdb-7.6.1/gdb/testsuite/gdb.base/symlink-sourcefile.exp
+===================================================================
+--- /dev/null
++++ gdb-7.6.1/gdb/testsuite/gdb.base/symlink-sourcefile.exp
+@@ -0,0 +1,46 @@
++# Copyright 2019 Free Software Foundation, Inc.
++
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 3 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License
++# along with this program.  If not, see <http://www.gnu.org/licenses/>.
++
++# Test that GDB can find the default symtab when it is a symbolic link.
++standard_testfile
++
++set test "file symbolic link name"
++set srcdirabs [file join [pwd] $srcdir]
++set linksrc "link-${srcfile}"
++set srcfilelink [standard_output_file $linksrc]
++
++
++# Remove any existing symlink and build executable using a
++# symbolic link to the actual source file.
++remote_file host delete $srcfilelink
++set status [remote_exec host \
++		"ln -sf $srcdirabs/$subdir/$srcfile $srcfilelink"]
++if {[lindex $status 0] != 0} {
++    unsupported "$test (host does not support symbolic links)"
++    return 0
++}
++
++if {[prepare_for_testing $testfile $testfile $srcfilelink]} {
++    return -1
++}
++
++if {![runto_main]} {
++    untested "could not run to main"
++    return -1
++}
++
++# Using a line number ensures that the default symtab is used.
++gdb_breakpoint [gdb_get_line_number "break here" $srcfile] message
++gdb_continue_to_breakpoint "run to breakpoint marker"
+Index: gdb-7.6.1/gdb/testsuite/lib/gdb.exp
+===================================================================
+--- gdb-7.6.1.orig/gdb/testsuite/lib/gdb.exp
++++ gdb-7.6.1/gdb/testsuite/lib/gdb.exp
+@@ -4062,7 +4062,10 @@ proc build_executable_from_specs {testna
+ 	set objects {}
+ 	set i 0
+ 	foreach {s local_options} $args {
+-	    if  { [gdb_compile "${srcdir}/${subdir}/${s}" "${binfile}${i}.o" object $local_options] != "" } {
++	    if {! [regexp "^/" "$s"] } then {
++		set s "$srcdir/$subdir/$s"
++	    }
++	    if  { [gdb_compile "${s}" "${binfile}${i}.o" object $local_options] != "" } {
+ 		untested $testname
+ 		return -1
+ 	    }

@@ -42,7 +42,7 @@ Version: 7.6.1
 
 # The release always contains a leading reserved number, start it at 1.
 # `upstream' is not a part of `name' to stay fully rpm dependencies compatible for the testing.
-Release: 114%{?dist}
+Release: 115%{?dist}
 
 License: GPLv3+ and GPLv3+ with exceptions and GPLv2+ and GPLv2+ with exceptions and GPL+ and LGPLv2+ and BSD and Public Domain
 Group: Development/Debuggers
@@ -938,6 +938,9 @@ Patch1277: gdb-rhbz1553104-s390x-arch12-test.patch
 # [aarch64] Fix missed unaligned hardware watchpoints (RH BZ 1347993).
 Patch1278: gdb-rhbz1347993-aarch64-hw-watchpoint.patch
 
+# Backport symtab/23853 symlinked default symtab (RH BZ 1639077)
+Patch1280: gdb-rhbz1639077-symlink-default-symtab.patch
+
 %if 0%{!?rhel:1} || 0%{?rhel} > 6
 # RL_STATE_FEDORA_GDB would not be found for:
 # Patch642: gdb-readline62-ask-more-rh.patch
@@ -1492,6 +1495,7 @@ find -name "*.info*"|xargs rm -f
 %patch1275 -p1
 %patch1276 -p1
 %patch1277 -p1
+%patch1280 -p1
 
 %if 0%{?scl:1}
 %patch836 -p1 -R
@@ -2019,6 +2023,9 @@ fi
 %endif # 0%{!?el5:1} || "%{_target_cpu}" == "noarch"
 
 %changelog
+* Fri Mar  1 2019 Keith Seitz <keiths@redhat.com> - 7.6.1-115.el7
+- Fix symlinked default symtab bug (RH BZ 1639077).
+
 * Fri Jun 29 2018 Jan Kratochvil <jan.kratochvil@redhat.com> - 7.6.1-114.el7
 - Fix /usr/share/gdb/auto-load/ (safely) dangling symlinks (RH BZ 1596023).
 
