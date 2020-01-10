@@ -465,8 +465,8 @@ Content-Disposition: attachment; filename=bitpos-main.patch
 
 Index: gdb-7.6.1/gdb/ada-lang.c
 ===================================================================
---- gdb-7.6.1.orig/gdb/ada-lang.c	2016-03-13 22:01:55.836942272 +0100
-+++ gdb-7.6.1/gdb/ada-lang.c	2016-03-13 22:01:57.807956423 +0100
+--- gdb-7.6.1.orig/gdb/ada-lang.c	2018-05-05 17:15:29.621212006 +0200
++++ gdb-7.6.1/gdb/ada-lang.c	2018-05-05 17:15:31.424228115 +0200
 @@ -80,7 +80,7 @@
  
  static struct value *desc_bounds (struct value *);
@@ -866,8 +866,8 @@ Index: gdb-7.6.1/gdb/ada-lang.c
        TYPE_FIELD_BITSIZE (result, 0) = TYPE_FIELD_BITSIZE (type0, 0);
 Index: gdb-7.6.1/gdb/ada-lang.h
 ===================================================================
---- gdb-7.6.1.orig/gdb/ada-lang.h	2013-03-05 22:15:34.000000000 +0100
-+++ gdb-7.6.1/gdb/ada-lang.h	2016-03-13 22:01:57.807956423 +0100
+--- gdb-7.6.1.orig/gdb/ada-lang.h	2018-05-05 17:15:29.622212015 +0200
++++ gdb-7.6.1/gdb/ada-lang.h	2018-05-05 17:15:31.425228124 +0200
 @@ -169,7 +169,7 @@
  extern void ada_print_typedef (struct type *type, struct symbol *new_symbol,
  			       struct ui_file *stream);
@@ -897,8 +897,8 @@ Index: gdb-7.6.1/gdb/ada-lang.h
  extern struct type *ada_coerce_to_simple_array_type (struct type *);
 Index: gdb-7.6.1/gdb/ada-typeprint.c
 ===================================================================
---- gdb-7.6.1.orig/gdb/ada-typeprint.c	2013-01-01 07:32:37.000000000 +0100
-+++ gdb-7.6.1/gdb/ada-typeprint.c	2016-03-13 22:01:57.808956430 +0100
+--- gdb-7.6.1.orig/gdb/ada-typeprint.c	2018-05-05 17:15:29.622212015 +0200
++++ gdb-7.6.1/gdb/ada-typeprint.c	2018-05-05 17:15:31.425228124 +0200
 @@ -829,8 +829,8 @@
  	    const char *name = ada_type_name (type);
  
@@ -922,8 +922,8 @@ Index: gdb-7.6.1/gdb/ada-typeprint.c
  	if (show < 0)
 Index: gdb-7.6.1/gdb/ada-valprint.c
 ===================================================================
---- gdb-7.6.1.orig/gdb/ada-valprint.c	2013-02-01 21:08:45.000000000 +0100
-+++ gdb-7.6.1/gdb/ada-valprint.c	2016-03-13 22:01:57.808956430 +0100
+--- gdb-7.6.1.orig/gdb/ada-valprint.c	2018-05-05 17:15:29.623212024 +0200
++++ gdb-7.6.1/gdb/ada-valprint.c	2018-05-05 17:15:31.425228124 +0200
 @@ -41,16 +41,16 @@
  			  const struct value_print_options *);
  
@@ -1086,8 +1086,8 @@ Index: gdb-7.6.1/gdb/ada-valprint.c
  
 Index: gdb-7.6.1/gdb/annotate.c
 ===================================================================
---- gdb-7.6.1.orig/gdb/annotate.c	2013-01-22 21:22:38.000000000 +0100
-+++ gdb-7.6.1/gdb/annotate.c	2016-03-13 22:01:57.809956437 +0100
+--- gdb-7.6.1.orig/gdb/annotate.c	2018-05-05 17:15:29.623212024 +0200
++++ gdb-7.6.1/gdb/annotate.c	2018-05-05 17:15:31.426228133 +0200
 @@ -523,21 +523,21 @@
  }
  
@@ -1116,8 +1116,8 @@ Index: gdb-7.6.1/gdb/annotate.c
  void
 Index: gdb-7.6.1/gdb/annotate.h
 ===================================================================
---- gdb-7.6.1.orig/gdb/annotate.h	2013-01-22 21:19:38.000000000 +0100
-+++ gdb-7.6.1/gdb/annotate.h	2016-03-13 22:01:57.809956437 +0100
+--- gdb-7.6.1.orig/gdb/annotate.h	2018-05-05 17:15:29.623212024 +0200
++++ gdb-7.6.1/gdb/annotate.h	2018-05-05 17:15:31.426228133 +0200
 @@ -92,8 +92,8 @@
  extern void annotate_frame_where (void);
  extern void annotate_frame_end (void);
@@ -1131,8 +1131,8 @@ Index: gdb-7.6.1/gdb/annotate.h
  extern void annotate_array_section_end (void);
 Index: gdb-7.6.1/gdb/arm-linux-nat.c
 ===================================================================
---- gdb-7.6.1.orig/gdb/arm-linux-nat.c	2013-01-01 07:32:38.000000000 +0100
-+++ gdb-7.6.1/gdb/arm-linux-nat.c	2016-03-13 22:29:09.740663243 +0100
+--- gdb-7.6.1.orig/gdb/arm-linux-nat.c	2018-05-05 17:15:29.624212033 +0200
++++ gdb-7.6.1/gdb/arm-linux-nat.c	2018-05-05 17:15:31.426228133 +0200
 @@ -1073,7 +1073,7 @@
  /* Are we able to use a hardware watchpoint for the LEN bytes starting at 
     ADDR?  */
@@ -1144,8 +1144,8 @@ Index: gdb-7.6.1/gdb/arm-linux-nat.c
    CORE_ADDR max_wp_length, aligned_addr;
 Index: gdb-7.6.1/gdb/ax-gdb.c
 ===================================================================
---- gdb-7.6.1.orig/gdb/ax-gdb.c	2013-03-12 18:39:43.000000000 +0100
-+++ gdb-7.6.1/gdb/ax-gdb.c	2016-03-13 22:01:57.810956444 +0100
+--- gdb-7.6.1.orig/gdb/ax-gdb.c	2018-05-05 17:15:29.625212042 +0200
++++ gdb-7.6.1/gdb/ax-gdb.c	2018-05-05 17:15:31.426228133 +0200
 @@ -83,12 +83,12 @@
  static void gen_sign_extend (struct agent_expr *, struct type *);
  static void gen_extend (struct agent_expr *, struct type *);
@@ -1247,8 +1247,8 @@ Index: gdb-7.6.1/gdb/ax-gdb.c
    int nbases = TYPE_N_BASECLASSES (type);
 Index: gdb-7.6.1/gdb/ax-general.c
 ===================================================================
---- gdb-7.6.1.orig/gdb/ax-general.c	2013-03-07 01:48:25.000000000 +0100
-+++ gdb-7.6.1/gdb/ax-general.c	2016-03-13 22:01:57.810956444 +0100
+--- gdb-7.6.1.orig/gdb/ax-general.c	2018-05-05 17:15:29.625212042 +0200
++++ gdb-7.6.1/gdb/ax-general.c	2018-05-05 17:15:31.427228142 +0200
 @@ -192,7 +192,7 @@
  
  /* Append a trace_quick instruction to EXPR, to record N bytes.  */
@@ -1260,8 +1260,8 @@ Index: gdb-7.6.1/gdb/ax-general.c
    if (n < 0 || n > 255)
 Index: gdb-7.6.1/gdb/ax.h
 ===================================================================
---- gdb-7.6.1.orig/gdb/ax.h	2013-03-07 01:48:25.000000000 +0100
-+++ gdb-7.6.1/gdb/ax.h	2016-03-13 22:01:57.811956451 +0100
+--- gdb-7.6.1.orig/gdb/ax.h	2018-05-05 17:15:29.625212042 +0200
++++ gdb-7.6.1/gdb/ax.h	2018-05-05 17:15:31.427228142 +0200
 @@ -190,7 +190,7 @@
  extern void ax_zero_ext (struct agent_expr *EXPR, int N);
  
@@ -1273,8 +1273,8 @@ Index: gdb-7.6.1/gdb/ax.h
     aop_if_goto).  We assume we don't know the target offset yet,
 Index: gdb-7.6.1/gdb/breakpoint.c
 ===================================================================
---- gdb-7.6.1.orig/gdb/breakpoint.c	2016-03-13 22:01:57.611955015 +0100
-+++ gdb-7.6.1/gdb/breakpoint.c	2016-03-13 22:29:09.282659972 +0100
+--- gdb-7.6.1.orig/gdb/breakpoint.c	2018-05-05 17:15:29.628212068 +0200
++++ gdb-7.6.1/gdb/breakpoint.c	2018-05-05 17:15:31.429228160 +0200
 @@ -6677,7 +6677,7 @@
  
  static int
@@ -1295,8 +1295,8 @@ Index: gdb-7.6.1/gdb/breakpoint.c
  		  len = (target_exact_watchpoints
 Index: gdb-7.6.1/gdb/breakpoint.h
 ===================================================================
---- gdb-7.6.1.orig/gdb/breakpoint.h	2016-03-13 22:01:57.602954951 +0100
-+++ gdb-7.6.1/gdb/breakpoint.h	2016-03-13 22:01:57.815956480 +0100
+--- gdb-7.6.1.orig/gdb/breakpoint.h	2018-05-05 17:15:29.628212068 +0200
++++ gdb-7.6.1/gdb/breakpoint.h	2018-05-05 17:15:31.429228160 +0200
 @@ -250,7 +250,7 @@
  
    /* If this is a ranged breakpoint, then this field contains the
@@ -1317,8 +1317,8 @@ Index: gdb-7.6.1/gdb/breakpoint.h
    enum target_hw_bp_type watchpoint_type;
 Index: gdb-7.6.1/gdb/c-lang.c
 ===================================================================
---- gdb-7.6.1.orig/gdb/c-lang.c	2013-03-07 20:24:32.000000000 +0100
-+++ gdb-7.6.1/gdb/c-lang.c	2016-03-13 22:01:57.815956480 +0100
+--- gdb-7.6.1.orig/gdb/c-lang.c	2018-05-05 17:15:29.629212077 +0200
++++ gdb-7.6.1/gdb/c-lang.c	2018-05-05 17:15:31.430228169 +0200
 @@ -188,7 +188,7 @@
  
  void
@@ -1348,8 +1348,8 @@ Index: gdb-7.6.1/gdb/c-lang.c
  					 &low_bound, &high_bound) < 0)
 Index: gdb-7.6.1/gdb/c-lang.h
 ===================================================================
---- gdb-7.6.1.orig/gdb/c-lang.h	2013-01-01 07:32:40.000000000 +0100
-+++ gdb-7.6.1/gdb/c-lang.h	2016-03-13 22:01:57.816956487 +0100
+--- gdb-7.6.1.orig/gdb/c-lang.h	2018-05-05 17:15:29.629212077 +0200
++++ gdb-7.6.1/gdb/c-lang.h	2018-05-05 17:15:31.430228169 +0200
 @@ -73,7 +73,7 @@
  			     struct ui_file *);
  
@@ -1387,8 +1387,8 @@ Index: gdb-7.6.1/gdb/c-lang.h
  					const struct value_print_options *,
 Index: gdb-7.6.1/gdb/c-valprint.c
 ===================================================================
---- gdb-7.6.1.orig/gdb/c-valprint.c	2013-01-01 07:32:40.000000000 +0100
-+++ gdb-7.6.1/gdb/c-valprint.c	2016-03-13 22:01:57.816956487 +0100
+--- gdb-7.6.1.orig/gdb/c-valprint.c	2018-05-05 17:15:29.629212077 +0200
++++ gdb-7.6.1/gdb/c-valprint.c	2018-05-05 17:15:31.430228169 +0200
 @@ -132,7 +132,7 @@
  
  void
@@ -1432,8 +1432,8 @@ Index: gdb-7.6.1/gdb/c-valprint.c
    opts.deref_ref = 1;
 Index: gdb-7.6.1/gdb/cp-abi.c
 ===================================================================
---- gdb-7.6.1.orig/gdb/cp-abi.c	2013-01-17 21:26:14.000000000 +0100
-+++ gdb-7.6.1/gdb/cp-abi.c	2016-03-13 22:01:57.816956487 +0100
+--- gdb-7.6.1.orig/gdb/cp-abi.c	2018-05-05 17:15:29.630212086 +0200
++++ gdb-7.6.1/gdb/cp-abi.c	2018-05-05 17:15:31.430228169 +0200
 @@ -68,13 +68,13 @@
    return (*current_cp_abi.is_operator_name) (name);
  }
@@ -1471,8 +1471,8 @@ Index: gdb-7.6.1/gdb/cp-abi.c
    volatile struct gdb_exception e;
 Index: gdb-7.6.1/gdb/cp-abi.h
 ===================================================================
---- gdb-7.6.1.orig/gdb/cp-abi.h	2013-01-01 07:32:40.000000000 +0100
-+++ gdb-7.6.1/gdb/cp-abi.h	2016-03-13 22:01:57.816956487 +0100
+--- gdb-7.6.1.orig/gdb/cp-abi.h	2018-05-05 17:15:29.630212086 +0200
++++ gdb-7.6.1/gdb/cp-abi.h	2018-05-05 17:15:31.430228169 +0200
 @@ -108,7 +108,7 @@
  					     struct fn_field *f,
  					     int j,
@@ -1529,8 +1529,8 @@ Index: gdb-7.6.1/gdb/cp-abi.h
  			    struct ui_file *stream);
 Index: gdb-7.6.1/gdb/cp-valprint.c
 ===================================================================
---- gdb-7.6.1.orig/gdb/cp-valprint.c	2013-01-07 17:40:36.000000000 +0100
-+++ gdb-7.6.1/gdb/cp-valprint.c	2016-03-13 22:29:09.785663564 +0100
+--- gdb-7.6.1.orig/gdb/cp-valprint.c	2018-05-05 17:15:29.630212086 +0200
++++ gdb-7.6.1/gdb/cp-valprint.c	2018-05-05 17:15:31.431228178 +0200
 @@ -82,7 +82,7 @@
  				   const struct value_print_options *);
  
@@ -1606,8 +1606,8 @@ Index: gdb-7.6.1/gdb/cp-valprint.c
        const char *basename = TYPE_NAME (baseclass);
 Index: gdb-7.6.1/gdb/d-lang.h
 ===================================================================
---- gdb-7.6.1.orig/gdb/d-lang.h	2013-01-01 07:32:41.000000000 +0100
-+++ gdb-7.6.1/gdb/d-lang.h	2016-03-13 22:01:57.817956494 +0100
+--- gdb-7.6.1.orig/gdb/d-lang.h	2018-05-05 17:15:29.630212086 +0200
++++ gdb-7.6.1/gdb/d-lang.h	2018-05-05 17:15:31.431228178 +0200
 @@ -25,7 +25,7 @@
  extern char *d_demangle (const char *mangled, int options);
  
@@ -1619,8 +1619,8 @@ Index: gdb-7.6.1/gdb/d-lang.h
  			 const struct value_print_options *options);
 Index: gdb-7.6.1/gdb/d-valprint.c
 ===================================================================
---- gdb-7.6.1.orig/gdb/d-valprint.c	2013-01-01 07:32:41.000000000 +0100
-+++ gdb-7.6.1/gdb/d-valprint.c	2016-03-13 22:01:57.817956494 +0100
+--- gdb-7.6.1.orig/gdb/d-valprint.c	2018-05-05 17:15:29.630212086 +0200
++++ gdb-7.6.1/gdb/d-valprint.c	2018-05-05 17:15:31.431228178 +0200
 @@ -29,7 +29,7 @@
  
  static int
@@ -1645,8 +1645,8 @@ Index: gdb-7.6.1/gdb/d-valprint.c
    int ret;
 Index: gdb-7.6.1/gdb/doublest.c
 ===================================================================
---- gdb-7.6.1.orig/gdb/doublest.c	2013-01-01 07:32:41.000000000 +0100
-+++ gdb-7.6.1/gdb/doublest.c	2016-03-13 22:29:08.834656773 +0100
+--- gdb-7.6.1.orig/gdb/doublest.c	2018-05-05 17:15:29.631212095 +0200
++++ gdb-7.6.1/gdb/doublest.c	2018-05-05 17:15:31.431228178 +0200
 @@ -791,7 +791,7 @@
     but not passed on by GDB.  This should be fixed.  */
  
@@ -1669,8 +1669,8 @@ Index: gdb-7.6.1/gdb/doublest.c
  
 Index: gdb-7.6.1/gdb/dwarf2loc.c
 ===================================================================
---- gdb-7.6.1.orig/gdb/dwarf2loc.c	2016-03-13 22:01:55.854942401 +0100
-+++ gdb-7.6.1/gdb/dwarf2loc.c	2016-03-13 22:29:09.785663564 +0100
+--- gdb-7.6.1.orig/gdb/dwarf2loc.c	2018-05-05 17:15:29.633212113 +0200
++++ gdb-7.6.1/gdb/dwarf2loc.c	2018-05-05 17:15:31.432228187 +0200
 @@ -1680,19 +1680,19 @@
     BITS_BIG_ENDIAN is taken directly from gdbarch.  */
  
@@ -1826,8 +1826,8 @@ Index: gdb-7.6.1/gdb/dwarf2loc.c
  	      invalid_synthetic_pointer ();
 Index: gdb-7.6.1/gdb/dwarf2read.c
 ===================================================================
---- gdb-7.6.1.orig/gdb/dwarf2read.c	2016-03-13 22:01:57.755956049 +0100
-+++ gdb-7.6.1/gdb/dwarf2read.c	2016-03-13 22:29:09.144658987 +0100
+--- gdb-7.6.1.orig/gdb/dwarf2read.c	2018-05-05 17:15:29.636212140 +0200
++++ gdb-7.6.1/gdb/dwarf2read.c	2018-05-05 17:15:31.434228205 +0200
 @@ -1227,12 +1227,12 @@
  }
  
@@ -1858,8 +1858,8 @@ Index: gdb-7.6.1/gdb/dwarf2read.c
  	      if (attr)
 Index: gdb-7.6.1/gdb/eval.c
 ===================================================================
---- gdb-7.6.1.orig/gdb/eval.c	2016-03-13 22:01:55.860942444 +0100
-+++ gdb-7.6.1/gdb/eval.c	2016-03-13 22:01:57.824956545 +0100
+--- gdb-7.6.1.orig/gdb/eval.c	2018-05-05 17:15:29.638212158 +0200
++++ gdb-7.6.1/gdb/eval.c	2018-05-05 17:15:31.435228214 +0200
 @@ -294,7 +294,8 @@
    while (--nargs >= 0)
      {
@@ -1924,8 +1924,8 @@ Index: gdb-7.6.1/gdb/eval.c
  	get_user_print_options (&opts);
 Index: gdb-7.6.1/gdb/f-lang.c
 ===================================================================
---- gdb-7.6.1.orig/gdb/f-lang.c	2013-01-01 07:32:42.000000000 +0100
-+++ gdb-7.6.1/gdb/f-lang.c	2016-03-13 22:01:57.824956545 +0100
+--- gdb-7.6.1.orig/gdb/f-lang.c	2018-05-05 17:15:29.638212158 +0200
++++ gdb-7.6.1/gdb/f-lang.c	2018-05-05 17:15:31.435228214 +0200
 @@ -103,7 +103,7 @@
  
  static void
@@ -1937,8 +1937,8 @@ Index: gdb-7.6.1/gdb/f-lang.c
    const char *type_encoding = f_get_encoding (type);
 Index: gdb-7.6.1/gdb/f-lang.h
 ===================================================================
---- gdb-7.6.1.orig/gdb/f-lang.h	2016-03-13 22:01:55.861942451 +0100
-+++ gdb-7.6.1/gdb/f-lang.h	2016-03-13 22:29:09.645662565 +0100
+--- gdb-7.6.1.orig/gdb/f-lang.h	2018-05-05 17:15:29.638212158 +0200
++++ gdb-7.6.1/gdb/f-lang.h	2018-05-05 17:15:31.435228214 +0200
 @@ -33,7 +33,7 @@
    (struct type *type, struct ui_file *stream);
  extern void f_object_address_data_valid_or_error (struct type *type);
@@ -1950,8 +1950,8 @@ Index: gdb-7.6.1/gdb/f-lang.h
  			 const struct value_print_options *);
 Index: gdb-7.6.1/gdb/f-valprint.c
 ===================================================================
---- gdb-7.6.1.orig/gdb/f-valprint.c	2016-03-13 22:01:55.861942451 +0100
-+++ gdb-7.6.1/gdb/f-valprint.c	2016-03-13 22:29:09.645662565 +0100
+--- gdb-7.6.1.orig/gdb/f-valprint.c	2018-05-05 17:15:29.638212158 +0200
++++ gdb-7.6.1/gdb/f-valprint.c	2018-05-05 17:15:31.435228214 +0200
 @@ -43,7 +43,7 @@
  					      struct ui_file *);
  static void f77_get_dynamic_length_of_aggregate (struct type *);
@@ -2018,8 +2018,8 @@ Index: gdb-7.6.1/gdb/f-valprint.c
  		     embedded_offset + offset,
 Index: gdb-7.6.1/gdb/findvar.c
 ===================================================================
---- gdb-7.6.1.orig/gdb/findvar.c	2016-03-13 22:01:55.862942458 +0100
-+++ gdb-7.6.1/gdb/findvar.c	2016-03-13 22:01:57.825956552 +0100
+--- gdb-7.6.1.orig/gdb/findvar.c	2018-05-05 17:15:29.638212158 +0200
++++ gdb-7.6.1/gdb/findvar.c	2018-05-05 17:15:31.436228223 +0200
 @@ -644,7 +644,7 @@
  			     struct frame_info *frame)
  {
@@ -2054,8 +2054,8 @@ Index: gdb-7.6.1/gdb/findvar.c
  	{
 Index: gdb-7.6.1/gdb/frame.c
 ===================================================================
---- gdb-7.6.1.orig/gdb/frame.c	2013-02-16 09:57:48.000000000 +0100
-+++ gdb-7.6.1/gdb/frame.c	2016-03-13 22:29:06.551640469 +0100
+--- gdb-7.6.1.orig/gdb/frame.c	2018-05-05 17:15:29.639212167 +0200
++++ gdb-7.6.1/gdb/frame.c	2018-05-05 17:15:31.436228223 +0200
 @@ -1113,7 +1113,7 @@
  
  int
@@ -2076,8 +2076,8 @@ Index: gdb-7.6.1/gdb/frame.c
    while (len > 0)
 Index: gdb-7.6.1/gdb/frame.h
 ===================================================================
---- gdb-7.6.1.orig/gdb/frame.h	2013-08-14 13:53:11.000000000 +0200
-+++ gdb-7.6.1/gdb/frame.h	2016-03-13 22:29:06.407639441 +0100
+--- gdb-7.6.1.orig/gdb/frame.h	2018-05-05 17:15:29.639212167 +0200
++++ gdb-7.6.1/gdb/frame.h	2018-05-05 17:15:31.436228223 +0200
 @@ -532,7 +532,7 @@
     contents are optimized out or unavailable, set *OPTIMIZEDP,
     *UNAVAILABLEP accordingly.  */
@@ -2089,8 +2089,8 @@ Index: gdb-7.6.1/gdb/frame.h
  
 Index: gdb-7.6.1/gdb/gdbtypes.c
 ===================================================================
---- gdb-7.6.1.orig/gdb/gdbtypes.c	2016-03-13 22:01:55.863942465 +0100
-+++ gdb-7.6.1/gdb/gdbtypes.c	2016-03-13 22:29:08.834656773 +0100
+--- gdb-7.6.1.orig/gdb/gdbtypes.c	2018-05-05 17:15:29.641212184 +0200
++++ gdb-7.6.1/gdb/gdbtypes.c	2018-05-05 17:15:31.437228231 +0200
 @@ -2090,7 +2090,7 @@
     least as long as OBJFILE.  */
  
@@ -2160,8 +2160,8 @@ Index: gdb-7.6.1/gdb/gdbtypes.c
  
 Index: gdb-7.6.1/gdb/gdbtypes.h
 ===================================================================
---- gdb-7.6.1.orig/gdb/gdbtypes.h	2016-03-13 22:01:57.179951914 +0100
-+++ gdb-7.6.1/gdb/gdbtypes.h	2016-03-13 22:01:57.828956573 +0100
+--- gdb-7.6.1.orig/gdb/gdbtypes.h	2018-05-05 17:15:29.641212184 +0200
++++ gdb-7.6.1/gdb/gdbtypes.h	2018-05-05 17:15:31.437228231 +0200
 @@ -606,7 +606,7 @@
  	   gdbarch_bits_big_endian=0 targets, it is the bit offset to
  	   the LSB.  */
@@ -2197,8 +2197,8 @@ Index: gdb-7.6.1/gdb/gdbtypes.h
  extern struct type *arch_boolean_type (struct gdbarch *, int, int, char *);
 Index: gdb-7.6.1/gdb/gnu-v2-abi.c
 ===================================================================
---- gdb-7.6.1.orig/gdb/gnu-v2-abi.c	2013-01-21 18:29:39.000000000 +0100
-+++ gdb-7.6.1/gdb/gnu-v2-abi.c	2016-03-13 22:01:57.828956573 +0100
+--- gdb-7.6.1.orig/gdb/gnu-v2-abi.c	2018-05-05 17:15:29.642212193 +0200
++++ gdb-7.6.1/gdb/gnu-v2-abi.c	2018-05-05 17:15:31.437228231 +0200
 @@ -85,7 +85,7 @@
     TYPE is the type in which F is located.  */
  static struct value *
@@ -2252,8 +2252,8 @@ Index: gdb-7.6.1/gdb/gnu-v2-abi.c
  
 Index: gdb-7.6.1/gdb/gnu-v3-abi.c
 ===================================================================
---- gdb-7.6.1.orig/gdb/gnu-v3-abi.c	2013-01-31 19:37:37.000000000 +0100
-+++ gdb-7.6.1/gdb/gnu-v3-abi.c	2016-03-13 22:01:57.828956573 +0100
+--- gdb-7.6.1.orig/gdb/gnu-v3-abi.c	2018-05-05 17:15:29.642212193 +0200
++++ gdb-7.6.1/gdb/gnu-v3-abi.c	2018-05-05 17:15:31.438228240 +0200
 @@ -106,7 +106,7 @@
  {
    struct type *t;
@@ -2330,8 +2330,8 @@ Index: gdb-7.6.1/gdb/gnu-v3-abi.c
        if (BASETYPE_VIA_VIRTUAL (domain, i))
 Index: gdb-7.6.1/gdb/go-lang.h
 ===================================================================
---- gdb-7.6.1.orig/gdb/go-lang.h	2013-01-01 07:32:44.000000000 +0100
-+++ gdb-7.6.1/gdb/go-lang.h	2016-03-13 22:01:57.828956573 +0100
+--- gdb-7.6.1.orig/gdb/go-lang.h	2018-05-05 17:15:29.642212193 +0200
++++ gdb-7.6.1/gdb/go-lang.h	2018-05-05 17:15:31.438228240 +0200
 @@ -83,7 +83,7 @@
  /* Defined in go-valprint.c.  */
  
@@ -2343,8 +2343,8 @@ Index: gdb-7.6.1/gdb/go-lang.h
  			  const struct value_print_options *options);
 Index: gdb-7.6.1/gdb/go-valprint.c
 ===================================================================
---- gdb-7.6.1.orig/gdb/go-valprint.c	2013-01-01 07:32:44.000000000 +0100
-+++ gdb-7.6.1/gdb/go-valprint.c	2016-03-13 22:01:57.829956580 +0100
+--- gdb-7.6.1.orig/gdb/go-valprint.c	2018-05-05 17:15:29.642212193 +0200
++++ gdb-7.6.1/gdb/go-valprint.c	2018-05-05 17:15:31.438228240 +0200
 @@ -37,7 +37,7 @@
  
  static void
@@ -2369,8 +2369,8 @@ Index: gdb-7.6.1/gdb/go-valprint.c
    CHECK_TYPEDEF (type);
 Index: gdb-7.6.1/gdb/i386-nat.c
 ===================================================================
---- gdb-7.6.1.orig/gdb/i386-nat.c	2013-02-13 15:59:49.000000000 +0100
-+++ gdb-7.6.1/gdb/i386-nat.c	2016-03-13 22:29:09.740663243 +0100
+--- gdb-7.6.1.orig/gdb/i386-nat.c	2018-05-05 17:15:29.643212202 +0200
++++ gdb-7.6.1/gdb/i386-nat.c	2018-05-05 17:15:31.438228240 +0200
 @@ -290,7 +290,7 @@
     valid value, bombs through internal_error.  */
  static int i386_handle_nonaligned_watchpoint (struct i386_debug_reg_state *state,
@@ -2402,8 +2402,8 @@ Index: gdb-7.6.1/gdb/i386-nat.c
      = i386_debug_reg_state (ptid_get_pid (inferior_ptid));
 Index: gdb-7.6.1/gdb/inf-ttrace.c
 ===================================================================
---- gdb-7.6.1.orig/gdb/inf-ttrace.c	2013-01-01 07:32:45.000000000 +0100
-+++ gdb-7.6.1/gdb/inf-ttrace.c	2016-03-13 22:29:09.740663243 +0100
+--- gdb-7.6.1.orig/gdb/inf-ttrace.c	2018-05-05 17:15:29.643212202 +0200
++++ gdb-7.6.1/gdb/inf-ttrace.c	2018-05-05 17:15:31.438228240 +0200
 @@ -364,7 +364,7 @@
  }
  
@@ -2415,8 +2415,8 @@ Index: gdb-7.6.1/gdb/inf-ttrace.c
  }
 Index: gdb-7.6.1/gdb/jv-lang.c
 ===================================================================
---- gdb-7.6.1.orig/gdb/jv-lang.c	2016-03-13 22:01:57.180951921 +0100
-+++ gdb-7.6.1/gdb/jv-lang.c	2016-03-13 22:01:57.830956588 +0100
+--- gdb-7.6.1.orig/gdb/jv-lang.c	2018-05-05 17:15:29.643212202 +0200
++++ gdb-7.6.1/gdb/jv-lang.c	2018-05-05 17:15:31.439228249 +0200
 @@ -437,7 +437,7 @@
    for (i = TYPE_N_BASECLASSES (type); i < nfields; i++)
      {
@@ -2437,8 +2437,8 @@ Index: gdb-7.6.1/gdb/jv-lang.c
    const char *type_encoding = java_get_encoding (type);
 Index: gdb-7.6.1/gdb/jv-lang.h
 ===================================================================
---- gdb-7.6.1.orig/gdb/jv-lang.h	2013-01-01 07:32:46.000000000 +0100
-+++ gdb-7.6.1/gdb/jv-lang.h	2016-03-13 22:01:57.830956588 +0100
+--- gdb-7.6.1.orig/gdb/jv-lang.h	2018-05-05 17:15:29.643212202 +0200
++++ gdb-7.6.1/gdb/jv-lang.h	2018-05-05 17:15:31.439228249 +0200
 @@ -42,8 +42,8 @@
  
  extern const struct builtin_java_type *builtin_java_type (struct gdbarch *);
@@ -2452,8 +2452,8 @@ Index: gdb-7.6.1/gdb/jv-lang.h
  
 Index: gdb-7.6.1/gdb/jv-valprint.c
 ===================================================================
---- gdb-7.6.1.orig/gdb/jv-valprint.c	2013-01-31 19:37:37.000000000 +0100
-+++ gdb-7.6.1/gdb/jv-valprint.c	2016-03-13 22:01:57.830956588 +0100
+--- gdb-7.6.1.orig/gdb/jv-valprint.c	2018-05-05 17:15:29.644212211 +0200
++++ gdb-7.6.1/gdb/jv-valprint.c	2018-05-05 17:15:31.439228249 +0200
 @@ -266,7 +266,7 @@
  
  static void
@@ -2474,8 +2474,8 @@ Index: gdb-7.6.1/gdb/jv-valprint.c
  		const struct value_print_options *options)
 Index: gdb-7.6.1/gdb/language.c
 ===================================================================
---- gdb-7.6.1.orig/gdb/language.c	2013-01-01 07:32:46.000000000 +0100
-+++ gdb-7.6.1/gdb/language.c	2016-03-13 22:01:57.830956588 +0100
+--- gdb-7.6.1.orig/gdb/language.c	2018-05-05 17:15:29.644212211 +0200
++++ gdb-7.6.1/gdb/language.c	2018-05-05 17:15:31.439228249 +0200
 @@ -720,7 +720,7 @@
  
  static void
@@ -2496,8 +2496,8 @@ Index: gdb-7.6.1/gdb/language.c
  		    const struct value_print_options *options)
 Index: gdb-7.6.1/gdb/language.h
 ===================================================================
---- gdb-7.6.1.orig/gdb/language.h	2013-03-05 22:15:34.000000000 +0100
-+++ gdb-7.6.1/gdb/language.h	2016-03-13 22:01:57.831956595 +0100
+--- gdb-7.6.1.orig/gdb/language.h	2018-05-05 17:15:29.644212211 +0200
++++ gdb-7.6.1/gdb/language.h	2018-05-05 17:15:31.439228249 +0200
 @@ -175,7 +175,7 @@
  			  struct ui_file * stream);
  
@@ -2518,8 +2518,8 @@ Index: gdb-7.6.1/gdb/language.h
  			  const struct value_print_options *options);
 Index: gdb-7.6.1/gdb/m2-lang.c
 ===================================================================
---- gdb-7.6.1.orig/gdb/m2-lang.c	2013-01-07 17:40:36.000000000 +0100
-+++ gdb-7.6.1/gdb/m2-lang.c	2016-03-13 22:01:57.831956595 +0100
+--- gdb-7.6.1.orig/gdb/m2-lang.c	2018-05-05 17:15:29.644212211 +0200
++++ gdb-7.6.1/gdb/m2-lang.c	2018-05-05 17:15:31.439228249 +0200
 @@ -103,10 +103,10 @@
  
  static void
@@ -2556,8 +2556,8 @@ Index: gdb-7.6.1/gdb/m2-lang.c
  	  need_comma = 1;
 Index: gdb-7.6.1/gdb/m2-lang.h
 ===================================================================
---- gdb-7.6.1.orig/gdb/m2-lang.h	2013-01-01 07:32:46.000000000 +0100
-+++ gdb-7.6.1/gdb/m2-lang.h	2016-03-13 22:01:57.831956595 +0100
+--- gdb-7.6.1.orig/gdb/m2-lang.h	2018-05-05 17:15:29.644212211 +0200
++++ gdb-7.6.1/gdb/m2-lang.h	2018-05-05 17:15:31.440228258 +0200
 @@ -33,7 +33,7 @@
  extern int m2_is_long_set (struct type *type);
  extern int m2_is_unbounded_array (struct type *type);
@@ -2569,8 +2569,8 @@ Index: gdb-7.6.1/gdb/m2-lang.h
  			  const struct value_print_options *);
 Index: gdb-7.6.1/gdb/m2-typeprint.c
 ===================================================================
---- gdb-7.6.1.orig/gdb/m2-typeprint.c	2013-01-31 19:37:37.000000000 +0100
-+++ gdb-7.6.1/gdb/m2-typeprint.c	2016-03-13 22:01:57.831956595 +0100
+--- gdb-7.6.1.orig/gdb/m2-typeprint.c	2018-05-05 17:15:29.645212220 +0200
++++ gdb-7.6.1/gdb/m2-typeprint.c	2018-05-05 17:15:31.440228258 +0200
 @@ -233,9 +233,12 @@
  	  m2_print_bounds (TYPE_INDEX_TYPE (type), stream, show, -1, 1);
  	}
@@ -2589,8 +2589,8 @@ Index: gdb-7.6.1/gdb/m2-typeprint.c
    m2_print_type (TYPE_TARGET_TYPE (type), "", stream, show, level, flags);
 Index: gdb-7.6.1/gdb/m2-valprint.c
 ===================================================================
---- gdb-7.6.1.orig/gdb/m2-valprint.c	2013-01-01 07:32:46.000000000 +0100
-+++ gdb-7.6.1/gdb/m2-valprint.c	2016-03-13 22:01:57.832956602 +0100
+--- gdb-7.6.1.orig/gdb/m2-valprint.c	2018-05-05 17:15:29.645212220 +0200
++++ gdb-7.6.1/gdb/m2-valprint.c	2018-05-05 17:15:31.440228258 +0200
 @@ -35,7 +35,7 @@
  				   struct ui_file *stream);
  static void
@@ -2658,8 +2658,8 @@ Index: gdb-7.6.1/gdb/m2-valprint.c
  		  for (temp_len = 0;
 Index: gdb-7.6.1/gdb/memrange.c
 ===================================================================
---- gdb-7.6.1.orig/gdb/memrange.c	2013-01-01 07:32:47.000000000 +0100
-+++ gdb-7.6.1/gdb/memrange.c	2016-03-13 22:01:57.832956602 +0100
+--- gdb-7.6.1.orig/gdb/memrange.c	2018-05-05 17:15:29.645212220 +0200
++++ gdb-7.6.1/gdb/memrange.c	2018-05-05 17:15:31.440228258 +0200
 @@ -21,8 +21,8 @@
  #include "memrange.h"
  
@@ -2673,8 +2673,8 @@ Index: gdb-7.6.1/gdb/memrange.c
  
 Index: gdb-7.6.1/gdb/memrange.h
 ===================================================================
---- gdb-7.6.1.orig/gdb/memrange.h	2013-01-01 07:32:47.000000000 +0100
-+++ gdb-7.6.1/gdb/memrange.h	2016-03-13 22:01:57.832956602 +0100
+--- gdb-7.6.1.orig/gdb/memrange.h	2018-05-05 17:15:29.645212220 +0200
++++ gdb-7.6.1/gdb/memrange.h	2018-05-05 17:15:31.440228258 +0200
 @@ -30,7 +30,7 @@
    CORE_ADDR start;
  
@@ -2697,8 +2697,8 @@ Index: gdb-7.6.1/gdb/memrange.h
     overlapping ranges.  */
 Index: gdb-7.6.1/gdb/mips-linux-nat.c
 ===================================================================
---- gdb-7.6.1.orig/gdb/mips-linux-nat.c	2013-02-19 08:50:30.000000000 +0100
-+++ gdb-7.6.1/gdb/mips-linux-nat.c	2016-03-13 22:29:09.740663243 +0100
+--- gdb-7.6.1.orig/gdb/mips-linux-nat.c	2018-05-05 17:15:29.645212220 +0200
++++ gdb-7.6.1/gdb/mips-linux-nat.c	2018-05-05 17:15:31.440228258 +0200
 @@ -938,7 +938,7 @@
     the specified region can be covered by the watch registers.  */
  
@@ -2710,8 +2710,8 @@ Index: gdb-7.6.1/gdb/mips-linux-nat.c
    int i;
 Index: gdb-7.6.1/gdb/opencl-lang.c
 ===================================================================
---- gdb-7.6.1.orig/gdb/opencl-lang.c	2013-01-25 18:16:40.000000000 +0100
-+++ gdb-7.6.1/gdb/opencl-lang.c	2016-03-13 22:01:57.833956609 +0100
+--- gdb-7.6.1.orig/gdb/opencl-lang.c	2018-05-05 17:15:29.646212229 +0200
++++ gdb-7.6.1/gdb/opencl-lang.c	2018-05-05 17:15:31.441228267 +0200
 @@ -80,11 +80,11 @@
  
  static struct type *
@@ -2840,8 +2840,8 @@ Index: gdb-7.6.1/gdb/opencl-lang.c
  					 c->indices[i] * elsize + comp_offset,
 Index: gdb-7.6.1/gdb/p-lang.c
 ===================================================================
---- gdb-7.6.1.orig/gdb/p-lang.c	2013-01-07 17:40:36.000000000 +0100
-+++ gdb-7.6.1/gdb/p-lang.c	2016-03-13 22:01:57.833956609 +0100
+--- gdb-7.6.1.orig/gdb/p-lang.c	2018-05-05 17:15:29.646212229 +0200
++++ gdb-7.6.1/gdb/p-lang.c	2018-05-05 17:15:31.441228267 +0200
 @@ -95,8 +95,8 @@
     are not multiple of TARGET_CHAR_BIT then the results are wrong
     but this does not happen for Free Pascal nor for GPC.  */
@@ -2891,8 +2891,8 @@ Index: gdb-7.6.1/gdb/p-lang.c
  	  need_comma = 1;
 Index: gdb-7.6.1/gdb/p-lang.h
 ===================================================================
---- gdb-7.6.1.orig/gdb/p-lang.h	2013-01-01 07:32:47.000000000 +0100
-+++ gdb-7.6.1/gdb/p-lang.h	2016-03-13 22:01:57.833956609 +0100
+--- gdb-7.6.1.orig/gdb/p-lang.h	2018-05-05 17:15:29.647212238 +0200
++++ gdb-7.6.1/gdb/p-lang.h	2018-05-05 17:15:31.441228267 +0200
 @@ -35,7 +35,7 @@
  extern void pascal_print_typedef (struct type *, struct symbol *,
  				  struct ui_file *);
@@ -2929,8 +2929,8 @@ Index: gdb-7.6.1/gdb/p-lang.h
  					      const struct value *,
 Index: gdb-7.6.1/gdb/p-valprint.c
 ===================================================================
---- gdb-7.6.1.orig/gdb/p-valprint.c	2016-03-13 22:01:55.865942480 +0100
-+++ gdb-7.6.1/gdb/p-valprint.c	2016-03-13 22:29:09.785663564 +0100
+--- gdb-7.6.1.orig/gdb/p-valprint.c	2018-05-05 17:15:29.647212238 +0200
++++ gdb-7.6.1/gdb/p-valprint.c	2018-05-05 17:15:31.441228267 +0200
 @@ -58,7 +58,7 @@
  
  void
@@ -2994,8 +2994,8 @@ Index: gdb-7.6.1/gdb/p-valprint.c
  
 Index: gdb-7.6.1/gdb/ppc-linux-nat.c
 ===================================================================
---- gdb-7.6.1.orig/gdb/ppc-linux-nat.c	2016-03-13 22:01:55.928942932 +0100
-+++ gdb-7.6.1/gdb/ppc-linux-nat.c	2016-03-13 22:29:09.740663243 +0100
+--- gdb-7.6.1.orig/gdb/ppc-linux-nat.c	2018-05-05 17:15:29.647212238 +0200
++++ gdb-7.6.1/gdb/ppc-linux-nat.c	2018-05-05 17:15:31.442228276 +0200
 @@ -1492,7 +1492,7 @@
  }
  
@@ -3007,8 +3007,8 @@ Index: gdb-7.6.1/gdb/ppc-linux-nat.c
    if (len <= 0)
 Index: gdb-7.6.1/gdb/printcmd.c
 ===================================================================
---- gdb-7.6.1.orig/gdb/printcmd.c	2016-03-13 22:01:56.371946113 +0100
-+++ gdb-7.6.1/gdb/printcmd.c	2016-03-13 22:01:57.835956624 +0100
+--- gdb-7.6.1.orig/gdb/printcmd.c	2018-05-05 17:15:29.648212247 +0200
++++ gdb-7.6.1/gdb/printcmd.c	2018-05-05 17:15:31.442228276 +0200
 @@ -290,7 +290,7 @@
  		 struct ui_file *stream)
  {
@@ -3029,8 +3029,8 @@ Index: gdb-7.6.1/gdb/printcmd.c
    /* String printing should go through val_print_scalar_formatted.  */
 Index: gdb-7.6.1/gdb/procfs.c
 ===================================================================
---- gdb-7.6.1.orig/gdb/procfs.c	2013-01-01 07:32:49.000000000 +0100
-+++ gdb-7.6.1/gdb/procfs.c	2016-03-13 22:29:09.740663243 +0100
+--- gdb-7.6.1.orig/gdb/procfs.c	2018-05-05 17:15:29.649212256 +0200
++++ gdb-7.6.1/gdb/procfs.c	2018-05-05 17:15:31.443228285 +0200
 @@ -4926,7 +4926,7 @@
  }
  
@@ -3042,8 +3042,8 @@ Index: gdb-7.6.1/gdb/procfs.c
       system can support "thousands" of hardware watchpoints, but gives
 Index: gdb-7.6.1/gdb/python/py-prettyprint.c
 ===================================================================
---- gdb-7.6.1.orig/gdb/python/py-prettyprint.c	2013-01-01 07:33:01.000000000 +0100
-+++ gdb-7.6.1/gdb/python/py-prettyprint.c	2016-03-13 22:01:57.836956631 +0100
+--- gdb-7.6.1.orig/gdb/python/py-prettyprint.c	2018-05-05 17:15:29.649212256 +0200
++++ gdb-7.6.1/gdb/python/py-prettyprint.c	2018-05-05 17:15:31.443228285 +0200
 @@ -689,7 +689,7 @@
  
  int
@@ -3064,8 +3064,8 @@ Index: gdb-7.6.1/gdb/python/py-prettyprint.c
  			  const struct value_print_options *options,
 Index: gdb-7.6.1/gdb/python/python.h
 ===================================================================
---- gdb-7.6.1.orig/gdb/python/python.h	2016-03-13 22:01:55.868942501 +0100
-+++ gdb-7.6.1/gdb/python/python.h	2016-03-13 22:29:06.600640819 +0100
+--- gdb-7.6.1.orig/gdb/python/python.h	2018-05-05 17:15:29.649212256 +0200
++++ gdb-7.6.1/gdb/python/python.h	2018-05-05 17:15:31.443228285 +0200
 @@ -37,7 +37,7 @@
  void run_python_script (int argc, char **argv);
  
@@ -3077,8 +3077,8 @@ Index: gdb-7.6.1/gdb/python/python.h
  			      const struct value_print_options *options,
 Index: gdb-7.6.1/gdb/regcache.c
 ===================================================================
---- gdb-7.6.1.orig/gdb/regcache.c	2013-03-07 19:59:54.000000000 +0100
-+++ gdb-7.6.1/gdb/regcache.c	2016-03-13 22:01:57.837956638 +0100
+--- gdb-7.6.1.orig/gdb/regcache.c	2018-05-05 17:15:29.650212265 +0200
++++ gdb-7.6.1/gdb/regcache.c	2018-05-05 17:15:31.443228285 +0200
 @@ -899,7 +899,7 @@
  
  static enum register_status
@@ -3126,8 +3126,8 @@ Index: gdb-7.6.1/gdb/regcache.c
  
 Index: gdb-7.6.1/gdb/regcache.h
 ===================================================================
---- gdb-7.6.1.orig/gdb/regcache.h	2013-01-01 07:32:49.000000000 +0100
-+++ gdb-7.6.1/gdb/regcache.h	2016-03-13 22:01:57.837956638 +0100
+--- gdb-7.6.1.orig/gdb/regcache.h	2018-05-05 17:15:29.650212265 +0200
++++ gdb-7.6.1/gdb/regcache.h	2018-05-05 17:15:31.443228285 +0200
 @@ -89,9 +89,9 @@
  
  extern enum register_status
@@ -3157,8 +3157,8 @@ Index: gdb-7.6.1/gdb/regcache.h
  
 Index: gdb-7.6.1/gdb/remote.c
 ===================================================================
---- gdb-7.6.1.orig/gdb/remote.c	2016-03-13 22:01:57.584954821 +0100
-+++ gdb-7.6.1/gdb/remote.c	2016-03-13 22:29:09.740663243 +0100
+--- gdb-7.6.1.orig/gdb/remote.c	2018-05-05 17:15:29.652212283 +0200
++++ gdb-7.6.1/gdb/remote.c	2018-05-05 17:15:31.445228303 +0200
 @@ -8272,7 +8272,7 @@
  int remote_hw_breakpoint_limit = -1;
  
@@ -3170,8 +3170,8 @@ Index: gdb-7.6.1/gdb/remote.c
      return 0;
 Index: gdb-7.6.1/gdb/s390-nat.c
 ===================================================================
---- gdb-7.6.1.orig/gdb/s390-nat.c	2013-01-01 07:32:50.000000000 +0100
-+++ gdb-7.6.1/gdb/s390-nat.c	2016-03-13 22:29:09.740663243 +0100
+--- gdb-7.6.1.orig/gdb/s390-nat.c	2018-05-05 17:15:29.652212283 +0200
++++ gdb-7.6.1/gdb/s390-nat.c	2018-05-05 17:15:31.445228303 +0200
 @@ -571,7 +571,7 @@
  }
  
@@ -3183,8 +3183,8 @@ Index: gdb-7.6.1/gdb/s390-nat.c
  }
 Index: gdb-7.6.1/gdb/spu-multiarch.c
 ===================================================================
---- gdb-7.6.1.orig/gdb/spu-multiarch.c	2013-03-01 16:38:26.000000000 +0100
-+++ gdb-7.6.1/gdb/spu-multiarch.c	2016-03-13 22:01:57.840956660 +0100
+--- gdb-7.6.1.orig/gdb/spu-multiarch.c	2018-05-05 17:15:29.652212283 +0200
++++ gdb-7.6.1/gdb/spu-multiarch.c	2018-05-05 17:15:31.445228303 +0200
 @@ -118,7 +118,7 @@
  
  /* Override the to_region_ok_for_hw_watchpoint routine.  */
@@ -3196,8 +3196,8 @@ Index: gdb-7.6.1/gdb/spu-multiarch.c
    while (ops_beneath && !ops_beneath->to_region_ok_for_hw_watchpoint)
 Index: gdb-7.6.1/gdb/stack.c
 ===================================================================
---- gdb-7.6.1.orig/gdb/stack.c	2016-03-13 22:01:55.869942508 +0100
-+++ gdb-7.6.1/gdb/stack.c	2016-03-13 22:29:06.600640819 +0100
+--- gdb-7.6.1.orig/gdb/stack.c	2018-05-05 17:15:29.653212292 +0200
++++ gdb-7.6.1/gdb/stack.c	2018-05-05 17:15:31.446228312 +0200
 @@ -174,7 +174,7 @@
     argument (not just the first nameless argument).  */
  
@@ -3238,8 +3238,8 @@ Index: gdb-7.6.1/gdb/stack.c
  	start = gdbarch_frame_args_skip (get_frame_arch (frame));
 Index: gdb-7.6.1/gdb/symmisc.c
 ===================================================================
---- gdb-7.6.1.orig/gdb/symmisc.c	2016-03-13 22:01:56.586947656 +0100
-+++ gdb-7.6.1/gdb/symmisc.c	2016-03-13 22:01:57.841956667 +0100
+--- gdb-7.6.1.orig/gdb/symmisc.c	2018-05-05 17:15:29.653212292 +0200
++++ gdb-7.6.1/gdb/symmisc.c	2018-05-05 17:15:31.446228312 +0200
 @@ -527,11 +527,11 @@
  
  	case LOC_CONST_BYTES:
@@ -3257,8 +3257,8 @@ Index: gdb-7.6.1/gdb/symmisc.c
  				(unsigned) SYMBOL_VALUE_BYTES (symbol)[i]);
 Index: gdb-7.6.1/gdb/target.c
 ===================================================================
---- gdb-7.6.1.orig/gdb/target.c	2016-03-13 22:01:57.586954836 +0100
-+++ gdb-7.6.1/gdb/target.c	2016-03-13 22:29:09.740663243 +0100
+--- gdb-7.6.1.orig/gdb/target.c	2018-05-05 17:15:29.654212301 +0200
++++ gdb-7.6.1/gdb/target.c	2018-05-05 17:15:31.447228321 +0200
 @@ -51,7 +51,7 @@
  static int default_watchpoint_addr_within_range (struct target_ops *,
  						 CORE_ADDR, CORE_ADDR, int);
@@ -3297,8 +3297,8 @@ Index: gdb-7.6.1/gdb/target.c
  
 Index: gdb-7.6.1/gdb/target.h
 ===================================================================
---- gdb-7.6.1.orig/gdb/target.h	2016-03-13 22:01:57.586954836 +0100
-+++ gdb-7.6.1/gdb/target.h	2016-03-13 22:29:09.740663243 +0100
+--- gdb-7.6.1.orig/gdb/target.h	2018-05-05 17:15:29.655212309 +0200
++++ gdb-7.6.1/gdb/target.h	2018-05-05 17:15:31.447228321 +0200
 @@ -485,7 +485,7 @@
  
      /* Documentation of this routine is provided with the corresponding
@@ -3310,8 +3310,8 @@ Index: gdb-7.6.1/gdb/target.h
  					      struct expression *);
 Index: gdb-7.6.1/gdb/tracepoint.c
 ===================================================================
---- gdb-7.6.1.orig/gdb/tracepoint.c	2013-03-12 18:39:44.000000000 +0100
-+++ gdb-7.6.1/gdb/tracepoint.c	2016-03-13 22:01:57.843956681 +0100
+--- gdb-7.6.1.orig/gdb/tracepoint.c	2018-05-05 17:15:29.657212327 +0200
++++ gdb-7.6.1/gdb/tracepoint.c	2018-05-05 17:15:31.448228330 +0200
 @@ -959,13 +959,13 @@
  static void
  add_memrange (struct collection_list *memranges, 
@@ -3407,8 +3407,8 @@ Index: gdb-7.6.1/gdb/tracepoint.c
  	break;
 Index: gdb-7.6.1/gdb/typeprint.c
 ===================================================================
---- gdb-7.6.1.orig/gdb/typeprint.c	2016-03-13 22:01:55.877942566 +0100
-+++ gdb-7.6.1/gdb/typeprint.c	2016-03-13 22:01:57.844956688 +0100
+--- gdb-7.6.1.orig/gdb/typeprint.c	2018-05-05 17:15:29.657212327 +0200
++++ gdb-7.6.1/gdb/typeprint.c	2018-05-05 17:15:31.448228330 +0200
 @@ -409,7 +409,7 @@
    struct type *real_type = NULL;
    struct type *type;
@@ -3420,8 +3420,8 @@ Index: gdb-7.6.1/gdb/typeprint.c
    struct type_print_options flags = default_ptype_flags;
 Index: gdb-7.6.1/gdb/valarith.c
 ===================================================================
---- gdb-7.6.1.orig/gdb/valarith.c	2016-03-13 22:01:55.879942580 +0100
-+++ gdb-7.6.1/gdb/valarith.c	2016-03-13 22:01:57.844956688 +0100
+--- gdb-7.6.1.orig/gdb/valarith.c	2018-05-05 17:15:29.658212336 +0200
++++ gdb-7.6.1/gdb/valarith.c	2018-05-05 17:15:31.448228330 +0200
 @@ -190,15 +190,15 @@
     to doubles, but no longer does.  */
  
@@ -3477,8 +3477,8 @@ Index: gdb-7.6.1/gdb/valarith.c
      {
 Index: gdb-7.6.1/gdb/valops.c
 ===================================================================
---- gdb-7.6.1.orig/gdb/valops.c	2016-03-13 22:01:57.016950743 +0100
-+++ gdb-7.6.1/gdb/valops.c	2016-03-13 22:29:09.785663564 +0100
+--- gdb-7.6.1.orig/gdb/valops.c	2018-05-05 17:15:29.662212372 +0200
++++ gdb-7.6.1/gdb/valops.c	2018-05-05 17:15:31.449228339 +0200
 @@ -54,11 +54,11 @@
  		    struct field t1[], struct value *t2[]);
  
@@ -3796,8 +3796,8 @@ Index: gdb-7.6.1/gdb/valops.c
  
 Index: gdb-7.6.1/gdb/valprint.c
 ===================================================================
---- gdb-7.6.1.orig/gdb/valprint.c	2016-03-13 22:01:55.880942587 +0100
-+++ gdb-7.6.1/gdb/valprint.c	2016-03-13 22:01:57.846956703 +0100
+--- gdb-7.6.1.orig/gdb/valprint.c	2018-05-05 17:15:29.663212381 +0200
++++ gdb-7.6.1/gdb/valprint.c	2018-05-05 17:15:31.449228339 +0200
 @@ -299,7 +299,7 @@
  int
  valprint_check_validity (struct ui_file *stream,
@@ -3893,8 +3893,8 @@ Index: gdb-7.6.1/gdb/valprint.c
  		  const struct value_print_options *options)
 Index: gdb-7.6.1/gdb/valprint.h
 ===================================================================
---- gdb-7.6.1.orig/gdb/valprint.h	2013-01-08 03:00:34.000000000 +0100
-+++ gdb-7.6.1/gdb/valprint.h	2016-03-13 22:01:57.846956703 +0100
+--- gdb-7.6.1.orig/gdb/valprint.h	2018-05-05 17:15:29.663212381 +0200
++++ gdb-7.6.1/gdb/valprint.h	2018-05-05 17:15:31.450228348 +0200
 @@ -113,11 +113,11 @@
                                       struct ui_file *stream,
  				     const struct value_print_options *);
@@ -3947,8 +3947,8 @@ Index: gdb-7.6.1/gdb/valprint.h
  			      const struct value_print_options *options);
 Index: gdb-7.6.1/gdb/value.c
 ===================================================================
---- gdb-7.6.1.orig/gdb/value.c	2016-03-13 22:01:57.181951928 +0100
-+++ gdb-7.6.1/gdb/value.c	2016-03-13 22:29:09.785663564 +0100
+--- gdb-7.6.1.orig/gdb/value.c	2018-05-05 17:15:29.667212417 +0200
++++ gdb-7.6.1/gdb/value.c	2018-05-05 17:15:31.450228348 +0200
 @@ -68,10 +68,10 @@
  struct range
  {
@@ -4254,8 +4254,8 @@ Index: gdb-7.6.1/gdb/value.c
    addr += bitpos / 8;
 Index: gdb-7.6.1/gdb/value.h
 ===================================================================
---- gdb-7.6.1.orig/gdb/value.h	2016-03-13 22:01:55.881942594 +0100
-+++ gdb-7.6.1/gdb/value.h	2016-03-13 22:01:57.848956717 +0100
+--- gdb-7.6.1.orig/gdb/value.h	2018-05-05 17:15:29.668212426 +0200
++++ gdb-7.6.1/gdb/value.h	2018-05-05 17:15:31.451228357 +0200
 @@ -82,8 +82,8 @@
     within the registers structure.  Note also the member
     embedded_offset below.  */
@@ -4492,9 +4492,9 @@ Index: gdb-7.6.1/gdb/value.h
  
 Index: gdb-7.6.1/gdb/aarch64-linux-nat.c
 ===================================================================
---- gdb-7.6.1.orig/gdb/aarch64-linux-nat.c	2016-03-13 22:01:55.936942989 +0100
-+++ gdb-7.6.1/gdb/aarch64-linux-nat.c	2016-03-13 22:29:39.228873825 +0100
-@@ -427,14 +427,14 @@
+--- gdb-7.6.1.orig/gdb/aarch64-linux-nat.c	2018-05-05 17:15:29.669212435 +0200
++++ gdb-7.6.1/gdb/aarch64-linux-nat.c	2018-05-05 17:17:17.355174655 +0200
+@@ -541,14 +541,14 @@
  static void
  aarch64_show_debug_reg_state (struct aarch64_debug_reg_state *state,
  			      const char *func, CORE_ADDR addr,
@@ -4512,28 +4512,28 @@ Index: gdb-7.6.1/gdb/aarch64-linux-nat.c
  			type == hw_write ? "hw-write-watchpoint"
  			: (type == hw_read ? "hw-read-watchpoint"
  			   : (type == hw_access ? "hw-access-watchpoint"
-@@ -866,9 +866,9 @@
+@@ -981,9 +981,9 @@
     gdbserver/linux-aarch64-low.c for more information.  */
  
  static void
 -aarch64_align_watchpoint (CORE_ADDR addr, int len, CORE_ADDR *aligned_addr_p,
 +aarch64_align_watchpoint (CORE_ADDR addr, LONGEST len, CORE_ADDR *aligned_addr_p,
- 			  int *aligned_len_p, CORE_ADDR *next_addr_p,
--			  int *next_len_p)
-+			  LONGEST *next_len_p)
+ 			  int *aligned_offset_p, int *aligned_len_p,
+-			  CORE_ADDR *next_addr_p, int *next_len_p,
++			  CORE_ADDR *next_addr_p, LONGEST *next_len_p,
+ 			  CORE_ADDR *next_addr_orig_p)
  {
    int aligned_len;
-   unsigned int offset;
-@@ -988,7 +988,7 @@
+@@ -1100,7 +1100,7 @@
     breakpoint/watchpoint control register.  */
  
  static unsigned int
--aarch64_point_encode_ctrl_reg (int type, int len)
-+aarch64_point_encode_ctrl_reg (int type, LONGEST len)
+-aarch64_point_encode_ctrl_reg (int type, int offset, int len)
++aarch64_point_encode_ctrl_reg (int type, int offset, LONGEST len)
  {
    unsigned int ctrl, ttype;
  
-@@ -1034,7 +1034,7 @@
+@@ -1149,7 +1149,7 @@
     Return 0 for any non-compliant ADDR and/or LEN; return 1 otherwise.  */
  
  static int
@@ -4542,25 +4542,25 @@ Index: gdb-7.6.1/gdb/aarch64-linux-nat.c
  {
    unsigned int alignment = is_watchpoint ? AARCH64_HWP_ALIGNMENT
      : AARCH64_HBP_ALIGNMENT;
-@@ -1053,7 +1053,7 @@
+@@ -1171,7 +1171,7 @@
  
  static int
  aarch64_dr_state_insert_one_point (struct aarch64_debug_reg_state *state,
--				   int type, CORE_ADDR addr, int len)
-+				   int type, CORE_ADDR addr, LONGEST len)
+-				   int type, CORE_ADDR addr, int offset, int len,
++				   int type, CORE_ADDR addr, int offset, LONGEST len,
+ 				   CORE_ADDR addr_orig)
  {
    int i, idx, num_regs, is_watchpoint;
-   unsigned int ctrl, *dr_ctrl_p, *dr_ref_count;
-@@ -1125,7 +1125,7 @@
+@@ -1250,7 +1250,7 @@
  
  static int
  aarch64_dr_state_remove_one_point (struct aarch64_debug_reg_state *state,
--				   int type, CORE_ADDR addr, int len)
-+				   int type, CORE_ADDR addr, LONGEST len)
+-				   int type, CORE_ADDR addr, int offset, int len,
++				   int type, CORE_ADDR addr, int offset, LONGEST len,
+ 				   CORE_ADDR addr_orig)
  {
    int i, num_regs, is_watchpoint;
-   unsigned int ctrl, *dr_ctrl_p, *dr_ref_count;
-@@ -1264,7 +1264,7 @@
+@@ -1396,7 +1396,7 @@
     from that it is an aligned watchpoint to be handled.  */
  
  static int
@@ -4569,7 +4569,7 @@ Index: gdb-7.6.1/gdb/aarch64-linux-nat.c
  				   int is_insert)
  {
    struct aarch64_debug_reg_state *state
-@@ -1284,7 +1284,7 @@
+@@ -1416,7 +1416,7 @@
     Return 0 if succeed.  */
  
  static int
@@ -4578,18 +4578,22 @@ Index: gdb-7.6.1/gdb/aarch64-linux-nat.c
  				     int is_insert)
  {
    struct aarch64_debug_reg_state *state
-@@ -1309,8 +1309,8 @@
- 	fprintf_unfiltered (gdb_stdlog,
- "handle_unaligned_watchpoint: is_insert: %d\n"
+@@ -1447,12 +1447,12 @@
  "                             aligned_addr: 0x%08lx, aligned_len: %d\n"
--"                                next_addr: 0x%08lx,    next_len: %d\n",
--		 is_insert, aligned_addr, aligned_len, addr, len);
-+"                                next_addr: 0x%08lx,    next_len: %s\n",
-+		 is_insert, aligned_addr, aligned_len, addr, plongest (len));
+ "                                addr_orig: %s\n"
+ "                                                                "
+-"                                next_addr: %s,    next_len: %d\n"
++"                                next_addr: %s,    next_len: %s\n"
+ "                                                           "
+ "                                addr_orig_next: %s\n",
+ 		 is_insert, aligned_addr,
+ 		      aligned_len, core_addr_to_string_nz (addr_orig),
+-		      core_addr_to_string_nz (addr), len,
++		      core_addr_to_string_nz (addr), plongest (len),
+ 		      core_addr_to_string_nz (addr_orig_next));
  
-       if (ret != 0)
- 	return ret;
-@@ -1322,7 +1322,7 @@
+       addr_orig = addr_orig_next;
+@@ -1467,7 +1467,7 @@
  /* Implements insertion and removal of a single watchpoint.  */
  
  static int
@@ -4598,7 +4602,7 @@ Index: gdb-7.6.1/gdb/aarch64-linux-nat.c
  {
    if (aarch64_point_is_aligned (1 /* is_watchpoint */ , addr, len))
      return aarch64_handle_aligned_watchpoint (type, addr, len, is_insert);
-@@ -1337,15 +1337,15 @@
+@@ -1482,15 +1482,15 @@
     of the type TYPE.  Return 0 on success, -1 on failure.  */
  
  static int
@@ -4617,7 +4621,7 @@ Index: gdb-7.6.1/gdb/aarch64-linux-nat.c
  
    gdb_assert (type != hw_execute);
  
-@@ -1369,15 +1369,15 @@
+@@ -1514,15 +1514,15 @@
     type TYPE.  Return 0 on success, -1 on failure.  */
  
  static int
@@ -4636,7 +4640,7 @@ Index: gdb-7.6.1/gdb/aarch64-linux-nat.c
  
    gdb_assert (type != hw_execute);
  
-@@ -1398,7 +1398,7 @@
+@@ -1543,7 +1543,7 @@
  /* Implement the "to_region_ok_for_hw_watchpoint" target_ops method.  */
  
  static int
@@ -4645,7 +4649,7 @@ Index: gdb-7.6.1/gdb/aarch64-linux-nat.c
  {
    CORE_ADDR aligned_addr;
  
-@@ -1488,7 +1488,7 @@
+@@ -1655,7 +1655,7 @@
  static int
  aarch64_linux_watchpoint_addr_within_range (struct target_ops *target,
  					    CORE_ADDR addr,

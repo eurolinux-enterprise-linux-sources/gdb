@@ -1,0 +1,92 @@
+commit 952c3f51ac994f5e98aa829076609124cf9e5243
+Author: Andreas Krebbel <krebbel@linux.vnet.ibm.com>
+Date:   Mon Sep 12 16:32:02 2016 +0200
+
+    S/390: Add alternate processor names.
+    
+    This patch adds alternate CPU names which adhere to the number of the
+    architecture document.  So instead of having z196, zEC12, and z13 you
+    can use arch9, arch10, and arch11.  The old cpu names stay valid and
+    should primarily be used.
+    
+    The alternate names are supposed to improve compatibility with the IBM
+    XL compiler toolchain which uses the arch numbering.
+    
+    opcodes/ChangeLog:
+    
+    2016-09-12  Andreas Krebbel  <krebbel@linux.vnet.ibm.com>
+    
+            * s390-mkopc.c (main): Support alternate arch strings.
+    
+    gas/ChangeLog:
+    
+    2016-09-12  Andreas Krebbel  <krebbel@linux.vnet.ibm.com>
+    
+            * config/tc-s390.c (s390_parse_cpu): Support alternate arch
+            strings.
+            * doc/as.texinfo: Document new arch strings.
+            * doc/c-s390.texi: Likewise.
+
+### a/opcodes/ChangeLog
+### b/opcodes/ChangeLog
+## -1,3 +1,7 @@
++2016-09-12  Andreas Krebbel  <krebbel@linux.vnet.ibm.com>
++
++	* s390-mkopc.c (main): Support alternate arch strings.
++
+ 2016-09-12  Patrick Steuer  <steuer@linux.vnet.ibm.com>
+ 
+ 	* s390-opc.txt: Fix kmctr instruction type.
+--- a/opcodes/s390-mkopc.c
++++ b/opcodes/s390-mkopc.c
+@@ -334,7 +334,7 @@ main (void)
+       char  *str;
+ 
+       if (currentLine[0] == '#' || currentLine[0] == '\n')
+-        continue;
++	continue;
+       memset (opcode, 0, 8);
+       num_matched =
+ 	sscanf (currentLine, "%15s %15s %15s \"%79[^\"]\" %15s %15s %79[^\n]",
+@@ -346,25 +346,33 @@ main (void)
+ 	  exit (1);
+ 	}
+ 
+-      if (strcmp (cpu_string, "g5") == 0)
++      if (strcmp (cpu_string, "g5") == 0
++	  || strcmp (cpu_string, "arch3") == 0)
+ 	min_cpu = S390_OPCODE_G5;
+       else if (strcmp (cpu_string, "g6") == 0)
+ 	min_cpu = S390_OPCODE_G6;
+-      else if (strcmp (cpu_string, "z900") == 0)
++      else if (strcmp (cpu_string, "z900") == 0
++	       || strcmp (cpu_string, "arch5") == 0)
+ 	min_cpu = S390_OPCODE_Z900;
+-      else if (strcmp (cpu_string, "z990") == 0)
++      else if (strcmp (cpu_string, "z990") == 0
++	       || strcmp (cpu_string, "arch6") == 0)
+ 	min_cpu = S390_OPCODE_Z990;
+       else if (strcmp (cpu_string, "z9-109") == 0)
+ 	min_cpu = S390_OPCODE_Z9_109;
+-      else if (strcmp (cpu_string, "z9-ec") == 0)
++      else if (strcmp (cpu_string, "z9-ec") == 0
++	       || strcmp (cpu_string, "arch7") == 0)
+ 	min_cpu = S390_OPCODE_Z9_EC;
+-      else if (strcmp (cpu_string, "z10") == 0)
++      else if (strcmp (cpu_string, "z10") == 0
++	       || strcmp (cpu_string, "arch8") == 0)
+ 	min_cpu = S390_OPCODE_Z10;
+-      else if (strcmp (cpu_string, "z196") == 0)
++      else if (strcmp (cpu_string, "z196") == 0
++	       || strcmp (cpu_string, "arch9") == 0)
+ 	min_cpu = S390_OPCODE_Z196;
+-      else if (strcmp (cpu_string, "zEC12") == 0)
++      else if (strcmp (cpu_string, "zEC12") == 0
++	       || strcmp (cpu_string, "arch10") == 0)
+ 	min_cpu = S390_OPCODE_ZEC12;
+-      else if (strcmp (cpu_string, "z13") == 0)
++      else if (strcmp (cpu_string, "z13") == 0
++	       || strcmp (cpu_string, "arch11") == 0)
+ 	min_cpu = S390_OPCODE_Z13;
+       else {
+ 	fprintf (stderr, "Couldn't parse cpu string %s\n", cpu_string);

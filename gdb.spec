@@ -42,7 +42,7 @@ Version: 7.6.1
 
 # The release always contains a leading reserved number, start it at 1.
 # `upstream' is not a part of `name' to stay fully rpm dependencies compatible for the testing.
-Release: 110%{?dist}
+Release: 114%{?dist}
 
 License: GPLv3+ and GPLv3+ with exceptions and GPLv2+ and GPLv2+ with exceptions and GPL+ and LGPLv2+ and BSD and Public Domain
 Group: Development/Debuggers
@@ -926,6 +926,18 @@ Patch1269: gdb-rhbz1522798-ppc64-plt-reverse.patch
 # Fix signal handlers (RH BZ 1473411) regression (RH BZ 1531838, Pedro Alves).
 Patch1270: gdb-rhbz1531838-rhbz1473411-spawn-default-signal-handlers-regression.patch
 
+# [s390x] Backport arch12 instructions decoding (RH BZ 1553104).
+Patch1271: gdb-rhbz1553104-s390x-arch12-1of6.patch
+Patch1272: gdb-rhbz1553104-s390x-arch12-2of6.patch
+Patch1273: gdb-rhbz1553104-s390x-arch12-3of6.patch
+Patch1274: gdb-rhbz1553104-s390x-arch12-4of6.patch
+Patch1275: gdb-rhbz1553104-s390x-arch12-5of6.patch
+Patch1276: gdb-rhbz1553104-s390x-arch12-6of6.patch
+Patch1277: gdb-rhbz1553104-s390x-arch12-test.patch
+
+# [aarch64] Fix missed unaligned hardware watchpoints (RH BZ 1347993).
+Patch1278: gdb-rhbz1347993-aarch64-hw-watchpoint.patch
+
 %if 0%{!?rhel:1} || 0%{?rhel} > 6
 # RL_STATE_FEDORA_GDB would not be found for:
 # Patch642: gdb-readline62-ask-more-rh.patch
@@ -1142,6 +1154,7 @@ find -name "*.info*"|xargs rm -f
 %patch232 -p1
 %patch828 -p1
 %patch829 -p1
+%patch1278 -p1
 %patch1 -p1
 %patch3 -p1
 
@@ -1472,6 +1485,13 @@ find -name "*.info*"|xargs rm -f
 %patch1268 -p1
 %patch1269 -p1
 %patch1270 -p1
+%patch1271 -p1
+%patch1272 -p1
+%patch1273 -p1
+%patch1274 -p1
+%patch1275 -p1
+%patch1276 -p1
+%patch1277 -p1
 
 %if 0%{?scl:1}
 %patch836 -p1 -R
@@ -1840,6 +1860,8 @@ done
 # BZ 999645: /usr/share/gdb/auto-load/ needs filesystem symlinks
 mkdir -p $RPM_BUILD_ROOT%{_datadir}/gdb/auto-load
 for i in $(echo bin lib $(basename %{_libdir}) sbin|tr ' ' '\n'|sort -u);do
+  # mkdir to satisfy dangling symlinks build check.
+  mkdir -p $RPM_BUILD_ROOT%{_datadir}/gdb/auto-load/%{_root_prefix}/$i
   ln -s $(echo %{_root_prefix}|sed 's#^/*##')/$i \
         $RPM_BUILD_ROOT%{_datadir}/gdb/auto-load/$i
 done
@@ -1997,6 +2019,18 @@ fi
 %endif # 0%{!?el5:1} || "%{_target_cpu}" == "noarch"
 
 %changelog
+* Fri Jun 29 2018 Jan Kratochvil <jan.kratochvil@redhat.com> - 7.6.1-114.el7
+- Fix /usr/share/gdb/auto-load/ (safely) dangling symlinks (RH BZ 1596023).
+
+* Thu May 24 2018 Jan Kratochvil <jan.kratochvil@redhat.com> - 7.6.1-113.el7
+- Fix backport of gdbserver support for containers (RH BZ 1578378).
+
+* Sat May  5 2018 Jan Kratochvil <jan.kratochvil@redhat.com> - 7.6.1-112.el7
+- [aarch64] Fix missed unaligned hardware watchpoints (RH BZ 1347993).
+
+* Fri Mar 23 2018 Jan Kratochvil <jan.kratochvil@redhat.com> - 7.6.1-111.el7
+- [s390x] Backport arch12 instructions decoding (RH BZ 1553104).
+
 * Mon Jan  8 2018 Jan Kratochvil <jan.kratochvil@redhat.com> - 7.6.1-110.el7
 - Fix signal handlers (RH BZ 1473411) regression (RH BZ 1531838, Pedro Alves).
 

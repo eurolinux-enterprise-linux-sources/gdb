@@ -55,11 +55,11 @@ http://sourceware.org/ml/gdb-cvs/2013-05/msg00084.html
  2013-05-09  Doug Evans  <dje@google.com>
  
  	* symfile.c (syms_from_objfile_1): Delete args offsets, num_offsets.
-Index: gdb-7.6/gdb/Makefile.in
+Index: gdb-7.6.1/gdb/Makefile.in
 ===================================================================
---- gdb-7.6.orig/gdb/Makefile.in	2013-06-10 14:31:02.704084663 +0200
-+++ gdb-7.6/gdb/Makefile.in	2013-06-10 14:31:08.351082443 +0200
-@@ -284,6 +284,7 @@ SUBDIR_PYTHON_OBS = \
+--- gdb-7.6.1.orig/gdb/Makefile.in	2018-05-05 17:17:42.013394985 +0200
++++ gdb-7.6.1/gdb/Makefile.in	2018-05-05 17:18:23.767768082 +0200
+@@ -284,6 +284,7 @@
  	py-exitedevent.o \
  	py-finishbreakpoint.o \
  	py-frame.o \
@@ -67,7 +67,7 @@ Index: gdb-7.6/gdb/Makefile.in
  	py-function.o \
  	py-gdb-readline.o \
  	py-inferior.o \
-@@ -318,6 +319,7 @@ SUBDIR_PYTHON_SRCS = \
+@@ -318,6 +319,7 @@
  	python/py-exitedevent.c \
  	python/py-finishbreakpoint.c \
  	python/py-frame.c \
@@ -75,7 +75,7 @@ Index: gdb-7.6/gdb/Makefile.in
  	python/py-function.c \
  	python/py-gdb-readline.c \
  	python/py-inferior.c \
-@@ -2174,6 +2176,10 @@ py-frame.o: $(srcdir)/python/py-frame.c
+@@ -2174,6 +2176,10 @@
  	$(COMPILE) $(PYTHON_CFLAGS) $(srcdir)/python/py-frame.c
  	$(POSTCOMPILE)
  
@@ -86,13 +86,13 @@ Index: gdb-7.6/gdb/Makefile.in
  py-function.o: $(srcdir)/python/py-function.c
  	$(COMPILE) $(PYTHON_CFLAGS) $(srcdir)/python/py-function.c
  	$(POSTCOMPILE)
-Index: gdb-7.6/gdb/NEWS
+Index: gdb-7.6.1/gdb/NEWS
 ===================================================================
---- gdb-7.6.orig/gdb/NEWS	2013-06-10 14:31:08.353082442 +0200
-+++ gdb-7.6/gdb/NEWS	2013-06-10 14:31:21.230077319 +0200
-@@ -4,6 +4,10 @@
- * Newly installed $prefix/bin/gcore acts as a shell interface for the
-   GDB command gcore.
+--- gdb-7.6.1.orig/gdb/NEWS	2018-05-05 17:17:42.015395003 +0200
++++ gdb-7.6.1/gdb/NEWS	2018-05-05 17:18:23.768768091 +0200
+@@ -20,6 +20,10 @@
+   the tradeoff that there is a possibility of false hits being
+   reported.
  
 +* Python scripting
 +
@@ -101,10 +101,10 @@ Index: gdb-7.6/gdb/NEWS
  * New remote packets
  
  qXfer:libraries-svr4:read's annex
-Index: gdb-7.6/gdb/stack.c
+Index: gdb-7.6.1/gdb/stack.c
 ===================================================================
---- gdb-7.6.orig/gdb/stack.c	2013-06-10 14:31:02.709084661 +0200
-+++ gdb-7.6/gdb/stack.c	2013-06-10 14:31:08.354082441 +0200
+--- gdb-7.6.1.orig/gdb/stack.c	2018-05-05 17:17:42.016395012 +0200
++++ gdb-7.6.1/gdb/stack.c	2018-05-05 17:18:23.769768100 +0200
 @@ -54,6 +54,7 @@
  
  #include "psymtab.h"
@@ -113,7 +113,7 @@ Index: gdb-7.6/gdb/stack.c
  
  void (*deprecated_selected_frame_level_changed_hook) (int);
  
-@@ -1655,13 +1656,15 @@ frame_info (char *addr_exp, int from_tty
+@@ -1676,13 +1677,15 @@
     frames.  */
  
  static void
@@ -131,7 +131,7 @@ Index: gdb-7.6/gdb/stack.c
  
    if (!target_has_stack)
      error (_("No stack."));
-@@ -1680,6 +1683,7 @@ backtrace_command_1 (char *count_exp, in
+@@ -1701,6 +1704,7 @@
  	{
  	  struct frame_info *current;
  
@@ -139,7 +139,7 @@ Index: gdb-7.6/gdb/stack.c
  	  count = -count;
  
  	  current = trailing;
-@@ -1701,9 +1705,17 @@ backtrace_command_1 (char *count_exp, in
+@@ -1722,9 +1726,17 @@
  
  	  count = -1;
  	}
@@ -158,7 +158,7 @@ Index: gdb-7.6/gdb/stack.c
  
    if (info_verbose)
      {
-@@ -1723,16 +1735,40 @@ backtrace_command_1 (char *count_exp, in
+@@ -1744,16 +1756,40 @@
  	}
      }
  
@@ -206,7 +206,7 @@ Index: gdb-7.6/gdb/stack.c
  	{
  	  struct frame_id frame_id = get_frame_id (fi);
  
-@@ -1748,24 +1784,25 @@ backtrace_command_1 (char *count_exp, in
+@@ -1769,24 +1805,25 @@
  	    }
  	}
  
@@ -247,7 +247,7 @@ Index: gdb-7.6/gdb/stack.c
      }
  }
  
-@@ -1773,7 +1810,8 @@ static void
+@@ -1794,7 +1831,8 @@
  backtrace_command (char *arg, int from_tty)
  {
    struct cleanup *old_chain = make_cleanup (null_cleanup, NULL);
@@ -257,7 +257,7 @@ Index: gdb-7.6/gdb/stack.c
  
    if (arg)
      {
-@@ -1790,25 +1828,31 @@ backtrace_command (char *arg, int from_t
+@@ -1811,25 +1849,31 @@
  	  for (j = 0; j < strlen (argv[i]); j++)
  	    argv[i][j] = tolower (argv[i][j]);
  
@@ -297,7 +297,7 @@ Index: gdb-7.6/gdb/stack.c
  		    {
  		      strcat (arg, argv[i]);
  		      strcat (arg, " ");
-@@ -1820,7 +1864,8 @@ backtrace_command (char *arg, int from_t
+@@ -1841,7 +1885,8 @@
  	}
      }
  
@@ -307,7 +307,7 @@ Index: gdb-7.6/gdb/stack.c
  
    do_cleanups (old_chain);
  }
-@@ -1828,7 +1873,7 @@ backtrace_command (char *arg, int from_t
+@@ -1849,7 +1894,7 @@
  static void
  backtrace_full_command (char *arg, int from_tty)
  {
@@ -316,7 +316,7 @@ Index: gdb-7.6/gdb/stack.c
  }
  
  
-@@ -2562,7 +2607,9 @@ It can be a stack frame number or the ad
+@@ -2583,7 +2628,9 @@
    add_com ("backtrace", class_stack, backtrace_command, _("\
  Print backtrace of all stack frames, or innermost COUNT frames.\n\
  With a negative argument, print outermost -COUNT frames.\nUse of the \
@@ -327,11 +327,11 @@ Index: gdb-7.6/gdb/stack.c
    add_com_alias ("bt", "backtrace", class_stack, 0);
    if (xdb_commands)
      {
-Index: gdb-7.6/gdb/data-directory/Makefile.in
+Index: gdb-7.6.1/gdb/data-directory/Makefile.in
 ===================================================================
---- gdb-7.6.orig/gdb/data-directory/Makefile.in	2013-06-10 14:31:02.710084660 +0200
-+++ gdb-7.6/gdb/data-directory/Makefile.in	2013-06-10 14:31:08.355082441 +0200
-@@ -53,7 +53,11 @@ PYTHON_DIR = python
+--- gdb-7.6.1.orig/gdb/data-directory/Makefile.in	2018-05-05 17:17:42.016395012 +0200
++++ gdb-7.6.1/gdb/data-directory/Makefile.in	2018-05-05 17:18:23.769768100 +0200
+@@ -53,7 +53,11 @@
  PYTHON_INSTALL_DIR = $(DESTDIR)$(GDB_DATADIR)/$(PYTHON_DIR)
  PYTHON_FILES = \
  	gdb/__init__.py \
@@ -343,11 +343,11 @@ Index: gdb-7.6/gdb/data-directory/Makefile.in
  	gdb/command/ignore_errors.py \
  	gdb/command/pahole.py \
  	gdb/command/type_printers.py \
-Index: gdb-7.6/gdb/doc/gdb.texinfo
+Index: gdb-7.6.1/gdb/doc/gdb.texinfo
 ===================================================================
---- gdb-7.6.orig/gdb/doc/gdb.texinfo	2013-06-10 14:31:02.727084654 +0200
-+++ gdb-7.6/gdb/doc/gdb.texinfo	2013-06-10 14:31:08.364082438 +0200
-@@ -6459,6 +6459,7 @@ currently executing frame and describes
+--- gdb-7.6.1.orig/gdb/doc/gdb.texinfo	2018-05-05 17:17:42.030395137 +0200
++++ gdb-7.6.1/gdb/doc/gdb.texinfo	2018-05-05 17:18:23.775768154 +0200
+@@ -6459,6 +6459,7 @@
  @menu
  * Frames::                      Stack frames
  * Backtrace::                   Backtraces
@@ -355,7 +355,7 @@ Index: gdb-7.6/gdb/doc/gdb.texinfo
  * Selection::                   Selecting a frame
  * Frame Info::                  Information on a frame
  
-@@ -6546,6 +6547,7 @@ line per frame, for many frames, startin
+@@ -6546,6 +6547,7 @@
  frame (frame zero), followed by its caller (frame one), and on up the
  stack.
  
@@ -363,7 +363,7 @@ Index: gdb-7.6/gdb/doc/gdb.texinfo
  @table @code
  @kindex backtrace
  @kindex bt @r{(@code{backtrace})}
-@@ -6571,6 +6573,19 @@ Similar, but print only the outermost @v
+@@ -6571,6 +6573,19 @@
  @itemx bt full -@var{n}
  Print the values of the local variables also.  @var{n} specifies the
  number of frames to print, as described above.
@@ -383,7 +383,7 @@ Index: gdb-7.6/gdb/doc/gdb.texinfo
  @end table
  
  @kindex where
-@@ -6720,6 +6735,149 @@ Display an absolute filename.
+@@ -6720,6 +6735,149 @@
  Show the current way to display filenames.
  @end table
  
@@ -533,7 +533,7 @@ Index: gdb-7.6/gdb/doc/gdb.texinfo
  @node Selection
  @section Selecting a Frame
  
-@@ -23100,6 +23258,9 @@ situation, a Python @code{KeyboardInterr
+@@ -23102,6 +23260,9 @@
  * Selecting Pretty-Printers::   How GDB chooses a pretty-printer.
  * Writing a Pretty-Printer::    Writing a Pretty-Printer.
  * Type Printing API::		Pretty-printing types.
@@ -543,7 +543,7 @@ Index: gdb-7.6/gdb/doc/gdb.texinfo
  * Inferiors In Python::         Python representation of inferiors (processes)
  * Events In Python::            Listening for events from @value{GDBN}.
  * Threads In Python::           Accessing inferior threads from Python.
-@@ -24450,6 +24611,636 @@ done then type printers would have to ma
+@@ -24452,6 +24613,636 @@
  order to avoid holding information that could become stale as the
  inferior changed.
  
@@ -1180,7 +1180,7 @@ Index: gdb-7.6/gdb/doc/gdb.texinfo
  @node Inferiors In Python
  @subsubsection Inferiors In Python
  @cindex inferiors in Python
-@@ -25280,6 +26071,11 @@ The @code{type_printers} attribute is a
+@@ -25282,6 +26073,11 @@
  @xref{Type Printing API}, for more information.
  @end defvar
  
@@ -1192,7 +1192,7 @@ Index: gdb-7.6/gdb/doc/gdb.texinfo
  @node Objfiles In Python
  @subsubsection Objfiles In Python
  
-@@ -25330,6 +26126,11 @@ The @code{type_printers} attribute is a
+@@ -25332,6 +26128,11 @@
  @xref{Type Printing API}, for more information.
  @end defvar
  
@@ -1204,7 +1204,7 @@ Index: gdb-7.6/gdb/doc/gdb.texinfo
  A @code{gdb.Objfile} object has the following methods:
  
  @defun Objfile.is_valid ()
-@@ -26348,7 +27149,7 @@ No     my-foo-pretty-printers.py
+@@ -26350,7 +27151,7 @@
  When reading an auto-loaded file, @value{GDBN} sets the
  @dfn{current objfile}.  This is available via the @code{gdb.current_objfile}
  function (@pxref{Objfiles In Python}).  This can be useful for
@@ -1213,7 +1213,7 @@ Index: gdb-7.6/gdb/doc/gdb.texinfo
  
  @menu
  * objfile-gdb.py file::          The @file{@var{objfile}-gdb.py} file
-@@ -30219,6 +31020,22 @@ Is this going away????
+@@ -30227,6 +31028,22 @@
  @node GDB/MI Stack Manipulation
  @section @sc{gdb/mi} Stack Manipulation Commands
  
@@ -1236,7 +1236,7 @@ Index: gdb-7.6/gdb/doc/gdb.texinfo
  
  @subheading The @code{-stack-info-frame} Command
  @findex -stack-info-frame
-@@ -30286,13 +31103,14 @@ For a stack with frame levels 0 through
+@@ -30294,13 +31111,14 @@
  (gdb)
  @end smallexample
  
@@ -1252,7 +1252,7 @@ Index: gdb-7.6/gdb/doc/gdb.texinfo
      [ @var{low-frame} @var{high-frame} ]
  @end smallexample
  
-@@ -30309,7 +31127,9 @@ If @var{print-values} is 0 or @code{--no
+@@ -30317,7 +31135,9 @@
  the variables; if it is 1 or @code{--all-values}, print also their
  values; and if it is 2 or @code{--simple-values}, print the name,
  type and value for simple data types, and the name and type for arrays,
@@ -1263,7 +1263,7 @@ Index: gdb-7.6/gdb/doc/gdb.texinfo
  
  Use of this command to obtain arguments in a single frame is
  deprecated in favor of the @samp{-stack-list-variables} command.
-@@ -30380,13 +31200,14 @@ args=[@{name="intarg",value="2"@},
+@@ -30388,13 +31208,14 @@
  @c @subheading -stack-list-exception-handlers
  
  
@@ -1279,7 +1279,7 @@ Index: gdb-7.6/gdb/doc/gdb.texinfo
  @end smallexample
  
  List the frames currently on the stack.  For each frame it displays the
-@@ -30416,7 +31237,9 @@ levels are between the two arguments (in
+@@ -30424,7 +31245,9 @@
  are equal, it shows the single frame at the corresponding level.  It is
  an error if @var{low-frame} is larger than the actual number of
  frames.  On the other hand, @var{high-frame} may be larger than the
@@ -1290,7 +1290,7 @@ Index: gdb-7.6/gdb/doc/gdb.texinfo
  
  @subsubheading @value{GDBN} Command
  
-@@ -30486,11 +31309,12 @@ Show a single frame:
+@@ -30494,11 +31317,12 @@
  
  @subheading The @code{-stack-list-locals} Command
  @findex -stack-list-locals
@@ -1304,7 +1304,7 @@ Index: gdb-7.6/gdb/doc/gdb.texinfo
  @end smallexample
  
  Display the local variable names for the selected frame.  If
-@@ -30501,7 +31325,8 @@ type and value for simple data types, an
+@@ -30509,7 +31333,8 @@
  structures and unions.  In this last case, a frontend can immediately
  display the value of simple data types and create variable objects for
  other data types when the user wishes to explore their values in
@@ -1314,7 +1314,7 @@ Index: gdb-7.6/gdb/doc/gdb.texinfo
  
  This command is deprecated in favor of the
  @samp{-stack-list-variables} command.
-@@ -30526,13 +31351,14 @@ This command is deprecated in favor of t
+@@ -30534,13 +31359,14 @@
  (gdb)
  @end smallexample
  
@@ -1330,7 +1330,7 @@ Index: gdb-7.6/gdb/doc/gdb.texinfo
  @end smallexample
  
  Display the names of local variables and function arguments for the selected frame.  If
-@@ -30540,7 +31366,8 @@ Display the names of local variables and
+@@ -30548,7 +31374,8 @@
  the variables; if it is 1 or @code{--all-values}, print also their
  values; and if it is 2 or @code{--simple-values}, print the name,
  type and value for simple data types, and the name and type for arrays,
@@ -1340,10 +1340,10 @@ Index: gdb-7.6/gdb/doc/gdb.texinfo
  
  @subsubheading Example
  
-Index: gdb-7.6/gdb/mi/mi-cmd-stack.c
+Index: gdb-7.6.1/gdb/mi/mi-cmd-stack.c
 ===================================================================
---- gdb-7.6.orig/gdb/mi/mi-cmd-stack.c	2013-06-10 14:31:02.730084652 +0200
-+++ gdb-7.6/gdb/mi/mi-cmd-stack.c	2013-06-10 14:31:08.365082437 +0200
+--- gdb-7.6.1.orig/gdb/mi/mi-cmd-stack.c	2018-05-05 17:17:42.032395155 +0200
++++ gdb-7.6.1/gdb/mi/mi-cmd-stack.c	2018-05-05 17:18:23.775768154 +0200
 @@ -31,6 +31,10 @@
  #include "language.h"
  #include "valprint.h"
@@ -1355,7 +1355,7 @@ Index: gdb-7.6/gdb/mi/mi-cmd-stack.c
  
  enum what_to_list { locals, arguments, all };
  
-@@ -38,6 +42,28 @@ static void list_args_or_locals (enum wh
+@@ -38,6 +42,28 @@
  				 enum print_values values,
  				 struct frame_info *fi);
  
@@ -1384,7 +1384,7 @@ Index: gdb-7.6/gdb/mi/mi-cmd-stack.c
  /* Print a list of the stack frames.  Args can be none, in which case
     we want to print the whole backtrace, or a pair of numbers
     specifying the frame numbers at which to start and stop the
-@@ -52,14 +78,46 @@ mi_cmd_stack_list_frames (char *command,
+@@ -52,14 +78,46 @@
    int i;
    struct cleanup *cleanup_stack;
    struct frame_info *fi;
@@ -1436,7 +1436,7 @@ Index: gdb-7.6/gdb/mi/mi-cmd-stack.c
      }
    else
      {
-@@ -81,16 +139,37 @@ mi_cmd_stack_list_frames (char *command,
+@@ -81,16 +139,37 @@
  
    cleanup_stack = make_cleanup_ui_out_list_begin_end (current_uiout, "stack");
  
@@ -1483,7 +1483,7 @@ Index: gdb-7.6/gdb/mi/mi-cmd-stack.c
      }
  
    do_cleanups (cleanup_stack);
-@@ -147,13 +226,34 @@ void
+@@ -147,13 +226,34 @@
  mi_cmd_stack_list_locals (char *command, char **argv, int argc)
  {
    struct frame_info *frame;
@@ -1523,7 +1523,7 @@ Index: gdb-7.6/gdb/mi/mi-cmd-stack.c
  }
  
  /* Print a list of the arguments for the current frame.  With argument
-@@ -170,15 +270,20 @@ mi_cmd_stack_list_args (char *command, c
+@@ -170,15 +270,20 @@
    struct cleanup *cleanup_stack_args;
    enum print_values print_values;
    struct ui_out *uiout = current_uiout;
@@ -1550,7 +1550,7 @@ Index: gdb-7.6/gdb/mi/mi-cmd-stack.c
      }
    else
      {
-@@ -188,7 +293,7 @@ mi_cmd_stack_list_args (char *command, c
+@@ -188,7 +293,7 @@
        frame_high = -1;
      }
  
@@ -1559,7 +1559,7 @@ Index: gdb-7.6/gdb/mi/mi-cmd-stack.c
  
    /* Let's position fi on the frame at which to start the
       display. Could be the innermost frame if the whole stack needs
-@@ -203,21 +308,41 @@ mi_cmd_stack_list_args (char *command, c
+@@ -203,21 +308,41 @@
    cleanup_stack_args
      = make_cleanup_ui_out_list_begin_end (uiout, "stack-args");
  
@@ -1612,7 +1612,7 @@ Index: gdb-7.6/gdb/mi/mi-cmd-stack.c
    do_cleanups (cleanup_stack_args);
  }
  
-@@ -230,13 +355,35 @@ void
+@@ -230,13 +355,35 @@
  mi_cmd_stack_list_variables (char *command, char **argv, int argc)
  {
    struct frame_info *frame;
@@ -1653,11 +1653,11 @@ Index: gdb-7.6/gdb/mi/mi-cmd-stack.c
  }
  
  /* Print single local or argument.  ARG must be already read in.  For
-Index: gdb-7.6/gdb/mi/mi-cmds.c
+Index: gdb-7.6.1/gdb/mi/mi-cmds.c
 ===================================================================
---- gdb-7.6.orig/gdb/mi/mi-cmds.c	2013-06-10 14:31:02.730084652 +0200
-+++ gdb-7.6/gdb/mi/mi-cmds.c	2013-06-10 14:31:08.365082437 +0200
-@@ -86,6 +86,7 @@ static struct mi_cmd mi_cmds[] =
+--- gdb-7.6.1.orig/gdb/mi/mi-cmds.c	2018-05-05 17:17:42.032395155 +0200
++++ gdb-7.6.1/gdb/mi/mi-cmds.c	2018-05-05 17:18:23.775768154 +0200
+@@ -86,6 +86,7 @@
  		 mi_cmd_data_write_register_values),
    DEF_MI_CMD_MI ("enable-timings", mi_cmd_enable_timings),
    DEF_MI_CMD_MI ("enable-pretty-printing", mi_cmd_enable_pretty_printing),
@@ -1665,11 +1665,11 @@ Index: gdb-7.6/gdb/mi/mi-cmds.c
    DEF_MI_CMD_MI ("environment-cd", mi_cmd_env_cd),
    DEF_MI_CMD_MI ("environment-directory", mi_cmd_env_dir),
    DEF_MI_CMD_MI ("environment-path", mi_cmd_env_path),
-Index: gdb-7.6/gdb/mi/mi-cmds.h
+Index: gdb-7.6.1/gdb/mi/mi-cmds.h
 ===================================================================
---- gdb-7.6.orig/gdb/mi/mi-cmds.h	2013-06-10 14:31:02.730084652 +0200
-+++ gdb-7.6/gdb/mi/mi-cmds.h	2013-06-10 14:31:08.365082437 +0200
-@@ -118,6 +118,7 @@ extern mi_cmd_argv_ftype mi_cmd_var_show
+--- gdb-7.6.1.orig/gdb/mi/mi-cmds.h	2018-05-05 17:17:42.033395164 +0200
++++ gdb-7.6.1/gdb/mi/mi-cmds.h	2018-05-05 17:18:23.775768154 +0200
+@@ -118,6 +118,7 @@
  extern mi_cmd_argv_ftype mi_cmd_var_show_format;
  extern mi_cmd_argv_ftype mi_cmd_var_update;
  extern mi_cmd_argv_ftype mi_cmd_enable_pretty_printing;
@@ -1677,10 +1677,10 @@ Index: gdb-7.6/gdb/mi/mi-cmds.h
  extern mi_cmd_argv_ftype mi_cmd_var_set_update_range;
  
  /* Description of a single command.  */
-Index: gdb-7.6/gdb/python/py-framefilter.c
+Index: gdb-7.6.1/gdb/python/py-framefilter.c
 ===================================================================
 --- /dev/null	1970-01-01 00:00:00.000000000 +0000
-+++ gdb-7.6/gdb/python/py-framefilter.c	2013-06-10 14:31:08.366082437 +0200
++++ gdb-7.6.1/gdb/python/py-framefilter.c	2018-05-05 17:18:23.776768162 +0200
 @@ -0,0 +1,1528 @@
 +/* Python frame filters
 +
@@ -3210,11 +3210,11 @@ Index: gdb-7.6/gdb/python/py-framefilter.c
 +  do_cleanups (cleanups);
 +  return PY_BT_ERROR;
 +}
-Index: gdb-7.6/gdb/python/py-objfile.c
+Index: gdb-7.6.1/gdb/python/py-objfile.c
 ===================================================================
---- gdb-7.6.orig/gdb/python/py-objfile.c	2013-06-10 14:31:02.731084652 +0200
-+++ gdb-7.6/gdb/python/py-objfile.c	2013-06-10 14:31:08.366082437 +0200
-@@ -33,6 +33,8 @@ typedef struct
+--- gdb-7.6.1.orig/gdb/python/py-objfile.c	2018-05-05 17:17:42.034395173 +0200
++++ gdb-7.6.1/gdb/python/py-objfile.c	2018-05-05 17:18:23.776768162 +0200
+@@ -33,6 +33,8 @@
    /* The pretty-printer list of functions.  */
    PyObject *printers;
  
@@ -3223,7 +3223,7 @@ Index: gdb-7.6/gdb/python/py-objfile.c
    /* The type-printer list.  */
    PyObject *type_printers;
  } objfile_object;
-@@ -61,6 +63,7 @@ objfpy_dealloc (PyObject *o)
+@@ -61,6 +63,7 @@
    objfile_object *self = (objfile_object *) o;
  
    Py_XDECREF (self->printers);
@@ -3231,7 +3231,7 @@ Index: gdb-7.6/gdb/python/py-objfile.c
    Py_XDECREF (self->type_printers);
    Py_TYPE (self)->tp_free (self);
  }
-@@ -81,6 +84,13 @@ objfpy_new (PyTypeObject *type, PyObject
+@@ -81,6 +84,13 @@
  	  return NULL;
  	}
  
@@ -3245,7 +3245,7 @@ Index: gdb-7.6/gdb/python/py-objfile.c
        self->type_printers = PyList_New (0);
        if (!self->type_printers)
  	{
-@@ -129,6 +139,47 @@ objfpy_set_printers (PyObject *o, PyObje
+@@ -129,6 +139,47 @@
    return 0;
  }
  
@@ -3293,7 +3293,7 @@ Index: gdb-7.6/gdb/python/py-objfile.c
  /* Get the 'type_printers' attribute.  */
  
  static PyObject *
-@@ -225,6 +276,13 @@ objfile_to_objfile_object (struct objfil
+@@ -225,6 +276,13 @@
  	      return NULL;
  	    }
  
@@ -3307,7 +3307,7 @@ Index: gdb-7.6/gdb/python/py-objfile.c
  	  object->type_printers = PyList_New (0);
  	  if (!object->type_printers)
  	    {
-@@ -270,6 +328,8 @@ static PyGetSetDef objfile_getset[] =
+@@ -270,6 +328,8 @@
      "The objfile's filename, or None.", NULL },
    { "pretty_printers", objfpy_get_printers, objfpy_set_printers,
      "Pretty printers.", NULL },
@@ -3316,11 +3316,11 @@ Index: gdb-7.6/gdb/python/py-objfile.c
    { "type_printers", objfpy_get_type_printers, objfpy_set_type_printers,
      "Type printers.", NULL },
    { NULL }
-Index: gdb-7.6/gdb/python/py-progspace.c
+Index: gdb-7.6.1/gdb/python/py-progspace.c
 ===================================================================
---- gdb-7.6.orig/gdb/python/py-progspace.c	2013-06-10 14:31:02.731084652 +0200
-+++ gdb-7.6/gdb/python/py-progspace.c	2013-06-10 14:31:08.366082437 +0200
-@@ -35,6 +35,8 @@ typedef struct
+--- gdb-7.6.1.orig/gdb/python/py-progspace.c	2018-05-05 17:17:42.034395173 +0200
++++ gdb-7.6.1/gdb/python/py-progspace.c	2018-05-05 17:18:23.776768162 +0200
+@@ -35,6 +35,8 @@
    /* The pretty-printer list of functions.  */
    PyObject *printers;
  
@@ -3329,7 +3329,7 @@ Index: gdb-7.6/gdb/python/py-progspace.c
    /* The type-printer list.  */
    PyObject *type_printers;
  } pspace_object;
-@@ -69,6 +71,7 @@ pspy_dealloc (PyObject *self)
+@@ -69,6 +71,7 @@
    pspace_object *ps_self = (pspace_object *) self;
  
    Py_XDECREF (ps_self->printers);
@@ -3337,7 +3337,7 @@ Index: gdb-7.6/gdb/python/py-progspace.c
    Py_XDECREF (ps_self->type_printers);
    Py_TYPE (self)->tp_free (self);
  }
-@@ -89,6 +92,13 @@ pspy_new (PyTypeObject *type, PyObject *
+@@ -89,6 +92,13 @@
  	  return NULL;
  	}
  
@@ -3351,7 +3351,7 @@ Index: gdb-7.6/gdb/python/py-progspace.c
        self->type_printers = PyList_New (0);
        if (!self->type_printers)
  	{
-@@ -137,6 +147,47 @@ pspy_set_printers (PyObject *o, PyObject
+@@ -137,6 +147,47 @@
    return 0;
  }
  
@@ -3399,7 +3399,7 @@ Index: gdb-7.6/gdb/python/py-progspace.c
  /* Get the 'type_printers' attribute.  */
  
  static PyObject *
-@@ -221,6 +272,13 @@ pspace_to_pspace_object (struct program_
+@@ -221,6 +272,13 @@
  	      return NULL;
  	    }
  
@@ -3413,7 +3413,7 @@ Index: gdb-7.6/gdb/python/py-progspace.c
  	  object->type_printers = PyList_New (0);
  	  if (!object->type_printers)
  	    {
-@@ -257,6 +315,8 @@ static PyGetSetDef pspace_getset[] =
+@@ -257,6 +315,8 @@
      "The progspace's main filename, or None.", NULL },
    { "pretty_printers", pspy_get_printers, pspy_set_printers,
      "Pretty printers.", NULL },
@@ -3422,11 +3422,11 @@ Index: gdb-7.6/gdb/python/py-progspace.c
    { "type_printers", pspy_get_type_printers, pspy_set_type_printers,
      "Type printers.", NULL },
    { NULL }
-Index: gdb-7.6/gdb/python/py-utils.c
+Index: gdb-7.6.1/gdb/python/py-utils.c
 ===================================================================
---- gdb-7.6.orig/gdb/python/py-utils.c	2013-06-10 14:31:02.732084652 +0200
-+++ gdb-7.6/gdb/python/py-utils.c	2013-06-10 14:31:08.366082437 +0200
-@@ -48,6 +48,28 @@ make_cleanup_py_decref (PyObject *py)
+--- gdb-7.6.1.orig/gdb/python/py-utils.c	2018-05-05 17:17:42.034395173 +0200
++++ gdb-7.6.1/gdb/python/py-utils.c	2018-05-05 17:18:23.776768162 +0200
+@@ -48,6 +48,28 @@
    return make_cleanup (py_decref, (void *) py);
  }
  
@@ -3455,11 +3455,11 @@ Index: gdb-7.6/gdb/python/py-utils.c
  /* Converts a Python 8-bit string to a unicode string object.  Assumes the
     8-bit string is in the host charset.  If an error occurs during conversion,
     returns NULL with a python exception set.
-Index: gdb-7.6/gdb/python/python-internal.h
+Index: gdb-7.6.1/gdb/python/python-internal.h
 ===================================================================
---- gdb-7.6.orig/gdb/python/python-internal.h	2013-06-10 14:31:02.732084652 +0200
-+++ gdb-7.6/gdb/python/python-internal.h	2013-06-10 14:31:08.367082436 +0200
-@@ -251,9 +251,11 @@ PyObject *frame_info_to_frame_object (st
+--- gdb-7.6.1.orig/gdb/python/python-internal.h	2018-05-05 17:17:42.034395173 +0200
++++ gdb-7.6.1/gdb/python/python-internal.h	2018-05-05 17:18:23.776768162 +0200
+@@ -251,9 +251,11 @@
  
  PyObject *pspace_to_pspace_object (struct program_space *);
  PyObject *pspy_get_printers (PyObject *, void *);
@@ -3471,7 +3471,7 @@ Index: gdb-7.6/gdb/python/python-internal.h
  
  PyObject *gdbarch_to_arch_object (struct gdbarch *gdbarch);
  
-@@ -304,6 +306,7 @@ void gdbpy_initialize_new_objfile_event
+@@ -304,6 +306,7 @@
  void gdbpy_initialize_arch (void);
  
  struct cleanup *make_cleanup_py_decref (PyObject *py);
@@ -3479,11 +3479,11 @@ Index: gdb-7.6/gdb/python/python-internal.h
  
  struct cleanup *ensure_python_env (struct gdbarch *gdbarch,
  				   const struct language_defn *language);
-Index: gdb-7.6/gdb/python/python.c
+Index: gdb-7.6.1/gdb/python/python.c
 ===================================================================
---- gdb-7.6.orig/gdb/python/python.c	2013-06-10 14:31:02.732084652 +0200
-+++ gdb-7.6/gdb/python/python.c	2013-06-10 14:31:08.367082436 +0200
-@@ -1442,6 +1442,15 @@ free_type_printers (void *arg)
+--- gdb-7.6.1.orig/gdb/python/python.c	2018-05-05 17:17:42.035395182 +0200
++++ gdb-7.6.1/gdb/python/python.c	2018-05-05 17:18:23.777768171 +0200
+@@ -1442,6 +1442,15 @@
  {
  }
  
@@ -3499,10 +3499,10 @@ Index: gdb-7.6/gdb/python/python.c
  #endif /* HAVE_PYTHON */
  
  
-Index: gdb-7.6/gdb/python/python.h
+Index: gdb-7.6.1/gdb/python/python.h
 ===================================================================
---- gdb-7.6.orig/gdb/python/python.h	2013-06-10 14:31:02.732084652 +0200
-+++ gdb-7.6/gdb/python/python.h	2013-06-10 14:31:08.367082436 +0200
+--- gdb-7.6.1.orig/gdb/python/python.h	2018-05-05 17:17:42.035395182 +0200
++++ gdb-7.6.1/gdb/python/python.h	2018-05-05 17:18:23.777768171 +0200
 @@ -21,6 +21,7 @@
  #define GDB_PYTHON_H
  
@@ -3511,7 +3511,7 @@ Index: gdb-7.6/gdb/python/python.h
  
  struct breakpoint_object;
  
-@@ -28,6 +29,66 @@ struct breakpoint_object;
+@@ -28,6 +29,66 @@
     E.g. When the program loads libfoo.so, look for libfoo-gdb.py.  */
  #define GDBPY_AUTO_FILE_NAME "-gdb.py"
  
@@ -3578,7 +3578,7 @@ Index: gdb-7.6/gdb/python/python.h
  extern void finish_python_initialization (void);
  
  void eval_python_from_control_command (struct command_line *);
-@@ -43,6 +104,11 @@ int apply_val_pretty_printer (struct typ
+@@ -43,6 +104,11 @@
  			      const struct value_print_options *options,
  			      const struct language_defn *language);
  
@@ -3590,10 +3590,10 @@ Index: gdb-7.6/gdb/python/python.h
  void preserve_python_values (struct objfile *objfile, htab_t copied_types);
  
  void gdbpy_load_auto_scripts_for_objfile (struct objfile *objfile);
-Index: gdb-7.6/gdb/python/lib/gdb/FrameDecorator.py
+Index: gdb-7.6.1/gdb/python/lib/gdb/FrameDecorator.py
 ===================================================================
 --- /dev/null	1970-01-01 00:00:00.000000000 +0000
-+++ gdb-7.6/gdb/python/lib/gdb/FrameDecorator.py	2013-06-10 14:31:08.367082436 +0200
++++ gdb-7.6.1/gdb/python/lib/gdb/FrameDecorator.py	2018-05-05 17:18:23.777768171 +0200
 @@ -0,0 +1,285 @@
 +# Copyright (C) 2013 Free Software Foundation, Inc.
 +
@@ -3880,10 +3880,10 @@ Index: gdb-7.6/gdb/python/lib/gdb/FrameDecorator.py
 +                args.append(SymValueWrapper(sym, None))
 +
 +        return args
-Index: gdb-7.6/gdb/python/lib/gdb/FrameIterator.py
+Index: gdb-7.6.1/gdb/python/lib/gdb/FrameIterator.py
 ===================================================================
 --- /dev/null	1970-01-01 00:00:00.000000000 +0000
-+++ gdb-7.6/gdb/python/lib/gdb/FrameIterator.py	2013-06-10 14:31:08.367082436 +0200
++++ gdb-7.6.1/gdb/python/lib/gdb/FrameIterator.py	2018-05-05 17:18:23.777768171 +0200
 @@ -0,0 +1,45 @@
 +# Copyright (C) 2013 Free Software Foundation, Inc.
 +
@@ -3930,10 +3930,10 @@ Index: gdb-7.6/gdb/python/lib/gdb/FrameIterator.py
 +            raise StopIteration
 +        self.frame = result.older()
 +        return result
-Index: gdb-7.6/gdb/python/lib/gdb/frames.py
+Index: gdb-7.6.1/gdb/python/lib/gdb/frames.py
 ===================================================================
 --- /dev/null	1970-01-01 00:00:00.000000000 +0000
-+++ gdb-7.6/gdb/python/lib/gdb/frames.py	2013-06-10 14:31:08.368082436 +0200
++++ gdb-7.6.1/gdb/python/lib/gdb/frames.py	2018-05-05 17:18:23.777768171 +0200
 @@ -0,0 +1,229 @@
 +# Frame-filter commands.
 +# Copyright (C) 2013 Free Software Foundation, Inc.
@@ -4164,11 +4164,11 @@ Index: gdb-7.6/gdb/python/lib/gdb/frames.py
 +    sliced = itertools.islice(frame_iterator, frame_low, frame_high)
 +
 +    return sliced
-Index: gdb-7.6/gdb/python/lib/gdb/__init__.py
+Index: gdb-7.6.1/gdb/python/lib/gdb/__init__.py
 ===================================================================
---- gdb-7.6.orig/gdb/python/lib/gdb/__init__.py	2013-06-10 14:31:02.733084651 +0200
-+++ gdb-7.6/gdb/python/lib/gdb/__init__.py	2013-06-10 14:31:08.368082436 +0200
-@@ -67,6 +67,8 @@ pretty_printers = []
+--- gdb-7.6.1.orig/gdb/python/lib/gdb/__init__.py	2018-05-05 17:17:42.035395182 +0200
++++ gdb-7.6.1/gdb/python/lib/gdb/__init__.py	2018-05-05 17:18:23.777768171 +0200
+@@ -67,6 +67,8 @@
  
  # Initial type printers.
  type_printers = []
@@ -4177,10 +4177,10 @@ Index: gdb-7.6/gdb/python/lib/gdb/__init__.py
  
  # Convenience variable to GDB's python directory
  PYTHONDIR = os.path.dirname(os.path.dirname(__file__))
-Index: gdb-7.6/gdb/python/lib/gdb/command/frame_filters.py
+Index: gdb-7.6.1/gdb/python/lib/gdb/command/frame_filters.py
 ===================================================================
 --- /dev/null	1970-01-01 00:00:00.000000000 +0000
-+++ gdb-7.6/gdb/python/lib/gdb/command/frame_filters.py	2013-06-10 14:31:08.368082436 +0200
++++ gdb-7.6.1/gdb/python/lib/gdb/command/frame_filters.py	2018-05-05 17:18:23.778768180 +0200
 @@ -0,0 +1,461 @@
 +# Frame-filter commands.
 +# Copyright (C) 2013 Free Software Foundation, Inc.
@@ -4643,10 +4643,10 @@ Index: gdb-7.6/gdb/python/lib/gdb/command/frame_filters.py
 +DisableFrameFilter()
 +SetFrameFilterPriority()
 +ShowFrameFilterPriority()
-Index: gdb-7.6/gdb/testsuite/gdb.python/py-framefilter-gdb.py.in
+Index: gdb-7.6.1/gdb/testsuite/gdb.python/py-framefilter-gdb.py.in
 ===================================================================
 --- /dev/null	1970-01-01 00:00:00.000000000 +0000
-+++ gdb-7.6/gdb/testsuite/gdb.python/py-framefilter-gdb.py.in	2013-06-10 14:31:08.368082436 +0200
++++ gdb-7.6.1/gdb/testsuite/gdb.python/py-framefilter-gdb.py.in	2018-05-05 17:18:23.778768180 +0200
 @@ -0,0 +1,48 @@
 +# Copyright (C) 2013 Free Software Foundation, Inc.
 +
@@ -4696,10 +4696,10 @@ Index: gdb-7.6/gdb/testsuite/gdb.python/py-framefilter-gdb.py.in
 +
 +FrameObjFile()
 +FrameObjFile2()
-Index: gdb-7.6/gdb/testsuite/gdb.python/py-framefilter-mi.c
+Index: gdb-7.6.1/gdb/testsuite/gdb.python/py-framefilter-mi.c
 ===================================================================
 --- /dev/null	1970-01-01 00:00:00.000000000 +0000
-+++ gdb-7.6/gdb/testsuite/gdb.python/py-framefilter-mi.c	2013-06-10 14:31:08.368082436 +0200
++++ gdb-7.6.1/gdb/testsuite/gdb.python/py-framefilter-mi.c	2018-05-05 17:18:23.778768180 +0200
 @@ -0,0 +1,138 @@
 +/* This testcase is part of GDB, the GNU debugger.
 +
@@ -4839,10 +4839,10 @@ Index: gdb-7.6/gdb/testsuite/gdb.python/py-framefilter-mi.c
 +{
 +  func5(3,5);
 +}
-Index: gdb-7.6/gdb/testsuite/gdb.python/py-framefilter-mi.exp
+Index: gdb-7.6.1/gdb/testsuite/gdb.python/py-framefilter-mi.exp
 ===================================================================
 --- /dev/null	1970-01-01 00:00:00.000000000 +0000
-+++ gdb-7.6/gdb/testsuite/gdb.python/py-framefilter-mi.exp	2013-06-10 14:31:08.368082436 +0200
++++ gdb-7.6.1/gdb/testsuite/gdb.python/py-framefilter-mi.exp	2018-05-05 17:18:23.778768180 +0200
 @@ -0,0 +1,179 @@
 +# Copyright (C) 2013 Free Software Foundation, Inc.
 +
@@ -5023,10 +5023,10 @@ Index: gdb-7.6/gdb/testsuite/gdb.python/py-framefilter-mi.exp
 +mi_gdb_test "-stack-list-variables 0" \
 +    "\\^done,variables=\\\[{name=\"foo\",arg=\"1\"},{name=\"bar\",arg=\"1\"},{name=\"fb\",arg=\"1\"},{name=\"bf\",arg=\"1\"},{name=\"str\"},{name=\"st2\"},{name=\"b\"},{name=\"c\"}\\\]" \
 +    "stack-list-variables 0"
-Index: gdb-7.6/gdb/testsuite/gdb.python/py-framefilter.c
+Index: gdb-7.6.1/gdb/testsuite/gdb.python/py-framefilter.c
 ===================================================================
 --- /dev/null	1970-01-01 00:00:00.000000000 +0000
-+++ gdb-7.6/gdb/testsuite/gdb.python/py-framefilter.c	2013-06-10 14:31:08.369082436 +0200
++++ gdb-7.6.1/gdb/testsuite/gdb.python/py-framefilter.c	2018-05-05 17:18:23.778768180 +0200
 @@ -0,0 +1,155 @@
 +/* This testcase is part of GDB, the GNU debugger.
 +
@@ -5183,10 +5183,10 @@ Index: gdb-7.6/gdb/testsuite/gdb.python/py-framefilter.c
 +  const char *foo1 = "Test";
 +  func5(3,5);
 +}
-Index: gdb-7.6/gdb/testsuite/gdb.python/py-framefilter.exp
+Index: gdb-7.6.1/gdb/testsuite/gdb.python/py-framefilter.exp
 ===================================================================
 --- /dev/null	1970-01-01 00:00:00.000000000 +0000
-+++ gdb-7.6/gdb/testsuite/gdb.python/py-framefilter.exp	2013-06-10 14:31:08.369082436 +0200
++++ gdb-7.6.1/gdb/testsuite/gdb.python/py-framefilter.exp	2018-05-05 17:18:23.779768189 +0200
 @@ -0,0 +1,239 @@
 +# Copyright (C) 2013 Free Software Foundation, Inc.
 +
@@ -5427,10 +5427,10 @@ Index: gdb-7.6/gdb/testsuite/gdb.python/py-framefilter.exp
 +gdb_test "bt no-filters full" \
 +    ".*#0..*in main \\(\\).*" \
 +    "bt no-filters full no debuginfo"
-Index: gdb-7.6/gdb/testsuite/gdb.python/py-framefilter.py
+Index: gdb-7.6.1/gdb/testsuite/gdb.python/py-framefilter.py
 ===================================================================
 --- /dev/null	1970-01-01 00:00:00.000000000 +0000
-+++ gdb-7.6/gdb/testsuite/gdb.python/py-framefilter.py	2013-06-10 14:31:08.369082436 +0200
++++ gdb-7.6.1/gdb/testsuite/gdb.python/py-framefilter.py	2018-05-05 17:18:23.779768189 +0200
 @@ -0,0 +1,117 @@
 +# Copyright (C) 2013 Free Software Foundation, Inc.
 +

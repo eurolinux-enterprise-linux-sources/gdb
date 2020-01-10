@@ -12,13 +12,13 @@ http://sourceware.org/ml/gdb-cvs/2013-06/msg00015.html
  	* objfiles.h (inhibit_section_map_updates): New function
  	declaration.
  	(resume_section_map_updates): Likewise.
-Index: gdb-7.6/gdb/NEWS
+Index: gdb-7.6.1/gdb/NEWS
 ===================================================================
---- gdb-7.6.orig/gdb/NEWS	2013-06-10 14:27:02.071184153 +0200
-+++ gdb-7.6/gdb/NEWS	2013-06-10 14:28:34.391145339 +0200
-@@ -4,6 +4,16 @@
- * Newly installed $prefix/bin/gcore acts as a shell interface for the
-   GDB command gcore.
+--- gdb-7.6.1.orig/gdb/NEWS	2018-05-05 17:14:37.604747215 +0200
++++ gdb-7.6.1/gdb/NEWS	2018-05-05 17:14:51.315869730 +0200
+@@ -14,6 +14,16 @@
+   the tradeoff that there is a possibility of false hits being
+   reported.
  
 +* New remote packets
 +

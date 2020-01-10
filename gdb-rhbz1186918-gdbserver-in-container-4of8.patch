@@ -57,8 +57,8 @@ gdb/gdbserver/ChangeLog:
 
 Index: gdb-7.6.1/gdb/Makefile.in
 ===================================================================
---- gdb-7.6.1.orig/gdb/Makefile.in	2016-03-19 22:00:30.207587896 +0100
-+++ gdb-7.6.1/gdb/Makefile.in	2016-03-19 22:00:42.945679296 +0100
+--- gdb-7.6.1.orig/gdb/Makefile.in	2018-05-18 10:55:27.630976775 +0200
++++ gdb-7.6.1/gdb/Makefile.in	2018-05-18 10:55:28.422983192 +0200
 @@ -840,7 +840,8 @@
  common/common-utils.h common/xml-utils.h common/buffer.h common/ptid.h \
  common/format.h common/host-defs.h utils.h common/queue.h common/gdb_string.h \
@@ -82,8 +82,8 @@ Index: gdb-7.6.1/gdb/Makefile.in
  #
 Index: gdb-7.6.1/gdb/gdbserver/Makefile.in
 ===================================================================
---- gdb-7.6.1.orig/gdb/gdbserver/Makefile.in	2016-03-19 22:00:30.208587903 +0100
-+++ gdb-7.6.1/gdb/gdbserver/Makefile.in	2016-03-19 22:00:42.946679303 +0100
+--- gdb-7.6.1.orig/gdb/gdbserver/Makefile.in	2018-05-18 10:55:28.251981806 +0200
++++ gdb-7.6.1/gdb/gdbserver/Makefile.in	2018-05-18 10:55:28.422983192 +0200
 @@ -155,7 +155,8 @@
  	$(srcdir)/common/vec.c $(srcdir)/common/gdb_vecs.c \
  	$(srcdir)/common/common-utils.c $(srcdir)/common/xml-utils.c \
@@ -106,9 +106,9 @@ Index: gdb-7.6.1/gdb/gdbserver/Makefile.in
  
 Index: gdb-7.6.1/gdb/gdbserver/config.in
 ===================================================================
---- gdb-7.6.1.orig/gdb/gdbserver/config.in	2016-03-19 22:00:30.208587903 +0100
-+++ gdb-7.6.1/gdb/gdbserver/config.in	2016-03-19 22:00:42.946679303 +0100
-@@ -146,6 +146,9 @@
+--- gdb-7.6.1.orig/gdb/gdbserver/config.in	2018-05-18 10:55:26.840970375 +0200
++++ gdb-7.6.1/gdb/gdbserver/config.in	2018-05-18 11:00:34.000000000 +0200
+@@ -146,12 +146,18 @@
  /* Define to 1 if you have the <selinux/selinux.h> header file. */
  #undef HAVE_SELINUX_SELINUX_H
  
@@ -118,36 +118,45 @@ Index: gdb-7.6.1/gdb/gdbserver/config.in
  /* Define to 1 if you have the <sgtty.h> header file. */
  #undef HAVE_SGTTY_H
  
+ /* Define to 1 if you have the <signal.h> header file. */
+ #undef HAVE_SIGNAL_H
+ 
++/* Define to 1 if you have the `socketpair' function. */
++#undef HAVE_SOCKETPAIR
++
+ /* Define to 1 if the system has the type `socklen_t'. */
+ #undef HAVE_SOCKLEN_T
+ 
 Index: gdb-7.6.1/gdb/gdbserver/configure
 ===================================================================
---- gdb-7.6.1.orig/gdb/gdbserver/configure	2016-03-19 22:00:30.211587924 +0100
-+++ gdb-7.6.1/gdb/gdbserver/configure	2016-03-19 22:00:42.948679317 +0100
+--- gdb-7.6.1.orig/gdb/gdbserver/configure	2018-05-18 10:55:26.841970383 +0200
++++ gdb-7.6.1/gdb/gdbserver/configure	2018-05-18 11:00:35.421470381 +0200
 @@ -4796,7 +4796,7 @@
  
  done
  
 -for ac_func in pread pwrite pread64 readlink
-+for ac_func in pread pwrite pread64 readlink setns
++for ac_func in pread pwrite pread64 readlink socketpair setns
  do :
    as_ac_var=`$as_echo "ac_cv_func_$ac_func" | $as_tr_sh`
  ac_fn_c_check_func "$LINENO" "$ac_func" "$as_ac_var"
 Index: gdb-7.6.1/gdb/gdbserver/configure.ac
 ===================================================================
---- gdb-7.6.1.orig/gdb/gdbserver/configure.ac	2016-03-19 22:00:30.212587931 +0100
-+++ gdb-7.6.1/gdb/gdbserver/configure.ac	2016-03-19 22:00:42.948679317 +0100
+--- gdb-7.6.1.orig/gdb/gdbserver/configure.ac	2018-05-18 10:55:26.828970278 +0200
++++ gdb-7.6.1/gdb/gdbserver/configure.ac	2018-05-18 11:00:13.703294429 +0200
 @@ -70,7 +70,7 @@
  		 sys/ioctl.h netinet/in.h sys/socket.h netdb.h dnl
  		 netinet/tcp.h arpa/inet.h sys/wait.h wait.h sys/un.h dnl
  		 linux/perf_event.h)
 -AC_CHECK_FUNCS(pread pwrite pread64 readlink)
-+AC_CHECK_FUNCS(pread pwrite pread64 readlink setns)
++AC_CHECK_FUNCS(pread pwrite pread64 readlink socketpair setns)
  AC_REPLACE_FUNCS(vasprintf vsnprintf)
  
  # Check for UST
 Index: gdb-7.6.1/gdb/gdbserver/configure.srv
 ===================================================================
---- gdb-7.6.1.orig/gdb/gdbserver/configure.srv	2016-03-19 22:00:30.213587939 +0100
-+++ gdb-7.6.1/gdb/gdbserver/configure.srv	2016-03-19 22:01:39.361084095 +0100
+--- gdb-7.6.1.orig/gdb/gdbserver/configure.srv	2018-05-18 10:55:28.252981814 +0200
++++ gdb-7.6.1/gdb/gdbserver/configure.srv	2018-05-18 10:55:28.424983208 +0200
 @@ -45,7 +45,7 @@
    aarch64*-*-linux*)
  			srv_regobj="aarch64.o aarch64-without-fpu.o"
@@ -311,7 +320,7 @@ Index: gdb-7.6.1/gdb/gdbserver/configure.srv
 Index: gdb-7.6.1/gdb/nat/linux-namespaces.c
 ===================================================================
 --- /dev/null	1970-01-01 00:00:00.000000000 +0000
-+++ gdb-7.6.1/gdb/nat/linux-namespaces.c	2016-03-19 22:00:42.949679324 +0100
++++ gdb-7.6.1/gdb/nat/linux-namespaces.c	2018-05-18 10:55:28.424983208 +0200
 @@ -0,0 +1,1093 @@
 +/* Linux namespaces(7) support.
 +
@@ -1409,7 +1418,7 @@ Index: gdb-7.6.1/gdb/nat/linux-namespaces.c
 Index: gdb-7.6.1/gdb/nat/linux-namespaces.h
 ===================================================================
 --- /dev/null	1970-01-01 00:00:00.000000000 +0000
-+++ gdb-7.6.1/gdb/nat/linux-namespaces.h	2016-03-19 22:00:42.950679331 +0100
++++ gdb-7.6.1/gdb/nat/linux-namespaces.h	2018-05-18 10:55:28.424983208 +0200
 @@ -0,0 +1,78 @@
 +/* Linux namespaces(7) support.
 +
@@ -1489,3 +1498,43 @@ Index: gdb-7.6.1/gdb/nat/linux-namespaces.h
 +				     char *buf, size_t bufsiz);
 +
 +#endif /* LINUX_NAMESPACES_H */
+Index: gdb-7.6.1/gdb/config.in
+===================================================================
+--- gdb-7.6.1.orig/gdb/config.in	2018-05-18 10:55:26.838970359 +0200
++++ gdb-7.6.1/gdb/config.in	2018-05-18 11:00:28.000000000 +0200
+@@ -369,6 +369,9 @@
+ /* Define to 1 if you have the `setlocale' function. */
+ #undef HAVE_SETLOCALE
+ 
++/* Define to 1 if you have the `setns' function. */
++#undef HAVE_SETNS
++
+ /* Define to 1 if you have the `setpgid' function. */
+ #undef HAVE_SETPGID
+ 
+Index: gdb-7.6.1/gdb/configure
+===================================================================
+--- gdb-7.6.1.orig/gdb/configure	2018-05-18 10:55:26.840970375 +0200
++++ gdb-7.6.1/gdb/configure	2018-05-18 11:00:30.074427061 +0200
+@@ -10667,7 +10667,7 @@
+ 		sbrk setpgid setpgrp setsid \
+ 		sigaction sigprocmask sigsetmask socketpair syscall \
+ 		ttrace wborder wresize setlocale iconvlist libiconvlist btowc \
+-		setrlimit getrlimit posix_madvise waitpid lstat
++		setrlimit getrlimit posix_madvise waitpid lstat setns
+ do :
+   as_ac_var=`$as_echo "ac_cv_func_$ac_func" | $as_tr_sh`
+ ac_fn_c_check_func "$LINENO" "$ac_func" "$as_ac_var"
+Index: gdb-7.6.1/gdb/configure.ac
+===================================================================
+--- gdb-7.6.1.orig/gdb/configure.ac	2018-05-18 10:55:26.828970278 +0200
++++ gdb-7.6.1/gdb/configure.ac	2018-05-18 11:00:02.912207003 +0200
+@@ -1365,7 +1365,7 @@
+ 		sbrk setpgid setpgrp setsid \
+ 		sigaction sigprocmask sigsetmask socketpair syscall \
+ 		ttrace wborder wresize setlocale iconvlist libiconvlist btowc \
+-		setrlimit getrlimit posix_madvise waitpid lstat])
++		setrlimit getrlimit posix_madvise waitpid lstat setns])
+ AM_LANGINFO_CODESET
+ 
+ # Check the return and argument types of ptrace.  No canned test for

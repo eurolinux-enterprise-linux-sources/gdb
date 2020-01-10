@@ -1,0 +1,26 @@
+commit c694bafc0bc795a63e607689cc35ad44047790e6
+Author: Andreas Krebbel <krebbel@linux.vnet.ibm.com>
+Date:   Mon Sep 7 10:25:17 2015 +0200
+
+    S/390: Fix opcode of ppno.
+    
+    opcodes/ChangeLog:
+    
+    2015-09-09  Andreas Krebbel  <krebbel@linux.vnet.ibm.com>
+    
+            * s390-opc.txt: Fix opcode of ppno instruction.
+    
+    gas/testsuite/ChangeLog:
+    
+    2015-09-09  Andreas Krebbel  <krebbel@linux.vnet.ibm.com>
+    
+            * gas/s390/zarch-z13.d: Fix opcode of ppno instruction.
+
+--- a/opcodes/s390-opc.txt
++++ b/opcodes/s390-opc.txt
+@@ -1678,4 +1678,4 @@ eb00000000e1 stocfh*12 RSY_R0RD "store high on condition" z13 zarch
+ e3000000003a llzrgf RXY_RRRD "load logical and zero rightmost bytes 32->64" z13 zarch
+ e3000000003b lzrf RXY_RRRD "load and zero rightmost byte 32->32" z13 zarch
+ e3000000002a lzrg RXY_RRRD "load and zero rightmost byte 64->64" z13 zarch
+-b9ec ppno RRE_RR "perform pseudorandom number operation" z13 zarch
++b93c ppno RRE_RR "perform pseudorandom number operation" z13 zarch
