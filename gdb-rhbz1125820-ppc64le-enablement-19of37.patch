@@ -1,0 +1,110 @@
+commit 00f412ee52ff042dd349118443ef289175669b7d
+Author: Alan Modra <amodra@gmail.com>
+Date:   Tue Dec 3 17:48:31 2013 +1030
+
+    More PowerPC64 ELFv2 --just-symbols fixes
+    
+    I don't know what I was thinking here to omit the save of r2.
+    Possibly I was looking at -msave-toc-indirect code at the time, where
+    r2 is saved in the function prologue.
+    
+    	* elf64-ppc.c (ppc_build_one_stub <ppc_stub_plt_branch_r2off>):
+    	Don't omit saving of r2 for ELFv2.  Don't addi 2,2,0.
+    	(ppc_size_one_stub <ppc_stub_plt_branch_r2off>): Adjust to suit.
+
+Index: gdb-7.6.1/bfd/elf64-ppc.c
+===================================================================
+--- gdb-7.6.1.orig/bfd/elf64-ppc.c
++++ gdb-7.6.1/bfd/elf64-ppc.c
+@@ -10392,8 +10392,7 @@ ppc_build_one_stub (struct bfd_hash_entr
+ 	  r[0].r_offset = loc - stub_entry->stub_sec->contents;
+ 	  if (bfd_big_endian (info->output_bfd))
+ 	    r[0].r_offset += 2;
+-	  if (stub_entry->stub_type == ppc_stub_plt_branch_r2off
+-	      && htab->opd_abi)
++	  if (stub_entry->stub_type == ppc_stub_plt_branch_r2off)
+ 	    r[0].r_offset += 4;
+ 	  r[0].r_info = ELF64_R_INFO (0, R_PPC64_TOC16_DS);
+ 	  r[0].r_addend = dest;
+@@ -10406,8 +10405,7 @@ ppc_build_one_stub (struct bfd_hash_entr
+ 	    }
+ 	}
+ 
+-      if (stub_entry->stub_type != ppc_stub_plt_branch_r2off
+-	  || !htab->opd_abi)
++      if (stub_entry->stub_type != ppc_stub_plt_branch_r2off)
+ 	{
+ 	  if (PPC_HA (off) != 0)
+ 	    {
+@@ -10426,7 +10424,7 @@ ppc_build_one_stub (struct bfd_hash_entr
+ 	{
+ 	  bfd_vma r2off = get_r2off (info, stub_entry);
+ 
+-	  if (r2off == 0)
++	  if (r2off == 0 && htab->opd_abi)
+ 	    {
+ 	      htab->stub_error = TRUE;
+ 	      return FALSE;
+@@ -10434,28 +10432,29 @@ ppc_build_one_stub (struct bfd_hash_entr
+ 
+ 	  bfd_put_32 (htab->stub_bfd, STD_R2_0R1 + STK_TOC (htab), loc);
+ 	  loc += 4;
+-	  size = 20;
++	  size = 16;
+ 	  if (PPC_HA (off) != 0)
+ 	    {
+ 	      size += 4;
+ 	      bfd_put_32 (htab->stub_bfd, ADDIS_R11_R2 | PPC_HA (off), loc);
+ 	      loc += 4;
+ 	      bfd_put_32 (htab->stub_bfd, LD_R12_0R11 | PPC_LO (off), loc);
+-	      loc += 4;
+ 	    }
+ 	  else
+-	    {
+-	      bfd_put_32 (htab->stub_bfd, LD_R12_0R2 | PPC_LO (off), loc);
+-	      loc += 4;
+-	    }
++	    bfd_put_32 (htab->stub_bfd, LD_R12_0R2 | PPC_LO (off), loc);
+ 
+ 	  if (PPC_HA (r2off) != 0)
+ 	    {
+ 	      size += 4;
++	      loc += 4;
+ 	      bfd_put_32 (htab->stub_bfd, ADDIS_R2_R2 | PPC_HA (r2off), loc);
++	    }
++	  if (PPC_LO (r2off) != 0)
++	    {
++	      size += 4;
+ 	      loc += 4;
++	      bfd_put_32 (htab->stub_bfd, ADDI_R2_R2 | PPC_LO (r2off), loc);
+ 	    }
+-	  bfd_put_32 (htab->stub_bfd, ADDI_R2_R2 | PPC_LO (r2off), loc);
+ 	}
+       loc += 4;
+       bfd_put_32 (htab->stub_bfd, MTCTR_R12, loc);
+@@ -10749,8 +10748,7 @@ ppc_size_one_stub (struct bfd_hash_entry
+ 	      stub_entry->stub_sec->flags |= SEC_RELOC;
+ 	    }
+ 
+-	  if (stub_entry->stub_type != ppc_stub_plt_branch_r2off
+-	      || !htab->opd_abi)
++	  if (stub_entry->stub_type != ppc_stub_plt_branch_r2off)
+ 	    {
+ 	      size = 12;
+ 	      if (PPC_HA (off) != 0)
+@@ -10758,12 +10756,14 @@ ppc_size_one_stub (struct bfd_hash_entry
+ 	    }
+ 	  else
+ 	    {
+-	      size = 20;
++	      size = 16;
+ 	      if (PPC_HA (off) != 0)
+ 		size += 4;
+ 
+ 	      if (PPC_HA (r2off) != 0)
+ 		size += 4;
++	      if (PPC_LO (r2off) != 0)
++		size += 4;
+ 	    }
+ 	}
+       else if (info->emitrelocations)

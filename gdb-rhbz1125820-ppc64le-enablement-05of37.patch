@@ -1,0 +1,115 @@
+commit f5aee5eeb88a99a8fb9d2b57971b0bda035ebc65
+Author: Alan Modra <amodra@gmail.com>
+Date:   Tue Aug 20 06:42:19 2013 +0000
+
+    	* doublest.c (convert_floatformat_to_doublest): Use fmt->split_half
+    	for IBM long double nan and inf.
+    	(floatformat_is_negative, floatformat_classify,
+    	floatformat_mantissa): Similarly.
+    	(floatformat_ieee_single, floatformat_ieee_double,
+    	floatformat_ieee_quad, floatformat_arm_ext,
+    	floatformat_ia64_spill): Delete unused vars.
+    	(_initialize_doublest): Delete unused function.
+    	* gdbtypes.c (floatformats_ibm_long_double): Use new big- and
+    	little-endian variants of floatformat_ibm_long_double.
+
+Index: gdb-7.6.1/gdb/doublest.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/doublest.c
++++ gdb-7.6.1/gdb/doublest.c
+@@ -190,7 +190,8 @@ convert_floatformat_to_doublest (const s
+     {
+       double dto;
+ 
+-      floatformat_to_double (fmt, from, &dto);
++      floatformat_to_double (fmt->split_half ? fmt->split_half : fmt,
++			     from, &dto);
+       *to = (DOUBLEST) dto;
+       return;
+     }
+@@ -561,6 +562,11 @@ floatformat_is_negative (const struct fl
+   gdb_assert (fmt->totalsize
+ 	      <= FLOATFORMAT_LARGEST_BYTES * FLOATFORMAT_CHAR_BIT);
+ 
++  /* An IBM long double (a two element array of double) always takes the
++     sign of the first double.  */
++  if (fmt->split_half)
++    fmt = fmt->split_half;
++
+   order = floatformat_normalize_byteorder (fmt, uval, newfrom);
+ 
+   if (order != fmt->byteorder)
+@@ -587,6 +593,13 @@ floatformat_classify (const struct float
+   gdb_assert (fmt->totalsize
+ 	      <= FLOATFORMAT_LARGEST_BYTES * FLOATFORMAT_CHAR_BIT);
+ 
++  /* An IBM long double (a two element array of double) can be classified
++     by looking at the first double.  inf and nan are specified as
++     ignoring the second double.  zero and subnormal will always have
++     the second double 0.0 if the long double is correctly rounded.  */
++  if (fmt->split_half)
++    fmt = fmt->split_half;
++
+   order = floatformat_normalize_byteorder (fmt, uval, newfrom);
+ 
+   if (order != fmt->byteorder)
+@@ -669,6 +682,16 @@ floatformat_mantissa (const struct float
+   gdb_assert (fmt->totalsize
+ 	      <= FLOATFORMAT_LARGEST_BYTES * FLOATFORMAT_CHAR_BIT);
+ 
++  /* For IBM long double (a two element array of double), return the
++     mantissa of the first double.  The problem with returning the
++     actual mantissa from both doubles is that there can be an
++     arbitrary number of implied 0's or 1's between the mantissas
++     of the first and second double.  In any case, this function
++     is only used for dumping out nans, and a nan is specified to
++     ignore the value in the second double.  */
++  if (fmt->split_half)
++    fmt = fmt->split_half;
++
+   order = floatformat_normalize_byteorder (fmt, uval, newfrom);
+ 
+   if (order != fmt->byteorder)
+@@ -926,27 +949,3 @@ convert_typed_floating (const void *from
+       floatformat_from_doublest (to_fmt, &d, to);
+     }
+ }
+-
+-const struct floatformat *floatformat_ieee_single[BFD_ENDIAN_UNKNOWN];
+-const struct floatformat *floatformat_ieee_double[BFD_ENDIAN_UNKNOWN];
+-const struct floatformat *floatformat_ieee_quad[BFD_ENDIAN_UNKNOWN];
+-const struct floatformat *floatformat_arm_ext[BFD_ENDIAN_UNKNOWN];
+-const struct floatformat *floatformat_ia64_spill[BFD_ENDIAN_UNKNOWN];
+-
+-extern void _initialize_doublest (void);
+-
+-extern void
+-_initialize_doublest (void)
+-{
+-  floatformat_ieee_single[BFD_ENDIAN_LITTLE] = &floatformat_ieee_single_little;
+-  floatformat_ieee_single[BFD_ENDIAN_BIG] = &floatformat_ieee_single_big;
+-  floatformat_ieee_double[BFD_ENDIAN_LITTLE] = &floatformat_ieee_double_little;
+-  floatformat_ieee_double[BFD_ENDIAN_BIG] = &floatformat_ieee_double_big;
+-  floatformat_arm_ext[BFD_ENDIAN_LITTLE]
+-    = &floatformat_arm_ext_littlebyte_bigword;
+-  floatformat_arm_ext[BFD_ENDIAN_BIG] = &floatformat_arm_ext_big;
+-  floatformat_ia64_spill[BFD_ENDIAN_LITTLE] = &floatformat_ia64_spill_little;
+-  floatformat_ia64_spill[BFD_ENDIAN_BIG] = &floatformat_ia64_spill_big;
+-  floatformat_ieee_quad[BFD_ENDIAN_LITTLE] = &floatformat_ia64_quad_little;
+-  floatformat_ieee_quad[BFD_ENDIAN_BIG] = &floatformat_ia64_quad_big;
+-}
+Index: gdb-7.6.1/gdb/gdbtypes.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/gdbtypes.c
++++ gdb-7.6.1/gdb/gdbtypes.c
+@@ -110,8 +110,8 @@ const struct floatformat *floatformats_v
+   &floatformat_vax_d
+ };
+ const struct floatformat *floatformats_ibm_long_double[BFD_ENDIAN_UNKNOWN] = {
+-  &floatformat_ibm_long_double,
+-  &floatformat_ibm_long_double
++  &floatformat_ibm_long_double_big,
++  &floatformat_ibm_long_double_little
+ };
+ 
+ /* Should opaque types be resolved?  */

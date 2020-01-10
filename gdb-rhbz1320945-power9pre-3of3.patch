@@ -1,0 +1,673 @@
+commit f9c6b9078c54ea0f018b673e2ff128e61a0aa666
+Author: Alan Modra <amodra@gmail.com>
+Date:   Tue Oct 29 16:53:25 2013 +1030
+
+    Report overflow on PowerPC64 @h and @ha relocations.
+    
+    This changes the behaviour of @h and @ha on PowerPC64 to report errors
+    on 32-bit overflow.  The motivation for this change is that on
+    PowerPC64, most uses of @h and @ha modifiers and their corresponding
+    relocations are to build up 32-bit offsets.  We'd like to know when
+    such offsets overflow.  Only rarely do people use @h or @ha with the
+    high 32-bit modifiers to build a 64-bit constant.  Those uses will now
+    need to use two new modifiers, @high and @higha, if the constant isn't
+    known at assembly time.  For now, we won't report overflow at assembly
+    time..
+    
+    This also fixes an error when applying some of the HIGHER and HIGHEST
+    relocations.
+    
+    include/elf/
+            * ppc64.h (R_PPC64_ADDR16_HIGH, R_PPC64_ADDR16_HIGHA,
+            R_PPC64_TPREL16_HIGH, R_PPC64_TPREL16_HIGHA,
+            R_PPC64_DTPREL16_HIGH, R_PPC64_DTPREL16_HIGHA): New.
+            (IS_PPC64_TLS_RELOC): Match new tls relocs.
+    bfd/
+            * reloc.c (BFD_RELOC_PPC64_ADDR16_HIGH, BFD_RELOC_PPC64_ADDR16_HIGHA,
+            BFD_RELOC_PPC64_TPREL16_HIGH, BFD_RELOC_PPC64_TPREL16_HIGHA,
+            BFD_RELOC_PPC64_DTPREL16_HIGH, BFD_RELOC_PPC64_DTPREL16_HIGHA): New.
+            * elf64-ppc.c (ppc64_elf_howto_raw): Add entries for new relocs.
+            Make all _HA and _HI relocs report signed overflow.
+            (ppc64_elf_reloc_type_lookup): Handle new relocs.
+            (must_be_dyn_reloc, ppc64_elf_check_relocs): Likewise.
+            (dec_dynrel_count, ppc64_elf_relocate_section): Likewise.
+            (ppc64_elf_relocate_section): Don't apply 0x8000 adjust to
+            R_PPC64_TPREL16_HIGHER, R_PPC64_TPREL16_HIGHEST,
+            R_PPC64_DTPREL16_HIGHER, and R_PPC64_DTPREL16_HIGHEST.
+            * libbfd.h: Regenerate.
+            * bfd-in2.h: Regenerate.
+    gas/
+            * config/tc-ppc.c (SEX16): Don't mask.
+            (REPORT_OVERFLOW_HI): Define as zero.
+            (ppc_elf_suffix): Support @high, @higha, @dtprel@high, @dtprel@higha,
+            @tprel@high, and @tprel@higha modifiers.
+            (md_assemble): Ignore X_unsigned when applying 16-bit insn fields.
+            Add (disabled) code to check @h and @ha reloc overflow for powerpc64.
+            Handle new relocs.
+            (md_apply_fix): Similarly.
+    elfcpp/
+            * powerpc.h (R_PPC64_ADDR16_HIGH, R_PPC64_ADDR16_HIGHA,
+            R_PPC64_TPREL16_HIGH, R_PPC64_TPREL16_HIGHA,
+            R_PPC64_DTPREL16_HIGH, R_PPC64_DTPREL16_HIGHA): Define.
+    gold/
+            * powerpc.cc (Target_powerpc::Scan::check_non_pic): Handle new relocs.
+            (Target_powerpc::Scan::global, local): Likewise.
+            (Target_powerpc::Relocate::relocate): Likewise.  Check for overflow
+            on all ppc64 @h and @ha relocs.
+
+### a/bfd/ChangeLog
+### b/bfd/ChangeLog
+## -1,3 +1,19 @@
++2013-10-30  Alan Modra  <amodra@gmail.com>
++
++	* reloc.c (BFD_RELOC_PPC64_ADDR16_HIGH, BFD_RELOC_PPC64_ADDR16_HIGHA,
++	BFD_RELOC_PPC64_TPREL16_HIGH, BFD_RELOC_PPC64_TPREL16_HIGHA,
++	BFD_RELOC_PPC64_DTPREL16_HIGH, BFD_RELOC_PPC64_DTPREL16_HIGHA): New.
++	* elf64-ppc.c (ppc64_elf_howto_raw): Add entries for new relocs.
++	Make all _HA and _HI relocs report signed overflow.
++	(ppc64_elf_reloc_type_lookup): Handle new relocs.
++	(must_be_dyn_reloc, ppc64_elf_check_relocs): Likewise.
++	(dec_dynrel_count, ppc64_elf_relocate_section): Likewise.
++	(ppc64_elf_relocate_section): Don't apply 0x8000 adjust to
++	R_PPC64_TPREL16_HIGHER, R_PPC64_TPREL16_HIGHEST,
++	R_PPC64_DTPREL16_HIGHER, and R_PPC64_DTPREL16_HIGHEST.
++	* libbfd.h: Regenerate.
++	* bfd-in2.h: Regenerate.
++
+ 2013-10-29  Roland McGrath  <mcgrathr@google.com>
+ 
+ 	* elf64-x86-64.c (elf_x86_64_nacl_plt0_entry): Correct 9-byte nop
+--- a/bfd/bfd-in2.h
++++ b/bfd/bfd-in2.h
+@@ -3223,6 +3223,8 @@ instruction.  */
+   BFD_RELOC_PPC64_TOC16_LO_DS,
+   BFD_RELOC_PPC64_PLTGOT16_DS,
+   BFD_RELOC_PPC64_PLTGOT16_LO_DS,
++  BFD_RELOC_PPC64_ADDR16_HIGH,
++  BFD_RELOC_PPC64_ADDR16_HIGHA,
+ 
+ /* PowerPC and PowerPC64 thread-local storage relocations.  */
+   BFD_RELOC_PPC_TLS,
+@@ -3267,6 +3269,10 @@ instruction.  */
+   BFD_RELOC_PPC64_DTPREL16_HIGHERA,
+   BFD_RELOC_PPC64_DTPREL16_HIGHEST,
+   BFD_RELOC_PPC64_DTPREL16_HIGHESTA,
++  BFD_RELOC_PPC64_TPREL16_HIGH,
++  BFD_RELOC_PPC64_TPREL16_HIGHA,
++  BFD_RELOC_PPC64_DTPREL16_HIGH,
++  BFD_RELOC_PPC64_DTPREL16_HIGHA,
+ 
+ /* IBM 370/390 relocations  */
+   BFD_RELOC_I370_D12,
+--- a/bfd/elf64-ppc.c
++++ b/bfd/elf64-ppc.c
+@@ -309,7 +309,7 @@ static reloc_howto_type ppc64_elf_howto_raw[] = {
+ 	 16,			/* bitsize */
+ 	 FALSE,			/* pc_relative */
+ 	 0,			/* bitpos */
+-	 complain_overflow_dont, /* complain_on_overflow */
++	 complain_overflow_signed, /* complain_on_overflow */
+ 	 bfd_elf_generic_reloc,	/* special_function */
+ 	 "R_PPC64_ADDR16_HI",	/* name */
+ 	 FALSE,			/* partial_inplace */
+@@ -325,7 +325,7 @@ static reloc_howto_type ppc64_elf_howto_raw[] = {
+ 	 16,			/* bitsize */
+ 	 FALSE,			/* pc_relative */
+ 	 0,			/* bitpos */
+-	 complain_overflow_dont, /* complain_on_overflow */
++	 complain_overflow_signed, /* complain_on_overflow */
+ 	 ppc64_elf_ha_reloc,	/* special_function */
+ 	 "R_PPC64_ADDR16_HA",	/* name */
+ 	 FALSE,			/* partial_inplace */
+@@ -487,7 +487,7 @@ static reloc_howto_type ppc64_elf_howto_raw[] = {
+ 	 16,			/* bitsize */
+ 	 FALSE,			/* pc_relative */
+ 	 0,			/* bitpos */
+-	 complain_overflow_dont,/* complain_on_overflow */
++	 complain_overflow_signed,/* complain_on_overflow */
+ 	 ppc64_elf_unhandled_reloc, /* special_function */
+ 	 "R_PPC64_GOT16_HI",	/* name */
+ 	 FALSE,			/* partial_inplace */
+@@ -503,7 +503,7 @@ static reloc_howto_type ppc64_elf_howto_raw[] = {
+ 	 16,			/* bitsize */
+ 	 FALSE,			/* pc_relative */
+ 	 0,			/* bitpos */
+-	 complain_overflow_dont,/* complain_on_overflow */
++	 complain_overflow_signed,/* complain_on_overflow */
+ 	 ppc64_elf_unhandled_reloc, /* special_function */
+ 	 "R_PPC64_GOT16_HA",	/* name */
+ 	 FALSE,			/* partial_inplace */
+@@ -680,7 +680,7 @@ static reloc_howto_type ppc64_elf_howto_raw[] = {
+ 	 16,			/* bitsize */
+ 	 FALSE,			/* pc_relative */
+ 	 0,			/* bitpos */
+-	 complain_overflow_dont, /* complain_on_overflow */
++	 complain_overflow_signed, /* complain_on_overflow */
+ 	 ppc64_elf_unhandled_reloc, /* special_function */
+ 	 "R_PPC64_PLT16_HI",	/* name */
+ 	 FALSE,			/* partial_inplace */
+@@ -696,7 +696,7 @@ static reloc_howto_type ppc64_elf_howto_raw[] = {
+ 	 16,			/* bitsize */
+ 	 FALSE,			/* pc_relative */
+ 	 0,			/* bitpos */
+-	 complain_overflow_dont, /* complain_on_overflow */
++	 complain_overflow_signed, /* complain_on_overflow */
+ 	 ppc64_elf_unhandled_reloc, /* special_function */
+ 	 "R_PPC64_PLT16_HA",	/* name */
+ 	 FALSE,			/* partial_inplace */
+@@ -741,7 +741,7 @@ static reloc_howto_type ppc64_elf_howto_raw[] = {
+ 	 16,			/* bitsize */
+ 	 FALSE,			/* pc_relative */
+ 	 0,			/* bitpos */
+-	 complain_overflow_dont, /* complain_on_overflow */
++	 complain_overflow_signed, /* complain_on_overflow */
+ 	 ppc64_elf_sectoff_reloc, /* special_function */
+ 	 "R_PPC64_SECTOFF_HI",	/* name */
+ 	 FALSE,			/* partial_inplace */
+@@ -756,7 +756,7 @@ static reloc_howto_type ppc64_elf_howto_raw[] = {
+ 	 16,			/* bitsize */
+ 	 FALSE,			/* pc_relative */
+ 	 0,			/* bitpos */
+-	 complain_overflow_dont, /* complain_on_overflow */
++	 complain_overflow_signed, /* complain_on_overflow */
+ 	 ppc64_elf_sectoff_ha_reloc, /* special_function */
+ 	 "R_PPC64_SECTOFF_HA",	/* name */
+ 	 FALSE,			/* partial_inplace */
+@@ -963,7 +963,7 @@ static reloc_howto_type ppc64_elf_howto_raw[] = {
+ 	 16,			/* bitsize */
+ 	 FALSE,			/* pc_relative */
+ 	 0,			/* bitpos */
+-	 complain_overflow_dont, /* complain_on_overflow */
++	 complain_overflow_signed, /* complain_on_overflow */
+ 	 ppc64_elf_toc_reloc,	/* special_function */
+ 	 "R_PPC64_TOC16_HI",	/* name */
+ 	 FALSE,			/* partial_inplace */
+@@ -982,7 +982,7 @@ static reloc_howto_type ppc64_elf_howto_raw[] = {
+ 	 16,			/* bitsize */
+ 	 FALSE,			/* pc_relative */
+ 	 0,			/* bitpos */
+-	 complain_overflow_dont, /* complain_on_overflow */
++	 complain_overflow_signed, /* complain_on_overflow */
+ 	 ppc64_elf_toc_ha_reloc, /* special_function */
+ 	 "R_PPC64_TOC16_HA",	/* name */
+ 	 FALSE,			/* partial_inplace */
+@@ -1054,7 +1054,7 @@ static reloc_howto_type ppc64_elf_howto_raw[] = {
+ 	 16,			/* bitsize */
+ 	 FALSE,			/* pc_relative */
+ 	 0,			/* bitpos */
+-	 complain_overflow_dont, /* complain_on_overflow */
++	 complain_overflow_signed, /* complain_on_overflow */
+ 	 ppc64_elf_unhandled_reloc, /* special_function */
+ 	 "R_PPC64_PLTGOT16_HI",	/* name */
+ 	 FALSE,			/* partial_inplace */
+@@ -1072,7 +1072,7 @@ static reloc_howto_type ppc64_elf_howto_raw[] = {
+ 	 16,			/* bitsize */
+ 	 FALSE,			/* pc_relative */
+ 	 0,			/* bitpos */
+-	 complain_overflow_dont,/* complain_on_overflow */
++	 complain_overflow_signed, /* complain_on_overflow */
+ 	 ppc64_elf_unhandled_reloc, /* special_function */
+ 	 "R_PPC64_PLTGOT16_HA",	/* name */
+ 	 FALSE,			/* partial_inplace */
+@@ -1374,7 +1374,7 @@ static reloc_howto_type ppc64_elf_howto_raw[] = {
+ 	 16,			/* bitsize */
+ 	 FALSE,			/* pc_relative */
+ 	 0,			/* bitpos */
+-	 complain_overflow_dont, /* complain_on_overflow */
++	 complain_overflow_signed, /* complain_on_overflow */
+ 	 ppc64_elf_unhandled_reloc, /* special_function */
+ 	 "R_PPC64_DTPREL16_HI",	/* name */
+ 	 FALSE,			/* partial_inplace */
+@@ -1389,7 +1389,7 @@ static reloc_howto_type ppc64_elf_howto_raw[] = {
+ 	 16,			/* bitsize */
+ 	 FALSE,			/* pc_relative */
+ 	 0,			/* bitpos */
+-	 complain_overflow_dont, /* complain_on_overflow */
++	 complain_overflow_signed, /* complain_on_overflow */
+ 	 ppc64_elf_unhandled_reloc, /* special_function */
+ 	 "R_PPC64_DTPREL16_HA",	/* name */
+ 	 FALSE,			/* partial_inplace */
+@@ -1540,7 +1540,7 @@ static reloc_howto_type ppc64_elf_howto_raw[] = {
+ 	 16,			/* bitsize */
+ 	 FALSE,			/* pc_relative */
+ 	 0,			/* bitpos */
+-	 complain_overflow_dont, /* complain_on_overflow */
++	 complain_overflow_signed, /* complain_on_overflow */
+ 	 ppc64_elf_unhandled_reloc, /* special_function */
+ 	 "R_PPC64_TPREL16_HI",	/* name */
+ 	 FALSE,			/* partial_inplace */
+@@ -1555,7 +1555,7 @@ static reloc_howto_type ppc64_elf_howto_raw[] = {
+ 	 16,			/* bitsize */
+ 	 FALSE,			/* pc_relative */
+ 	 0,			/* bitpos */
+-	 complain_overflow_dont, /* complain_on_overflow */
++	 complain_overflow_signed, /* complain_on_overflow */
+ 	 ppc64_elf_unhandled_reloc, /* special_function */
+ 	 "R_PPC64_TPREL16_HA",	/* name */
+ 	 FALSE,			/* partial_inplace */
+@@ -1692,7 +1692,7 @@ static reloc_howto_type ppc64_elf_howto_raw[] = {
+ 	 16,			/* bitsize */
+ 	 FALSE,			/* pc_relative */
+ 	 0,			/* bitpos */
+-	 complain_overflow_dont, /* complain_on_overflow */
++	 complain_overflow_signed, /* complain_on_overflow */
+ 	 ppc64_elf_unhandled_reloc, /* special_function */
+ 	 "R_PPC64_GOT_TLSGD16_HI", /* name */
+ 	 FALSE,			/* partial_inplace */
+@@ -1707,7 +1707,7 @@ static reloc_howto_type ppc64_elf_howto_raw[] = {
+ 	 16,			/* bitsize */
+ 	 FALSE,			/* pc_relative */
+ 	 0,			/* bitpos */
+-	 complain_overflow_dont, /* complain_on_overflow */
++	 complain_overflow_signed, /* complain_on_overflow */
+ 	 ppc64_elf_unhandled_reloc, /* special_function */
+ 	 "R_PPC64_GOT_TLSGD16_HA", /* name */
+ 	 FALSE,			/* partial_inplace */
+@@ -1754,7 +1754,7 @@ static reloc_howto_type ppc64_elf_howto_raw[] = {
+ 	 16,			/* bitsize */
+ 	 FALSE,			/* pc_relative */
+ 	 0,			/* bitpos */
+-	 complain_overflow_dont, /* complain_on_overflow */
++	 complain_overflow_signed, /* complain_on_overflow */
+ 	 ppc64_elf_unhandled_reloc, /* special_function */
+ 	 "R_PPC64_GOT_TLSLD16_HI", /* name */
+ 	 FALSE,			/* partial_inplace */
+@@ -1769,7 +1769,7 @@ static reloc_howto_type ppc64_elf_howto_raw[] = {
+ 	 16,			/* bitsize */
+ 	 FALSE,			/* pc_relative */
+ 	 0,			/* bitpos */
+-	 complain_overflow_dont, /* complain_on_overflow */
++	 complain_overflow_signed, /* complain_on_overflow */
+ 	 ppc64_elf_unhandled_reloc, /* special_function */
+ 	 "R_PPC64_GOT_TLSLD16_HA", /* name */
+ 	 FALSE,			/* partial_inplace */
+@@ -1815,7 +1815,7 @@ static reloc_howto_type ppc64_elf_howto_raw[] = {
+ 	 16,			/* bitsize */
+ 	 FALSE,			/* pc_relative */
+ 	 0,			/* bitpos */
+-	 complain_overflow_dont, /* complain_on_overflow */
++	 complain_overflow_signed, /* complain_on_overflow */
+ 	 ppc64_elf_unhandled_reloc, /* special_function */
+ 	 "R_PPC64_GOT_DTPREL16_HI", /* name */
+ 	 FALSE,			/* partial_inplace */
+@@ -1830,7 +1830,7 @@ static reloc_howto_type ppc64_elf_howto_raw[] = {
+ 	 16,			/* bitsize */
+ 	 FALSE,			/* pc_relative */
+ 	 0,			/* bitpos */
+-	 complain_overflow_dont, /* complain_on_overflow */
++	 complain_overflow_signed, /* complain_on_overflow */
+ 	 ppc64_elf_unhandled_reloc, /* special_function */
+ 	 "R_PPC64_GOT_DTPREL16_HA", /* name */
+ 	 FALSE,			/* partial_inplace */
+@@ -1876,7 +1876,7 @@ static reloc_howto_type ppc64_elf_howto_raw[] = {
+ 	 16,			/* bitsize */
+ 	 FALSE,			/* pc_relative */
+ 	 0,			/* bitpos */
+-	 complain_overflow_dont, /* complain_on_overflow */
++	 complain_overflow_signed, /* complain_on_overflow */
+ 	 ppc64_elf_unhandled_reloc, /* special_function */
+ 	 "R_PPC64_GOT_TPREL16_HI", /* name */
+ 	 FALSE,			/* partial_inplace */
+@@ -1891,7 +1891,7 @@ static reloc_howto_type ppc64_elf_howto_raw[] = {
+ 	 16,			/* bitsize */
+ 	 FALSE,			/* pc_relative */
+ 	 0,			/* bitpos */
+-	 complain_overflow_dont, /* complain_on_overflow */
++	 complain_overflow_signed, /* complain_on_overflow */
+ 	 ppc64_elf_unhandled_reloc, /* special_function */
+ 	 "R_PPC64_GOT_TPREL16_HA", /* name */
+ 	 FALSE,			/* partial_inplace */
+@@ -1964,7 +1964,7 @@ static reloc_howto_type ppc64_elf_howto_raw[] = {
+ 	 16,			/* bitsize */
+ 	 TRUE,			/* pc_relative */
+ 	 0,			/* bitpos */
+-	 complain_overflow_dont, /* complain_on_overflow */
++	 complain_overflow_signed, /* complain_on_overflow */
+ 	 bfd_elf_generic_reloc,	/* special_function */
+ 	 "R_PPC64_REL16_HI",	/* name */
+ 	 FALSE,			/* partial_inplace */
+@@ -1980,7 +1980,7 @@ static reloc_howto_type ppc64_elf_howto_raw[] = {
+ 	 16,			/* bitsize */
+ 	 TRUE,			/* pc_relative */
+ 	 0,			/* bitpos */
+-	 complain_overflow_dont, /* complain_on_overflow */
++	 complain_overflow_signed, /* complain_on_overflow */
+ 	 ppc64_elf_ha_reloc,	/* special_function */
+ 	 "R_PPC64_REL16_HA",	/* name */
+ 	 FALSE,			/* partial_inplace */
+@@ -1988,6 +1988,96 @@ static reloc_howto_type ppc64_elf_howto_raw[] = {
+ 	 0xffff,		/* dst_mask */
+ 	 TRUE),			/* pcrel_offset */
+ 
++  /* Like R_PPC64_ADDR16_HI, but no overflow.  */
++  HOWTO (R_PPC64_ADDR16_HIGH,	/* type */
++	 16,			/* rightshift */
++	 1,			/* size (0 = byte, 1 = short, 2 = long) */
++	 16,			/* bitsize */
++	 FALSE,			/* pc_relative */
++	 0,			/* bitpos */
++	 complain_overflow_dont, /* complain_on_overflow */
++	 bfd_elf_generic_reloc,	/* special_function */
++	 "R_PPC64_ADDR16_HIGH",	/* name */
++	 FALSE,			/* partial_inplace */
++	 0,			/* src_mask */
++	 0xffff,		/* dst_mask */
++	 FALSE),		/* pcrel_offset */
++
++  /* Like R_PPC64_ADDR16_HA, but no overflow.  */
++  HOWTO (R_PPC64_ADDR16_HIGHA,	/* type */
++	 16,			/* rightshift */
++	 1,			/* size (0 = byte, 1 = short, 2 = long) */
++	 16,			/* bitsize */
++	 FALSE,			/* pc_relative */
++	 0,			/* bitpos */
++	 complain_overflow_dont, /* complain_on_overflow */
++	 ppc64_elf_ha_reloc,	/* special_function */
++	 "R_PPC64_ADDR16_HIGHA",	/* name */
++	 FALSE,			/* partial_inplace */
++	 0,			/* src_mask */
++	 0xffff,		/* dst_mask */
++	 FALSE),		/* pcrel_offset */
++
++  /* Like R_PPC64_DTPREL16_HI, but no overflow.  */
++  HOWTO (R_PPC64_DTPREL16_HIGH,
++	 16,			/* rightshift */
++	 1,			/* size (0 = byte, 1 = short, 2 = long) */
++	 16,			/* bitsize */
++	 FALSE,			/* pc_relative */
++	 0,			/* bitpos */
++	 complain_overflow_dont, /* complain_on_overflow */
++	 ppc64_elf_unhandled_reloc, /* special_function */
++	 "R_PPC64_DTPREL16_HIGH", /* name */
++	 FALSE,			/* partial_inplace */
++	 0,			/* src_mask */
++	 0xffff,		/* dst_mask */
++	 FALSE),		/* pcrel_offset */
++
++  /* Like R_PPC64_DTPREL16_HA, but no overflow.  */
++  HOWTO (R_PPC64_DTPREL16_HIGHA,
++	 16,			/* rightshift */
++	 1,			/* size (0 = byte, 1 = short, 2 = long) */
++	 16,			/* bitsize */
++	 FALSE,			/* pc_relative */
++	 0,			/* bitpos */
++	 complain_overflow_dont, /* complain_on_overflow */
++	 ppc64_elf_unhandled_reloc, /* special_function */
++	 "R_PPC64_DTPREL16_HIGHA", /* name */
++	 FALSE,			/* partial_inplace */
++	 0,			/* src_mask */
++	 0xffff,		/* dst_mask */
++	 FALSE),		/* pcrel_offset */
++
++  /* Like R_PPC64_TPREL16_HI, but no overflow.  */
++  HOWTO (R_PPC64_TPREL16_HIGH,
++	 16,			/* rightshift */
++	 1,			/* size (0 = byte, 1 = short, 2 = long) */
++	 16,			/* bitsize */
++	 FALSE,			/* pc_relative */
++	 0,			/* bitpos */
++	 complain_overflow_dont, /* complain_on_overflow */
++	 ppc64_elf_unhandled_reloc, /* special_function */
++	 "R_PPC64_TPREL16_HIGH",	/* name */
++	 FALSE,			/* partial_inplace */
++	 0,			/* src_mask */
++	 0xffff,		/* dst_mask */
++	 FALSE),		/* pcrel_offset */
++
++  /* Like R_PPC64_TPREL16_HA, but no overflow.  */
++  HOWTO (R_PPC64_TPREL16_HIGHA,
++	 16,			/* rightshift */
++	 1,			/* size (0 = byte, 1 = short, 2 = long) */
++	 16,			/* bitsize */
++	 FALSE,			/* pc_relative */
++	 0,			/* bitpos */
++	 complain_overflow_dont, /* complain_on_overflow */
++	 ppc64_elf_unhandled_reloc, /* special_function */
++	 "R_PPC64_TPREL16_HIGHA",	/* name */
++	 FALSE,			/* partial_inplace */
++	 0,			/* src_mask */
++	 0xffff,		/* dst_mask */
++	 FALSE),		/* pcrel_offset */
++
+   /* GNU extension to record C++ vtable hierarchy.  */
+   HOWTO (R_PPC64_GNU_VTINHERIT,	/* type */
+ 	 0,			/* rightshift */
+@@ -2066,8 +2156,12 @@ ppc64_elf_reloc_type_lookup (bfd *abfd ATTRIBUTE_UNUSED,
+       break;
+     case BFD_RELOC_HI16:			r = R_PPC64_ADDR16_HI;
+       break;
++    case BFD_RELOC_PPC64_ADDR16_HIGH:		r = R_PPC64_ADDR16_HIGH;
++      break;
+     case BFD_RELOC_HI16_S:			r = R_PPC64_ADDR16_HA;
+       break;
++    case BFD_RELOC_PPC64_ADDR16_HIGHA:		r = R_PPC64_ADDR16_HIGHA;
++      break;
+     case BFD_RELOC_PPC_BA16:			r = R_PPC64_ADDR14;
+       break;
+     case BFD_RELOC_PPC_BA16_BRTAKEN:		r = R_PPC64_ADDR14_BRTAKEN;
+@@ -2186,8 +2280,12 @@ ppc64_elf_reloc_type_lookup (bfd *abfd ATTRIBUTE_UNUSED,
+       break;
+     case BFD_RELOC_PPC_TPREL16_HI:		r = R_PPC64_TPREL16_HI;
+       break;
++    case BFD_RELOC_PPC64_TPREL16_HIGH:		r = R_PPC64_TPREL16_HIGH;
++      break;
+     case BFD_RELOC_PPC_TPREL16_HA:		r = R_PPC64_TPREL16_HA;
+       break;
++    case BFD_RELOC_PPC64_TPREL16_HIGHA:		r = R_PPC64_TPREL16_HIGHA;
++      break;
+     case BFD_RELOC_PPC_TPREL:			r = R_PPC64_TPREL64;
+       break;
+     case BFD_RELOC_PPC_DTPREL16:		r = R_PPC64_DTPREL16;
+@@ -2196,8 +2294,12 @@ ppc64_elf_reloc_type_lookup (bfd *abfd ATTRIBUTE_UNUSED,
+       break;
+     case BFD_RELOC_PPC_DTPREL16_HI:		r = R_PPC64_DTPREL16_HI;
+       break;
++    case BFD_RELOC_PPC64_DTPREL16_HIGH:		r = R_PPC64_DTPREL16_HIGH;
++      break;
+     case BFD_RELOC_PPC_DTPREL16_HA:		r = R_PPC64_DTPREL16_HA;
+       break;
++    case BFD_RELOC_PPC64_DTPREL16_HIGHA:	r = R_PPC64_DTPREL16_HIGHA;
++      break;
+     case BFD_RELOC_PPC_DTPREL:			r = R_PPC64_DTPREL64;
+       break;
+     case BFD_RELOC_PPC_GOT_TLSGD16:		r = R_PPC64_GOT_TLSGD16;
+@@ -3514,6 +3616,8 @@ must_be_dyn_reloc (struct bfd_link_info *info,
+     case R_PPC64_TPREL16_HA:
+     case R_PPC64_TPREL16_DS:
+     case R_PPC64_TPREL16_LO_DS:
++    case R_PPC64_TPREL16_HIGH:
++    case R_PPC64_TPREL16_HIGHA:
+     case R_PPC64_TPREL16_HIGHER:
+     case R_PPC64_TPREL16_HIGHERA:
+     case R_PPC64_TPREL16_HIGHEST:
+@@ -5208,6 +5312,8 @@ ppc64_elf_check_relocs (bfd *abfd, struct bfd_link_info *info,
+ 	case R_PPC64_DTPREL16_HA:
+ 	case R_PPC64_DTPREL16_DS:
+ 	case R_PPC64_DTPREL16_LO_DS:
++	case R_PPC64_DTPREL16_HIGH:
++	case R_PPC64_DTPREL16_HIGHA:
+ 	case R_PPC64_DTPREL16_HIGHER:
+ 	case R_PPC64_DTPREL16_HIGHERA:
+ 	case R_PPC64_DTPREL16_HIGHEST:
+@@ -5368,6 +5474,8 @@ ppc64_elf_check_relocs (bfd *abfd, struct bfd_link_info *info,
+ 	case R_PPC64_TPREL16_HA:
+ 	case R_PPC64_TPREL16_DS:
+ 	case R_PPC64_TPREL16_LO_DS:
++	case R_PPC64_TPREL16_HIGH:
++	case R_PPC64_TPREL16_HIGHA:
+ 	case R_PPC64_TPREL16_HIGHER:
+ 	case R_PPC64_TPREL16_HIGHERA:
+ 	case R_PPC64_TPREL16_HIGHEST:
+@@ -5421,6 +5529,8 @@ ppc64_elf_check_relocs (bfd *abfd, struct bfd_link_info *info,
+ 	case R_PPC64_ADDR16_DS:
+ 	case R_PPC64_ADDR16_HA:
+ 	case R_PPC64_ADDR16_HI:
++	case R_PPC64_ADDR16_HIGH:
++	case R_PPC64_ADDR16_HIGHA:
+ 	case R_PPC64_ADDR16_HIGHER:
+ 	case R_PPC64_ADDR16_HIGHERA:
+ 	case R_PPC64_ADDR16_HIGHEST:
+@@ -7052,6 +7162,8 @@ dec_dynrel_count (bfd_vma r_info,
+     case R_PPC64_TPREL16_HA:
+     case R_PPC64_TPREL16_DS:
+     case R_PPC64_TPREL16_LO_DS:
++    case R_PPC64_TPREL16_HIGH:
++    case R_PPC64_TPREL16_HIGHA:
+     case R_PPC64_TPREL16_HIGHER:
+     case R_PPC64_TPREL16_HIGHERA:
+     case R_PPC64_TPREL16_HIGHEST:
+@@ -7073,6 +7185,8 @@ dec_dynrel_count (bfd_vma r_info,
+     case R_PPC64_ADDR16_DS:
+     case R_PPC64_ADDR16_HA:
+     case R_PPC64_ADDR16_HI:
++    case R_PPC64_ADDR16_HIGH:
++    case R_PPC64_ADDR16_HIGHA:
+     case R_PPC64_ADDR16_HIGHER:
+     case R_PPC64_ADDR16_HIGHERA:
+     case R_PPC64_ADDR16_HIGHEST:
+@@ -13531,6 +13645,8 @@ ppc64_elf_relocate_section (bfd *output_bfd,
+ 	case R_PPC64_TPREL16_HA:
+ 	case R_PPC64_TPREL16_DS:
+ 	case R_PPC64_TPREL16_LO_DS:
++	case R_PPC64_TPREL16_HIGH:
++	case R_PPC64_TPREL16_HIGHA:
+ 	case R_PPC64_TPREL16_HIGHER:
+ 	case R_PPC64_TPREL16_HIGHERA:
+ 	case R_PPC64_TPREL16_HIGHEST:
+@@ -13565,6 +13681,8 @@ ppc64_elf_relocate_section (bfd *output_bfd,
+ 	case R_PPC64_DTPREL16_HA:
+ 	case R_PPC64_DTPREL16_DS:
+ 	case R_PPC64_DTPREL16_LO_DS:
++	case R_PPC64_DTPREL16_HIGH:
++	case R_PPC64_DTPREL16_HIGHA:
+ 	case R_PPC64_DTPREL16_HIGHER:
+ 	case R_PPC64_DTPREL16_HIGHERA:
+ 	case R_PPC64_DTPREL16_HIGHEST:
+@@ -13597,6 +13715,8 @@ ppc64_elf_relocate_section (bfd *output_bfd,
+ 	case R_PPC64_ADDR16_DS:
+ 	case R_PPC64_ADDR16_HA:
+ 	case R_PPC64_ADDR16_HI:
++	case R_PPC64_ADDR16_HIGH:
++	case R_PPC64_ADDR16_HIGHA:
+ 	case R_PPC64_ADDR16_HIGHER:
+ 	case R_PPC64_ADDR16_HIGHERA:
+ 	case R_PPC64_ADDR16_HIGHEST:
+@@ -13911,21 +14031,20 @@ ppc64_elf_relocate_section (bfd *output_bfd,
+ 	default:
+ 	  break;
+ 
+-	case R_PPC64_ADDR16_HA:
+ 	case R_PPC64_REL16_HA:
++	case R_PPC64_ADDR16_HA:
++	case R_PPC64_ADDR16_HIGHA:
+ 	case R_PPC64_ADDR16_HIGHERA:
+ 	case R_PPC64_ADDR16_HIGHESTA:
+ 	case R_PPC64_TOC16_HA:
+ 	case R_PPC64_SECTOFF_HA:
+ 	case R_PPC64_TPREL16_HA:
+-	case R_PPC64_DTPREL16_HA:
+-	case R_PPC64_TPREL16_HIGHER:
++	case R_PPC64_TPREL16_HIGHA:
+ 	case R_PPC64_TPREL16_HIGHERA:
+-	case R_PPC64_TPREL16_HIGHEST:
+ 	case R_PPC64_TPREL16_HIGHESTA:
+-	case R_PPC64_DTPREL16_HIGHER:
++	case R_PPC64_DTPREL16_HA:
++	case R_PPC64_DTPREL16_HIGHA:
+ 	case R_PPC64_DTPREL16_HIGHERA:
+-	case R_PPC64_DTPREL16_HIGHEST:
+ 	case R_PPC64_DTPREL16_HIGHESTA:
+ 	  /* It's just possible that this symbol is a weak symbol
+ 	     that's not actually defined anywhere. In that case,
+--- a/bfd/libbfd.h
++++ b/bfd/libbfd.h
+@@ -1397,6 +1397,8 @@ static const char *const bfd_reloc_code_real_names[] = { "@@uninitialized@@",
+   "BFD_RELOC_PPC64_TOC16_LO_DS",
+   "BFD_RELOC_PPC64_PLTGOT16_DS",
+   "BFD_RELOC_PPC64_PLTGOT16_LO_DS",
++  "BFD_RELOC_PPC64_ADDR16_HIGH",
++  "BFD_RELOC_PPC64_ADDR16_HIGHA",
+   "BFD_RELOC_PPC_TLS",
+   "BFD_RELOC_PPC_TLSGD",
+   "BFD_RELOC_PPC_TLSLD",
+@@ -1439,6 +1441,10 @@ static const char *const bfd_reloc_code_real_names[] = { "@@uninitialized@@",
+   "BFD_RELOC_PPC64_DTPREL16_HIGHERA",
+   "BFD_RELOC_PPC64_DTPREL16_HIGHEST",
+   "BFD_RELOC_PPC64_DTPREL16_HIGHESTA",
++  "BFD_RELOC_PPC64_TPREL16_HIGH",
++  "BFD_RELOC_PPC64_TPREL16_HIGHA",
++  "BFD_RELOC_PPC64_DTPREL16_HIGH",
++  "BFD_RELOC_PPC64_DTPREL16_HIGHA",
+   "BFD_RELOC_I370_D12",
+   "BFD_RELOC_CTOR",
+   "BFD_RELOC_ARM_PCREL_BRANCH",
+--- a/bfd/reloc.c
++++ b/bfd/reloc.c
+@@ -2891,6 +2891,10 @@ ENUMX
+   BFD_RELOC_PPC64_PLTGOT16_DS
+ ENUMX
+   BFD_RELOC_PPC64_PLTGOT16_LO_DS
++ENUMX
++  BFD_RELOC_PPC64_ADDR16_HIGH
++ENUMX
++  BFD_RELOC_PPC64_ADDR16_HIGHA
+ ENUMDOC
+   Power(rs6000) and PowerPC relocations.
+ 
+@@ -2978,6 +2982,14 @@ ENUMX
+   BFD_RELOC_PPC64_DTPREL16_HIGHEST
+ ENUMX
+   BFD_RELOC_PPC64_DTPREL16_HIGHESTA
++ENUMX
++  BFD_RELOC_PPC64_TPREL16_HIGH
++ENUMX
++  BFD_RELOC_PPC64_TPREL16_HIGHA
++ENUMX
++  BFD_RELOC_PPC64_DTPREL16_HIGH
++ENUMX
++  BFD_RELOC_PPC64_DTPREL16_HIGHA
+ ENUMDOC
+   PowerPC and PowerPC64 thread-local storage relocations.
+ 
+### a/include/elf/ChangeLog
+### b/include/elf/ChangeLog
+## -1,3 +1,10 @@
++2013-10-30  Alan Modra  <amodra@gmail.com>
++
++	* ppc64.h (R_PPC64_ADDR16_HIGH, R_PPC64_ADDR16_HIGHA,
++	R_PPC64_TPREL16_HIGH, R_PPC64_TPREL16_HIGHA,
++	R_PPC64_DTPREL16_HIGH, R_PPC64_DTPREL16_HIGHA): New.
++	(IS_PPC64_TLS_RELOC): Match new tls relocs.
++
+ 2013-10-14  Chao-ying Fu  <Chao-ying.Fu@imgtec.com>
+ 
+ 	* mips.h (enum): Add Tag_GNU_MIPS_ABI_MSA.
+--- a/include/elf/ppc64.h
++++ b/include/elf/ppc64.h
+@@ -141,6 +141,14 @@ START_RELOC_NUMBERS (elf_ppc64_reloc_type)
+   RELOC_NUMBER (R_PPC64_TLSLD,		   108)
+   RELOC_NUMBER (R_PPC64_TOCSAVE,	   109)
+ 
++/* Added when HA and HI relocs were changed to report overflows.  */
++  RELOC_NUMBER (R_PPC64_ADDR16_HIGH,	   110)
++  RELOC_NUMBER (R_PPC64_ADDR16_HIGHA,	   111)
++  RELOC_NUMBER (R_PPC64_TPREL16_HIGH,	   112)
++  RELOC_NUMBER (R_PPC64_TPREL16_HIGHA,	   113)
++  RELOC_NUMBER (R_PPC64_DTPREL16_HIGH,	   114)
++  RELOC_NUMBER (R_PPC64_DTPREL16_HIGHA,	   115)
++
+ #ifndef RELOC_MACROS_GEN_FUNC
+ /* Fake relocation only used internally by ld.  */
+   RELOC_NUMBER (R_PPC64_LO_DS_OPT,	   128)
+@@ -161,8 +169,9 @@ START_RELOC_NUMBERS (elf_ppc64_reloc_type)
+ 
+ END_RELOC_NUMBERS (R_PPC64_max)
+ 
+-#define IS_PPC64_TLS_RELOC(R) \
+-  ((R) >= R_PPC64_TLS && (R) <= R_PPC64_DTPREL16_HIGHESTA)
++#define IS_PPC64_TLS_RELOC(R)						\
++  (((R) >= R_PPC64_TLS && (R) <= R_PPC64_DTPREL16_HIGHESTA)		\
++   || ((R) >= R_PPC64_TPREL16_HIGH && (R) <= R_PPC64_DTPREL16_HIGHA))
+ 
+ /* Specify the start of the .glink section.  */
+ #define DT_PPC64_GLINK		DT_LOPROC

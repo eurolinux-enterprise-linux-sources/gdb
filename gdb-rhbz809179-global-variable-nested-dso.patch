@@ -1,0 +1,225 @@
+This bug is already fixed in the RHEL-7.1 GDB version.  However, it is
+also important to add a testcase, so the following is a patch to add
+this test.
+
+This is the original message submitted to gdb-patches:
+
+    From: Sergio Durigan Junior <sergiodj at redhat dot com>
+    To: GDB Patches <gdb-patches at sourceware dot org>
+    Subject: [PATCH] Add test for global variable that is nested by another DSO
+    Date: Thu,  4 Sep 2014 17:32:53 -0400
+    Message-Id: <1409866373-16413-1-git-send-email-sergiodj@redhat.com>
+
+    This is just a testcase addition that I am proposing for upstream GDB.
+    We have this in our internal tree, and the related RH bug is:
+    
+      <https://bugzilla.redhat.com/show_bug.cgi?id=809179>
+    
+    (You might not be able to see all the comments without privileges.)
+    
+    This bug is about a global variable that got incorrectly displayed by
+    GDB.  This bug has already been fixed a long time ago by Joel's
+    commit:
+    
+      commit 19630284f570790ebf6d50bfb43caa1f125ee88a
+      Author: Joel Brobecker <brobecker@gnat.com>
+      Date:   Tue Jun 5 13:50:50 2012 +0000
+    
+    But I think a testcase for it wouldn't hurt.
+    
+    So, consider the following scenario:
+    
+      $ cat solib1.c
+      int test;
+      void c_main (void)
+      {
+        test = 42;
+      }
+    
+      $ cat solib2.c
+      int test;
+      void b_main (void)
+      {
+        test = 42;
+      }
+    
+      $ cat main.c
+      int main (int argc, char *argv[])
+      {
+        c_main ();
+        b_main ();
+        return 0;
+      }
+    
+      $ gcc -g -fPIC -shared -o libSO1.so -c solib1.c
+      $ gcc -g -fPIC -shared -o libSO2.so -c solib2.c
+      $ gcc -g -o main -L$PWD -lSO1 -lSO2 main.c
+      $ LD_LIBRARY_PATH=. gdb -q -batch -ex 'b c_main' -ex r -ex n -ex 'p test' ./main
+      ...
+      $1 = 0
+    
+    This happened with GDB before Joel's commit above.  Now, things work
+    and GDB is able to correctly display the nested global variable:
+    
+      $ LD_LIBRARY_PATH=. gdb -q -batch -ex 'b c_main' -ex r -ex n -ex 'p test' ./main
+      ...
+      $1 = 42
+    
+    The testcase attached tests this behavior.
+    
+    gdb/testsuite/ChangeLog:
+    2014-09-04  Sergio Durigan Junior  <sergiodj@redhat.com>
+    
+    	* gdb.base/global-var-nested-by-dso-solib1.c: New file.
+    	* gdb.base/global-var-nested-by-dso-solib2.c: Likewise.
+    	* gdb.base/global-var-nested-by-dso.c: Likewise.
+    	* gdb.base/global-var-nested-by-dso.exp: Likewise.
+
+
+Index: gdb-7.6.1/gdb/testsuite/gdb.base/global-var-nested-by-dso-solib1.c
+===================================================================
+--- /dev/null
++++ gdb-7.6.1/gdb/testsuite/gdb.base/global-var-nested-by-dso-solib1.c
+@@ -0,0 +1,24 @@
++/* Copyright 2014 Free Software Foundation, Inc.
++
++   This file is part of GDB.
++
++   This program is free software; you can redistribute it and/or modify
++   it under the terms of the GNU General Public License as published by
++   the Free Software Foundation; either version 3 of the License, or
++   (at your option) any later version.
++
++   This program is distributed in the hope that it will be useful,
++   but WITHOUT ANY WARRANTY; without even the implied warranty of
++   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++   GNU General Public License for more details.
++
++   You should have received a copy of the GNU General Public License
++   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
++
++int test;
++
++void
++c_main (void)
++{
++  test = 42;
++}
+Index: gdb-7.6.1/gdb/testsuite/gdb.base/global-var-nested-by-dso-solib2.c
+===================================================================
+--- /dev/null
++++ gdb-7.6.1/gdb/testsuite/gdb.base/global-var-nested-by-dso-solib2.c
+@@ -0,0 +1,24 @@
++/* Copyright 2014 Free Software Foundation, Inc.
++
++   This file is part of GDB.
++
++   This program is free software; you can redistribute it and/or modify
++   it under the terms of the GNU General Public License as published by
++   the Free Software Foundation; either version 3 of the License, or
++   (at your option) any later version.
++
++   This program is distributed in the hope that it will be useful,
++   but WITHOUT ANY WARRANTY; without even the implied warranty of
++   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++   GNU General Public License for more details.
++
++   You should have received a copy of the GNU General Public License
++   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
++
++int test;
++
++void
++b_main (void)
++{
++  test = 42;
++}
+Index: gdb-7.6.1/gdb/testsuite/gdb.base/global-var-nested-by-dso.c
+===================================================================
+--- /dev/null
++++ gdb-7.6.1/gdb/testsuite/gdb.base/global-var-nested-by-dso.c
+@@ -0,0 +1,24 @@
++/* Copyright 2014 Free Software Foundation, Inc.
++
++   This file is part of GDB.
++
++   This program is free software; you can redistribute it and/or modify
++   it under the terms of the GNU General Public License as published by
++   the Free Software Foundation; either version 3 of the License, or
++   (at your option) any later version.
++
++   This program is distributed in the hope that it will be useful,
++   but WITHOUT ANY WARRANTY; without even the implied warranty of
++   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++   GNU General Public License for more details.
++
++   You should have received a copy of the GNU General Public License
++   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
++
++int
++main (int argc, char *argv[])
++{
++  c_main ();
++  b_main ();
++  return 0;
++}
+Index: gdb-7.6.1/gdb/testsuite/gdb.base/global-var-nested-by-dso.exp
+===================================================================
+--- /dev/null
++++ gdb-7.6.1/gdb/testsuite/gdb.base/global-var-nested-by-dso.exp
+@@ -0,0 +1,55 @@
++# Copyright 2014 Free Software Foundation, Inc.
++
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 3 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License
++# along with this program.  If not, see <http://www.gnu.org/licenses/>.
++
++if { [skip_shlib_tests] } {
++    return 0
++}
++
++standard_testfile
++
++set lib1name $testfile-solib1
++set srcfile_lib1 $srcdir/$subdir/$lib1name.c
++set binfile_lib1 [standard_output_file $lib1name.so]
++
++set lib2name $testfile-solib2
++set srcfile_lib2 $srcdir/$subdir/$lib2name.c
++set binfile_lib2 [standard_output_file $lib2name.so]
++
++if { [gdb_compile_shlib $srcfile_lib1 $binfile_lib1 \
++	[list debug additional_flags=-fPIC]] != "" } {
++  untested "Could not compile $binfile_lib1."
++  return -1
++}
++
++if { [gdb_compile_shlib $srcfile_lib2 $binfile_lib2 \
++	[list debug additional_flags=-fPIC]] != "" } {
++  untested "Could not compile $binfile_lib2."
++  return -1
++}
++
++if { [gdb_compile $srcdir/$subdir/$srcfile $binfile executable \
++	[list debug shlib=$binfile_lib1 shlib=$binfile_lib2]] != "" } {
++  return -1
++}
++
++clean_restart $binfile
++
++if { ![runto_main] } {
++  return -1
++}
++
++gdb_test "next" "$decimal.*b_main \\(\\);"
++gdb_test "next" "$decimal.*return 0;"
++gdb_test "print test" " = 42"

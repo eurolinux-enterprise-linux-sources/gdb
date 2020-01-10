@@ -1,0 +1,1626 @@
+commit 6346d5ca43719ba6fc3176c29fd58a83d439f011
+Author: Alan Modra <amodra@gmail.com>
+Date:   Mon Jan 19 10:36:26 2015 +1030
+
+    Fallout from recent bfd_reloc_outofrange changes
+    
+    Commit ec93045b and cd21f5da introduced a large number of tic4x and
+    tic54x regressions, due to the new checks being wrong for targets
+    with octets_per_byte != 1.  To fix that I introduced a new
+    bfd_get_section_limit_octets and performed the check on octets rather
+    than byte adresses, reducing the number of bfd_octets_per_byte calls.
+    bfd_octets_per_byte is rather expensive..
+    
+    I then wondered why the same bfd_reloc_outofrange check added to
+    bfd_perform_relocation wasn't also added to bfd_install_relocation.
+    The two functions are virtually identical and ought to remain that
+    way.  However, adding the same check to bfd_install_relocation
+    resulted in ld-elf "FAIL Link eh-group.o to eh-group" on many ELF
+    targets, including x64_64-linux.  The reason being that eh-group.o
+    has NONE relocs at the end of a section, and most targets give NONE
+    relocs a non-zero size.  So if we are to keep the new outofrange
+    check it appears that NONE relocs must have a zero size.
+    
+            * bfd-in.h (bfd_get_section_limit_octets): New define, extracted from..
+            (bfd_get_section_limit): ..here.
+            * reloc.c (bfd_perform_relocation): Correct bfd_reloc_outofrange check.
+            (bfd_install_relocation, _bfd_final_link_relocate): Add same check here.
+            * elf32-sh.c (sh_elf_reloc): Correct bfd_reloc_outofrange check.
+            * elf32-ppc.c (ppc_elf_addr16_ha_reloc): Remove duplicated
+            bfd_reloc_outofrange check.
+            * bfd-in2.h: Regenerate.
+    
+            * cpu-ns32k.c (_bfd_do_ns32k_reloc_contents): Return bfd_reloc_ok
+            on zero size relocs.
+            * ecoff.c (ecoff_reloc_link_order): Likewise.
+            * elf32-nds32.c (nds32_relocate_contents): Likewise.
+            * elfxx-aarch64.c (_bfd_aarch64_elf_put_addend): Likewise.
+    
+            * reloc.c (_bfd_relocate_contents): Don't bomb on zero size relocs.
+            (_bfd_clear_contents): Likewise.
+            * elfxx-mips.c (mips_elf_obtain_contents): Likewise.
+            (mips_elf_perform_relocation): Likewise.
+    
+            * aoutx.h (aout_link_reloc_link_order): Allow for NULL return
+            from malloc on zero size alloc.
+            * cofflink.c (_bfd_coff_reloc_link_order): Likewise.
+            * elflink.c (elf_reloc_link_order): Likewise.
+            * linker.c (_bfd_generic_reloc_link_order): Likewise.
+            * pdp11.c (aout_link_reloc_link_order): Likewise.
+            * xcofflink.c (xcoff_reloc_link_order): Likewise.
+    
+            * aoutx.h (howto_table_ext): Ensure NONE relocs have size 3,
+            bitsize 0, and complain_overflow_dont.
+            * coff-sparc.c (coff_sparc_howto_table): Likewise.
+            * elf-hppa.h (elf_hppa_howto_table): Likewise.
+            * elf-m10200.c (elf_mn10200_howto_table): Likewise.
+            * elf-m10300.c (elf_mn10300_howto_table): Likewise.
+            * elf32-arc.c (elf_arc_howto_table): Likewise.
+            * elf32-arm.c (elf32_arm_howto_table_1): Likewise.
+            * elf32-avr.c (elf_avr_howto_table): Likewise.
+            * elf32-bfin.c (bfin_howto_table): Likewise.
+            * elf32-cr16.c (cr16_elf_howto_table): Likewise.
+            * elf32-cris.c (cris_elf_howto_table): Likewise.
+            * elf32-crx.c (crx_elf_howto_table): Likewise.
+            * elf32-d10v.c (elf_d10v_howto_table): Likewise.
+            * elf32-d30v.c (elf_d30v_howto_table): Likewise.
+            * elf32-dlx.c (dlx_elf_howto_table): Likewise.
+            * elf32-epiphany.c (epiphany_elf_howto_table): Likewise.
+            * elf32-fr30.c (fr30_elf_howto_table): Likewise.
+            * elf32-frv.c (elf32_frv_howto_table): Likewise.
+            * elf32-h8300.c (h8_elf_howto_table): Likewise.
+            * elf32-i370.c (i370_elf_howto_raw): Likewise.
+            * elf32-i386.c (elf_howto_table): Likewise.
+            * elf32-i860.c (elf32_i860_howto_table): Likewise.
+            * elf32-i960.c (elf32_i960_relocate): Likewise.
+            * elf32-ip2k.c (ip2k_elf_howto_table): Likewise.
+            * elf32-iq2000.c (iq2000_elf_howto_table): Likewise.
+            * elf32-lm32.c (lm32_elf_howto_table): Likewise.
+            * elf32-m32c.c (m32c_elf_howto_table): Likewise.
+            * elf32-m32r.c (m32r_elf_howto_table): Likewise.
+            * elf32-m68hc11.c (elf_m68hc11_howto_table): Likewise.
+            * elf32-m68hc12.c (elf_m68hc11_howto_table): Likewise.
+            * elf32-m68k.c (howto_table): Likewise.
+            * elf32-mcore.c (mcore_elf_howto_raw): Likewise.
+            * elf32-mep.c (mep_elf_howto_table): Likewise.
+            * elf32-metag.c (elf_metag_howto_table): Likewise.
+            * elf32-microblaze.c (microblaze_elf_howto_raw): Likewise.
+            * elf32-mips.c (elf_mips_howto_table_rel): Likewise.
+            * elf32-moxie.c (moxie_elf_howto_table): Likewise.
+            * elf32-msp430.c (elf_msp430_howto_table): Likewise.
+            * elf32-mt.c (mt_elf_howto_table): Likewise.
+            * elf32-nds32.c (nds32_elf_howto_table): Likewise.
+            * elf32-nios2.c (elf_nios2_howto_table_rel): Likewise.
+            * elf32-or1k.c (or1k_elf_howto_table): Likewise.
+            * elf32-pj.c (pj_elf_howto_table): Likewise.
+            * elf32-ppc.c (ppc_elf_howto_raw): Likewise.
+            * elf32-rl78.c (rl78_elf_howto_table): Likewise.
+            * elf32-rx.c (rx_elf_howto_table): Likewise.
+            * elf32-s390.c (elf_howto_table): Likewise.
+            * elf32-score.c (elf32_score_howto_table): Likewise.
+            * elf32-score7.c (elf32_score_howto_table): Likewise.
+            * elf32-sh-relocs.h (R_SH_NONE): Likewise.
+            * elf32-spu.c (elf_howto_table): Likewise.
+            * elf32-tic6x.c (elf32_tic6x_howto_table): Likewise.
+            * elf32-tilepro.c (tilepro_elf_howto_table): Likewise.
+            * elf32-v850.c (v850_elf_howto_table): Likewise.
+            * elf32-vax.c (howto_table): Likewise.
+            * elf32-visium.c (visium_elf_howto_table): Likewise.
+            * elf32-xc16x.c (xc16x_elf_howto_table): Likewise.
+            * elf32-xgate.c (elf_xgate_howto_table): Likewise.
+            * elf32-xstormy16.c (xstormy16_elf_howto_table): Likewise.
+            * elf32-xtensa.c (elf_howto_table): Likewise.
+            * elf64-alpha.c (elf64_alpha_howto_table): Likewise.
+            * elf64-mips.c (mips_elf64_howto_table_rel): Likewise.
+            * elf64-mmix.c (elf_mmix_howto_table): Likewise.
+            * elf64-ppc.c (ppc64_elf_howto_raw): Likewise.
+            * elf64-s390.c (elf_howto_table): Likewise.
+            * elf64-sh64.c (sh_elf64_howto_table): Likewise.
+            * elf64-x86-64.c (x86_64_elf_howto_table): Likewise.
+            * elfn32-mips.c (elf_mips_howto_table_rel): Likewise.
+            * elfnn-aarch64.c (elfNN_aarch64_howto_table): Likewise.
+            (elfNN_aarch64_howto_none): Likewise.
+            * elfxx-ia64.c (ia64_howto_table): Likewise.
+            * elfxx-sparc.c (_bfd_sparc_elf_howto_table): Likewise.
+            * elfxx-tilegx.c (tilegx_elf_howto_table): Likewise.
+            * nlm32-sparc.c (nlm32_sparc_howto_table): Likewise.
+
+### a/bfd/ChangeLog
+### b/bfd/ChangeLog
+## -1,3 +1,109 @@
++2015-01-19  Alan Modra  <amodra@gmail.com>
++
++	* bfd-in.h (bfd_get_section_limit_octets): New define, extracted from..
++	(bfd_get_section_limit): ..here.
++	* reloc.c (bfd_perform_relocation): Correct bfd_reloc_outofrange check.
++	(bfd_install_relocation, _bfd_final_link_relocate): Add same check here.
++	* elf32-sh.c (sh_elf_reloc): Correct bfd_reloc_outofrange check.
++	* elf32-ppc.c (ppc_elf_addr16_ha_reloc): Remove duplicated
++	bfd_reloc_outofrange check.
++	* bfd-in2.h: Regenerate.
++
++	* cpu-ns32k.c (_bfd_do_ns32k_reloc_contents): Return bfd_reloc_ok
++	on zero size relocs.
++	* ecoff.c (ecoff_reloc_link_order): Likewise.
++	* elf32-nds32.c (nds32_relocate_contents): Likewise.
++	* elfxx-aarch64.c (_bfd_aarch64_elf_put_addend): Likewise.
++
++	* reloc.c (_bfd_relocate_contents): Don't bomb on zero size relocs.
++	(_bfd_clear_contents): Likewise.
++	* elfxx-mips.c (mips_elf_obtain_contents): Likewise.
++	(mips_elf_perform_relocation): Likewise.
++
++	* aoutx.h (aout_link_reloc_link_order): Allow for NULL return
++	from malloc on zero size alloc.
++	* cofflink.c (_bfd_coff_reloc_link_order): Likewise.
++	* elflink.c (elf_reloc_link_order): Likewise.
++	* linker.c (_bfd_generic_reloc_link_order): Likewise.
++	* pdp11.c (aout_link_reloc_link_order): Likewise.
++	* xcofflink.c (xcoff_reloc_link_order): Likewise.
++
++	* aoutx.h (howto_table_ext): Ensure NONE relocs have size 3,
++	bitsize 0, and complain_overflow_dont.
++	* coff-sparc.c (coff_sparc_howto_table): Likewise.
++	* elf-hppa.h (elf_hppa_howto_table): Likewise.
++	* elf-m10200.c (elf_mn10200_howto_table): Likewise.
++	* elf-m10300.c (elf_mn10300_howto_table): Likewise.
++	* elf32-arc.c (elf_arc_howto_table): Likewise.
++	* elf32-arm.c (elf32_arm_howto_table_1): Likewise.
++	* elf32-avr.c (elf_avr_howto_table): Likewise.
++	* elf32-bfin.c (bfin_howto_table): Likewise.
++	* elf32-cr16.c (cr16_elf_howto_table): Likewise.
++	* elf32-cris.c (cris_elf_howto_table): Likewise.
++	* elf32-crx.c (crx_elf_howto_table): Likewise.
++	* elf32-d10v.c (elf_d10v_howto_table): Likewise.
++	* elf32-d30v.c (elf_d30v_howto_table): Likewise.
++	* elf32-dlx.c (dlx_elf_howto_table): Likewise.
++	* elf32-epiphany.c (epiphany_elf_howto_table): Likewise.
++	* elf32-fr30.c (fr30_elf_howto_table): Likewise.
++	* elf32-frv.c (elf32_frv_howto_table): Likewise.
++	* elf32-h8300.c (h8_elf_howto_table): Likewise.
++	* elf32-i370.c (i370_elf_howto_raw): Likewise.
++	* elf32-i386.c (elf_howto_table): Likewise.
++	* elf32-i860.c (elf32_i860_howto_table): Likewise.
++	* elf32-i960.c (elf32_i960_relocate): Likewise.
++	* elf32-ip2k.c (ip2k_elf_howto_table): Likewise.
++	* elf32-iq2000.c (iq2000_elf_howto_table): Likewise.
++	* elf32-lm32.c (lm32_elf_howto_table): Likewise.
++	* elf32-m32c.c (m32c_elf_howto_table): Likewise.
++	* elf32-m32r.c (m32r_elf_howto_table): Likewise.
++	* elf32-m68hc11.c (elf_m68hc11_howto_table): Likewise.
++	* elf32-m68hc12.c (elf_m68hc11_howto_table): Likewise.
++	* elf32-m68k.c (howto_table): Likewise.
++	* elf32-mcore.c (mcore_elf_howto_raw): Likewise.
++	* elf32-mep.c (mep_elf_howto_table): Likewise.
++	* elf32-metag.c (elf_metag_howto_table): Likewise.
++	* elf32-microblaze.c (microblaze_elf_howto_raw): Likewise.
++	* elf32-mips.c (elf_mips_howto_table_rel): Likewise.
++	* elf32-moxie.c (moxie_elf_howto_table): Likewise.
++	* elf32-msp430.c (elf_msp430_howto_table): Likewise.
++	* elf32-mt.c (mt_elf_howto_table): Likewise.
++	* elf32-nds32.c (nds32_elf_howto_table): Likewise.
++	* elf32-nios2.c (elf_nios2_howto_table_rel): Likewise.
++	* elf32-or1k.c (or1k_elf_howto_table): Likewise.
++	* elf32-pj.c (pj_elf_howto_table): Likewise.
++	* elf32-ppc.c (ppc_elf_howto_raw): Likewise.
++	* elf32-rl78.c (rl78_elf_howto_table): Likewise.
++	* elf32-rx.c (rx_elf_howto_table): Likewise.
++	* elf32-s390.c (elf_howto_table): Likewise.
++	* elf32-score.c (elf32_score_howto_table): Likewise.
++	* elf32-score7.c (elf32_score_howto_table): Likewise.
++	* elf32-sh-relocs.h (R_SH_NONE): Likewise.
++	* elf32-spu.c (elf_howto_table): Likewise.
++	* elf32-tic6x.c (elf32_tic6x_howto_table): Likewise.
++	* elf32-tilepro.c (tilepro_elf_howto_table): Likewise.
++	* elf32-v850.c (v850_elf_howto_table): Likewise.
++	* elf32-vax.c (howto_table): Likewise.
++	* elf32-visium.c (visium_elf_howto_table): Likewise.
++	* elf32-xc16x.c (xc16x_elf_howto_table): Likewise.
++	* elf32-xgate.c (elf_xgate_howto_table): Likewise.
++	* elf32-xstormy16.c (xstormy16_elf_howto_table): Likewise.
++	* elf32-xtensa.c (elf_howto_table): Likewise.
++	* elf64-alpha.c (elf64_alpha_howto_table): Likewise.
++	* elf64-mips.c (mips_elf64_howto_table_rel): Likewise.
++	* elf64-mmix.c (elf_mmix_howto_table): Likewise.
++	* elf64-ppc.c (ppc64_elf_howto_raw): Likewise.
++	* elf64-s390.c (elf_howto_table): Likewise.
++	* elf64-sh64.c (sh_elf64_howto_table): Likewise.
++	* elf64-x86-64.c (x86_64_elf_howto_table): Likewise.
++	* elfn32-mips.c (elf_mips_howto_table_rel): Likewise.
++	* elfnn-aarch64.c (elfNN_aarch64_howto_table): Likewise.
++	(elfNN_aarch64_howto_none): Likewise.
++	* elfxx-ia64.c (ia64_howto_table): Likewise.
++	* elfxx-sparc.c (_bfd_sparc_elf_howto_table): Likewise.
++	* elfxx-tilegx.c (tilegx_elf_howto_table): Likewise.
++	* nlm32-sparc.c (nlm32_sparc_howto_table): Likewise.
++
+ 2015-01-15  H.J. Lu  <hongjiu.lu@intel.com>
+ 
+ 	PR ld/17847
+--- a/bfd/aoutx.h
++++ b/bfd/aoutx.h
+@@ -203,8 +203,8 @@ reloc_howto_type howto_table_ext[] =
+   HOWTO (RELOC_GLOB_DAT,0,  2,	0,  FALSE, 0, complain_overflow_bitfield, 0, "GLOB_DAT",    FALSE, 0, 0x00000000, FALSE),
+   HOWTO (RELOC_JMP_SLOT,0,  2,	0,  FALSE, 0, complain_overflow_bitfield, 0, "JMP_SLOT",    FALSE, 0, 0x00000000, FALSE),
+   HOWTO (RELOC_RELATIVE,0,  2,	0,  FALSE, 0, complain_overflow_bitfield, 0, "RELATIVE",    FALSE, 0, 0x00000000, FALSE),
+-  HOWTO (0,             0,  0,  0,  FALSE, 0, complain_overflow_dont,     0, "R_SPARC_NONE",FALSE, 0, 0x00000000, TRUE),
+-  HOWTO (0,             0,  0,  0,  FALSE, 0, complain_overflow_dont,     0, "R_SPARC_NONE",FALSE, 0, 0x00000000, TRUE),
++  HOWTO (0,             0,  3,  0,  FALSE, 0, complain_overflow_dont,     0, "R_SPARC_NONE",FALSE, 0, 0x00000000, TRUE),
++  HOWTO (0,             0,  3,  0,  FALSE, 0, complain_overflow_dont,     0, "R_SPARC_NONE",FALSE, 0, 0x00000000, TRUE),
+ #define RELOC_SPARC_REV32 RELOC_WDISP19
+   HOWTO (RELOC_SPARC_REV32, 0, 2, 32, FALSE, 0, complain_overflow_dont,   0,"R_SPARC_REV32",FALSE, 0, 0xffffffff, FALSE),
+ };
+@@ -3816,7 +3816,7 @@ aout_link_reloc_link_order (struct aout_final_link_info *flaginfo,
+ 
+ 	  size = bfd_get_reloc_size (howto);
+ 	  buf = (bfd_byte *) bfd_zmalloc (size);
+-	  if (buf == NULL)
++	  if (buf == NULL && size != 0)
+ 	    return FALSE;
+ 	  r = MY_relocate_contents (howto, flaginfo->output_bfd,
+ 				    (bfd_vma) pr->addend, buf);
+--- a/bfd/bfd-in.h
++++ b/bfd/bfd-in.h
+@@ -292,10 +292,13 @@ typedef struct bfd_section *sec_ptr;
+ 
+ #define bfd_is_com_section(ptr) (((ptr)->flags & SEC_IS_COMMON) != 0)
+ 
++#define bfd_get_section_limit_octets(bfd, sec)			\
++  ((bfd)->direction != write_direction && (sec)->rawsize != 0	\
++   ? (sec)->rawsize : (sec)->size)
++
+ /* Find the address one past the end of SEC.  */
+ #define bfd_get_section_limit(bfd, sec) \
+-  (((bfd)->direction != write_direction && (sec)->rawsize != 0	\
+-    ? (sec)->rawsize : (sec)->size) / bfd_octets_per_byte (bfd))
++  (bfd_get_section_limit_octets(bfd, sec) / bfd_octets_per_byte (bfd))
+ 
+ /* Return TRUE if input section SEC has been discarded.  */
+ #define discarded_section(sec)				\
+--- a/bfd/bfd-in2.h
++++ b/bfd/bfd-in2.h
+@@ -299,10 +299,13 @@ typedef struct bfd_section *sec_ptr;
+ 
+ #define bfd_is_com_section(ptr) (((ptr)->flags & SEC_IS_COMMON) != 0)
+ 
++#define bfd_get_section_limit_octets(bfd, sec)			\
++  ((bfd)->direction != write_direction && (sec)->rawsize != 0	\
++   ? (sec)->rawsize : (sec)->size)
++
+ /* Find the address one past the end of SEC.  */
+ #define bfd_get_section_limit(bfd, sec) \
+-  (((bfd)->direction != write_direction && (sec)->rawsize != 0	\
+-    ? (sec)->rawsize : (sec)->size) / bfd_octets_per_byte (bfd))
++  (bfd_get_section_limit_octets(bfd, sec) / bfd_octets_per_byte (bfd))
+ 
+ /* Return TRUE if input section SEC has been discarded.  */
+ #define discarded_section(sec)				\
+--- a/bfd/coff-sparc.c
++++ b/bfd/coff-sparc.c
+@@ -74,7 +74,7 @@ bfd_coff_generic_reloc (bfd *abfd ATTRIBUTE_UNUSED,
+ 
+ static reloc_howto_type coff_sparc_howto_table[] =
+ {
+-  HOWTO(R_SPARC_NONE,    0,0, 0,FALSE,0,complain_overflow_dont,    bfd_coff_generic_reloc,"R_SPARC_NONE",    FALSE,0,0x00000000,TRUE),
++  HOWTO(R_SPARC_NONE,    0,3, 0,FALSE,0,complain_overflow_dont,    bfd_coff_generic_reloc,"R_SPARC_NONE",    FALSE,0,0x00000000,TRUE),
+   HOWTO(R_SPARC_8,       0,0, 8,FALSE,0,complain_overflow_bitfield,bfd_coff_generic_reloc,"R_SPARC_8",       FALSE,0,0x000000ff,TRUE),
+   HOWTO(R_SPARC_16,      0,1,16,FALSE,0,complain_overflow_bitfield,bfd_coff_generic_reloc,"R_SPARC_16",      FALSE,0,0x0000ffff,TRUE),
+   HOWTO(R_SPARC_32,      0,2,32,FALSE,0,complain_overflow_bitfield,bfd_coff_generic_reloc,"R_SPARC_32",      FALSE,0,0xffffffff,TRUE),
+--- a/bfd/cofflink.c
++++ b/bfd/cofflink.c
+@@ -2789,7 +2789,7 @@ _bfd_coff_reloc_link_order (bfd *output_bfd,
+ 
+       size = bfd_get_reloc_size (howto);
+       buf = (bfd_byte *) bfd_zmalloc (size);
+-      if (buf == NULL)
++      if (buf == NULL && size != 0)
+ 	return FALSE;
+ 
+       rstat = _bfd_relocate_contents (howto, output_bfd,
+--- a/bfd/cpu-ns32k.c
++++ b/bfd/cpu-ns32k.c
+@@ -585,8 +585,9 @@ _bfd_do_ns32k_reloc_contents (reloc_howto_type *howto,
+   switch (size)
+     {
+     default:
+-    case 0:
+       abort ();
++    case 0:
++      return bfd_reloc_ok;
+     case 1:
+     case 2:
+     case 4:
+--- a/bfd/ecoff.c
++++ b/bfd/ecoff.c
+@@ -3999,7 +3999,7 @@ ecoff_reloc_link_order (bfd *output_bfd,
+ 
+       size = bfd_get_reloc_size (rel.howto);
+       buf = (bfd_byte *) bfd_zmalloc (size);
+-      if (buf == NULL)
++      if (buf == NULL && size != 0)
+ 	return FALSE;
+       rstat = _bfd_relocate_contents (rel.howto, output_bfd,
+ 				      (bfd_vma) addend, buf);
+--- a/bfd/elf-hppa.h
++++ b/bfd/elf-hppa.h
+@@ -47,7 +47,7 @@
+ 
+ static reloc_howto_type elf_hppa_howto_table[ELF_HOWTO_TABLE_SIZE] =
+ {
+-  { R_PARISC_NONE, 0, 0, 0, FALSE, 0, complain_overflow_bitfield,
++  { R_PARISC_NONE, 0, 3, 0, FALSE, 0, complain_overflow_dont,
+     bfd_elf_generic_reloc, "R_PARISC_NONE", FALSE, 0, 0, FALSE },
+ 
+   /* The values in DIR32 are to placate the check in
+--- a/bfd/elf-m10200.c
++++ b/bfd/elf-m10200.c
+@@ -46,11 +46,11 @@ static reloc_howto_type elf_mn10200_howto_table[] =
+   /* Dummy relocation.  Does nothing.  */
+   HOWTO (R_MN10200_NONE,
+ 	 0,
+-	 2,
+-	 16,
++	 3,
++	 0,
+ 	 FALSE,
+ 	 0,
+-	 complain_overflow_bitfield,
++	 complain_overflow_dont,
+ 	 bfd_elf_generic_reloc,
+ 	 "R_MN10200_NONE",
+ 	 FALSE,
+--- a/bfd/elf-m10300.c
++++ b/bfd/elf-m10300.c
+@@ -142,11 +142,11 @@ static reloc_howto_type elf_mn10300_howto_table[] =
+   /* Dummy relocation.  Does nothing.  */
+   HOWTO (R_MN10300_NONE,
+ 	 0,
+-	 2,
+-	 16,
++	 3,
++	 0,
+ 	 FALSE,
+ 	 0,
+-	 complain_overflow_bitfield,
++	 complain_overflow_dont,
+ 	 bfd_elf_generic_reloc,
+ 	 "R_MN10300_NONE",
+ 	 FALSE,
+--- a/bfd/elf32-arc.c
++++ b/bfd/elf32-arc.c
+@@ -58,8 +58,8 @@ static reloc_howto_type elf_arc_howto_table[] =
+   /* This reloc does nothing.  */
+   HOWTO (R_ARC_NONE,		/* Type.  */
+ 	 0,			/* Rightshift.  */
+-	 2,			/* Size (0 = byte, 1 = short, 2 = long).  */
+-	 32,			/* Bitsize.  */
++	 3,			/* Size (0 = byte, 1 = short, 2 = long).  */
++	 0,			/* Bitsize.  */
+ 	 FALSE,			/* PC_relative.  */
+ 	 0,			/* Bitpos.  */
+ 	 complain_overflow_bitfield, /* Complain_on_overflow.  */
+--- a/bfd/elf32-arm.c
++++ b/bfd/elf32-arm.c
+@@ -79,7 +79,7 @@ static reloc_howto_type elf32_arm_howto_table_1[] =
+   /* No relocation.  */
+   HOWTO (R_ARM_NONE,		/* type */
+ 	 0,			/* rightshift */
+-	 0,			/* size (0 = byte, 1 = short, 2 = long) */
++	 3,			/* size (0 = byte, 1 = short, 2 = long) */
+ 	 0,			/* bitsize */
+ 	 FALSE,			/* pc_relative */
+ 	 0,			/* bitpos */
+--- a/bfd/elf32-avr.c
++++ b/bfd/elf32-avr.c
+@@ -121,11 +121,11 @@ static reloc_howto_type elf_avr_howto_table[] =
+ {
+   HOWTO (R_AVR_NONE,		/* type */
+ 	 0,			/* rightshift */
+-	 2,			/* size (0 = byte, 1 = short, 2 = long) */
+-	 32,			/* bitsize */
++	 3,			/* size (0 = byte, 1 = short, 2 = long) */
++	 0,			/* bitsize */
+ 	 FALSE,			/* pc_relative */
+ 	 0,			/* bitpos */
+-	 complain_overflow_bitfield, /* complain_on_overflow */
++	 complain_overflow_dont, /* complain_on_overflow */
+ 	 bfd_elf_generic_reloc,	/* special_function */
+ 	 "R_AVR_NONE",		/* name */
+ 	 FALSE,			/* partial_inplace */
+--- a/bfd/elf32-bfin.c
++++ b/bfd/elf32-bfin.c
+@@ -423,11 +423,11 @@ static reloc_howto_type bfin_howto_table [] =
+   /* This reloc does nothing. .  */
+   HOWTO (R_BFIN_UNUSED0,	/* type.  */
+ 	 0,			/* rightshift.  */
+-	 2,			/* size (0 = byte, 1 = short, 2 = long).  */
+-	 32,			/* bitsize.  */
++	 3,			/* size (0 = byte, 1 = short, 2 = long).  */
++	 0,			/* bitsize.  */
+ 	 FALSE,			/* pc_relative.  */
+ 	 0,			/* bitpos.  */
+-	 complain_overflow_bitfield, /* complain_on_overflow.  */
++	 complain_overflow_dont, /* complain_on_overflow.  */
+ 	 bfd_elf_generic_reloc,	/* special_function.  */
+ 	 "R_BFIN_UNUSED0",	/* name.  */
+ 	 FALSE,			/* partial_inplace.  */
+@@ -451,11 +451,11 @@ static reloc_howto_type bfin_howto_table [] =
+ 
+   HOWTO (R_BFIN_UNUSED1,	/* type.  */
+ 	 0,			/* rightshift.  */
+-	 2,			/* size (0 = byte, 1 = short, 2 = long).  */
+-	 32,			/* bitsize.  */
++	 3,			/* size (0 = byte, 1 = short, 2 = long).  */
++	 0,			/* bitsize.  */
+ 	 FALSE,			/* pc_relative.  */
+ 	 0,			/* bitpos.  */
+-	 complain_overflow_bitfield, /* complain_on_overflow.  */
++	 complain_overflow_dont, /* complain_on_overflow.  */
+ 	 bfd_elf_generic_reloc,	/* special_function.  */
+ 	 "R_BFIN_UNUSED1",	/* name.  */
+ 	 FALSE,			/* partial_inplace.  */
+@@ -581,8 +581,8 @@ static reloc_howto_type bfin_howto_table [] =
+ 
+   HOWTO (R_BFIN_UNUSEDB,	/* type.  */
+ 	 0,			/* rightshift.  */
+-	 2,			/* size (0 = byte, 1 = short, 2 = long).  */
+-	 32,			/* bitsize.  */
++	 3,			/* size (0 = byte, 1 = short, 2 = long).  */
++	 0,			/* bitsize.  */
+ 	 FALSE,			/* pc_relative.  */
+ 	 0,			/* bitpos.  */
+ 	 complain_overflow_dont, /* complain_on_overflow.  */
+@@ -595,8 +595,8 @@ static reloc_howto_type bfin_howto_table [] =
+ 
+   HOWTO (R_BFIN_UNUSEDC,	/* type.  */
+ 	 0,			/* rightshift.  */
+-	 2,			/* size (0 = byte, 1 = short, 2 = long).  */
+-	 32,			/* bitsize.  */
++	 3,			/* size (0 = byte, 1 = short, 2 = long).  */
++	 0,			/* bitsize.  */
+ 	 FALSE,			/* pc_relative.  */
+ 	 0,			/* bitpos.  */
+ 	 complain_overflow_dont, /* complain_on_overflow.  */
+--- a/bfd/elf32-cr16.c
++++ b/bfd/elf32-cr16.c
+@@ -115,8 +115,8 @@ static reloc_howto_type cr16_elf_howto_table[] =
+ {
+   HOWTO (R_CR16_NONE,              /* type */
+          0,                        /* rightshift */
+-         2,                        /* size */
+-         32,                       /* bitsize */
++         3,                        /* size */
++         0,                        /* bitsize */
+          FALSE,                    /* pc_relative */
+          0,                        /* bitpos */
+          complain_overflow_dont,   /* complain_on_overflow */
+--- a/bfd/elf32-cris.c
++++ b/bfd/elf32-cris.c
+@@ -40,11 +40,11 @@ static reloc_howto_type cris_elf_howto_table [] =
+   /* This reloc does nothing.  */
+   HOWTO (R_CRIS_NONE,		/* type */
+ 	 0,			/* rightshift */
+-	 2,			/* size (0 = byte, 1 = short, 2 = long) */
+-	 32,			/* bitsize */
++	 3,			/* size (0 = byte, 1 = short, 2 = long) */
++	 0,			/* bitsize */
+ 	 FALSE,			/* pc_relative */
+ 	 0,			/* bitpos */
+-	 complain_overflow_bitfield, /* complain_on_overflow */
++	 complain_overflow_dont, /* complain_on_overflow */
+ 	 bfd_elf_generic_reloc,	/* special_function */
+ 	 "R_CRIS_NONE",		/* name */
+ 	 FALSE,			/* partial_inplace */
+--- a/bfd/elf32-crx.c
++++ b/bfd/elf32-crx.c
+@@ -82,8 +82,8 @@ static reloc_howto_type crx_elf_howto_table[] =
+ {
+   HOWTO (R_CRX_NONE,		/* type */
+ 	 0,			/* rightshift */
+-	 2,			/* size */
+-	 32,			/* bitsize */
++	 3,			/* size */
++	 0,			/* bitsize */
+ 	 FALSE,			/* pc_relative */
+ 	 0,			/* bitpos */
+ 	 complain_overflow_dont,/* complain_on_overflow */
+--- a/bfd/elf32-d10v.c
++++ b/bfd/elf32-d10v.c
+@@ -33,8 +33,8 @@ static reloc_howto_type elf_d10v_howto_table[] =
+   /* This reloc does nothing.  */
+   HOWTO (R_D10V_NONE,		/* Type.  */
+ 	 0,			/* Rightshift.  */
+-	 2,			/* Size (0 = byte, 1 = short, 2 = long).  */
+-	 32,			/* Bitsize.  */
++	 3,			/* Size (0 = byte, 1 = short, 2 = long).  */
++	 0,			/* Bitsize.  */
+ 	 FALSE,			/* PC_relative.  */
+ 	 0,			/* Bitpos.  */
+ 	 complain_overflow_dont,/* Complain_on_overflow.  */
+--- a/bfd/elf32-d30v.c
++++ b/bfd/elf32-d30v.c
+@@ -254,11 +254,11 @@ static reloc_howto_type elf_d30v_howto_table[] =
+   /* This reloc does nothing.  */
+   HOWTO (R_D30V_NONE,		/* Type.  */
+ 	 0,			/* Rightshift.  */
+-	 2,			/* Size (0 = byte, 1 = short, 2 = long).  */
+-	 32,			/* Bitsize.  */
++	 3,			/* Size (0 = byte, 1 = short, 2 = long).  */
++	 0,			/* Bitsize.  */
+ 	 FALSE,			/* PC_relative.  */
+ 	 0,			/* Bitpos.  */
+-	 complain_overflow_bitfield, /* Complain_on_overflow.  */
++	 complain_overflow_dont, /* Complain_on_overflow.  */
+ 	 bfd_elf_generic_reloc,	/* Special_function.  */
+ 	 "R_D30V_NONE",		/* Name.  */
+ 	 FALSE,			/* Partial_inplace.  */
+--- a/bfd/elf32-dlx.c
++++ b/bfd/elf32-dlx.c
+@@ -237,7 +237,7 @@ static reloc_howto_type dlx_elf_howto_table[]=
+   /* No relocation.  */
+   HOWTO (R_DLX_NONE,            /* Type. */
+ 	 0,                     /* Rightshift.  */
+-	 0,                     /* size (0 = byte, 1 = short, 2 = long).  */
++	 3,                     /* size (0 = byte, 1 = short, 2 = long).  */
+ 	 0,                     /* Bitsize.  */
+ 	 FALSE,                 /* PC_relative.  */
+ 	 0,                     /* Bitpos.  */
+--- a/bfd/elf32-epiphany.c
++++ b/bfd/elf32-epiphany.c
+@@ -63,7 +63,7 @@ static reloc_howto_type epiphany_elf_howto_table [] =
+ 	  pr)                   /* pcrel_offset */
+ 
+   /* This reloc does nothing.  */
+-  AHOW (R_EPIPHANY_NONE,    0, 0,32, FALSE, 0, complain_overflow_dont,     "R_EPIPHANY_NONE",        0,          0),
++  AHOW (R_EPIPHANY_NONE,    0, 3,0, FALSE, 0, complain_overflow_dont,     "R_EPIPHANY_NONE",        0,          0),
+ 
+   /* 8 bit absolute (not likely) */
+   AHOW (R_EPIPHANY_8,       0, 0, 8, FALSE, 0, complain_overflow_bitfield, "R_EPIPHANY_8",      0x000000ff, 0x000000ff),
+--- a/bfd/elf32-fr30.c
++++ b/bfd/elf32-fr30.c
+@@ -37,11 +37,11 @@ static reloc_howto_type fr30_elf_howto_table [] =
+   /* This reloc does nothing.  */
+   HOWTO (R_FR30_NONE,		/* type */
+ 	 0,			/* rightshift */
+-	 2,			/* size (0 = byte, 1 = short, 2 = long) */
+-	 32,			/* bitsize */
++	 3,			/* size (0 = byte, 1 = short, 2 = long) */
++	 0,			/* bitsize */
+ 	 FALSE,			/* pc_relative */
+ 	 0,			/* bitpos */
+-	 complain_overflow_bitfield, /* complain_on_overflow */
++	 complain_overflow_dont, /* complain_on_overflow */
+ 	 bfd_elf_generic_reloc,	/* special_function */
+ 	 "R_FR30_NONE",		/* name */
+ 	 FALSE,			/* partial_inplace */
+--- a/bfd/elf32-frv.c
++++ b/bfd/elf32-frv.c
+@@ -34,11 +34,11 @@ static reloc_howto_type elf32_frv_howto_table [] =
+   /* This reloc does nothing.  */
+   HOWTO (R_FRV_NONE,		/* type */
+ 	 0,			/* rightshift */
+-	 2,			/* size (0 = byte, 1 = short, 2 = long) */
+-	 32,			/* bitsize */
++	 3,			/* size (0 = byte, 1 = short, 2 = long) */
++	 0,			/* bitsize */
+ 	 FALSE,			/* pc_relative */
+ 	 0,			/* bitpos */
+-	 complain_overflow_bitfield, /* complain_on_overflow */
++	 complain_overflow_dont, /* complain_on_overflow */
+ 	 bfd_elf_generic_reloc,	/* special_function */
+ 	 "R_FRV_NONE",		/* name */
+ 	 FALSE,			/* partial_inplace */
+--- a/bfd/elf32-h8300.c
++++ b/bfd/elf32-h8300.c
+@@ -61,7 +61,7 @@ static reloc_howto_type h8_elf_howto_table[] =
+ #define R_H8_NONE_X 0
+   HOWTO (R_H8_NONE,		/* type */
+ 	 0,			/* rightshift */
+-	 0,			/* size (0 = byte, 1 = short, 2 = long) */
++	 3,			/* size (0 = byte, 1 = short, 2 = long) */
+ 	 0,			/* bitsize */
+ 	 FALSE,			/* pc_relative */
+ 	 0,			/* bitpos */
+--- a/bfd/elf32-i370.c
++++ b/bfd/elf32-i370.c
+@@ -40,11 +40,11 @@ static reloc_howto_type i370_elf_howto_raw[] =
+   /* This reloc does nothing.  */
+   HOWTO (R_I370_NONE,		/* type */
+ 	 0,			/* rightshift */
+-	 2,			/* size (0 = byte, 1 = short, 2 = long) */
+-	 32,			/* bitsize */
++	 3,			/* size (0 = byte, 1 = short, 2 = long) */
++	 0,			/* bitsize */
+ 	 FALSE,			/* pc_relative */
+ 	 0,			/* bitpos */
+-	 complain_overflow_bitfield, /* complain_on_overflow */
++	 complain_overflow_dont, /* complain_on_overflow */
+ 	 bfd_elf_generic_reloc,	/* special_function */
+ 	 "R_I370_NONE",		/* name */
+ 	 FALSE,			/* partial_inplace */
+--- a/bfd/elf32-i386.c
++++ b/bfd/elf32-i386.c
+@@ -37,7 +37,7 @@
+ 
+ static reloc_howto_type elf_howto_table[]=
+ {
+-  HOWTO(R_386_NONE, 0, 0, 0, FALSE, 0, complain_overflow_bitfield,
++  HOWTO(R_386_NONE, 0, 3, 0, FALSE, 0, complain_overflow_dont,
+ 	bfd_elf_generic_reloc, "R_386_NONE",
+ 	TRUE, 0x00000000, 0x00000000, FALSE),
+   HOWTO(R_386_32, 0, 2, 32, FALSE, 0, complain_overflow_bitfield,
+--- a/bfd/elf32-i860.c
++++ b/bfd/elf32-i860.c
+@@ -264,11 +264,11 @@ static reloc_howto_type elf32_i860_howto_table [] =
+   /* This relocation does nothing.  */
+   HOWTO (R_860_NONE,		/* type */
+ 	 0,			/* rightshift */
+-	 2,			/* size (0 = byte, 1 = short, 2 = long) */
+-	 32,			/* bitsize */
++	 3,			/* size (0 = byte, 1 = short, 2 = long) */
++	 0,			/* bitsize */
+ 	 FALSE,			/* pc_relative */
+ 	 0,			/* bitpos */
+-	 complain_overflow_bitfield, /* complain_on_overflow */
++	 complain_overflow_dont, /* complain_on_overflow */
+ 	 bfd_elf_generic_reloc,	/* special_function */
+ 	 "R_860_NONE",		/* name */
+ 	 FALSE,			/* partial_inplace */
+--- a/bfd/elf32-i960.c
++++ b/bfd/elf32-i960.c
+@@ -83,7 +83,7 @@ elf32_i960_relocate (bfd *abfd ATTRIBUTE_UNUSED,
+ 
+ static reloc_howto_type elf_howto_table[]=
+ {
+-  HOWTO (R_960_NONE, 0, 0, 0, FALSE, 0, complain_overflow_bitfield,
++  HOWTO (R_960_NONE, 0, 3, 0, FALSE, 0, complain_overflow_dont,
+ 	 elf32_i960_relocate, "R_960_NONE", TRUE,
+ 	 0x00000000, 0x00000000, FALSE),
+   EMPTY_HOWTO (1),
+--- a/bfd/elf32-ip2k.c
++++ b/bfd/elf32-ip2k.c
+@@ -141,7 +141,7 @@ static reloc_howto_type ip2k_elf_howto_table [] =
+           pr)                   /* pcrel_offset */
+ 
+   /* This reloc does nothing.  */
+-  IP2K_HOWTO (R_IP2K_NONE, 0,2,32, FALSE, 0, "R_IP2K_NONE", 0, 0),
++  IP2K_HOWTO (R_IP2K_NONE, 0,3,0, FALSE, 0, "R_IP2K_NONE", 0, 0),
+   /* A 16 bit absolute relocation.  */
+   IP2K_HOWTO (R_IP2K_16, 0,1,16, FALSE, 0, "R_IP2K_16", 0, 0xffff),
+   /* A 32 bit absolute relocation.  */
+--- a/bfd/elf32-iq2000.c
++++ b/bfd/elf32-iq2000.c
+@@ -34,11 +34,11 @@ static reloc_howto_type iq2000_elf_howto_table [] =
+ 
+   HOWTO (R_IQ2000_NONE,		     /* type */
+ 	 0,			     /* rightshift */
+-	 2,			     /* size (0 = byte, 1 = short, 2 = long) */
+-	 32,			     /* bitsize */
++	 3,			     /* size (0 = byte, 1 = short, 2 = long) */
++	 0,			     /* bitsize */
+ 	 FALSE,			     /* pc_relative */
+ 	 0,			     /* bitpos */
+-	 complain_overflow_bitfield, /* complain_on_overflow */
++	 complain_overflow_dont,     /* complain_on_overflow */
+ 	 bfd_elf_generic_reloc,	     /* special_function */
+ 	 "R_IQ2000_NONE",	     /* name */
+ 	 FALSE,			     /* partial_inplace */
+--- a/bfd/elf32-lm32.c
++++ b/bfd/elf32-lm32.c
+@@ -262,11 +262,11 @@ static reloc_howto_type lm32_elf_howto_table [] =
+   /* This reloc does nothing.  */
+   HOWTO (R_LM32_NONE,               /* type */
+          0,                         /* rightshift */
+-         2,                         /* size (0 = byte, 1 = short, 2 = long) */
+-         32,                        /* bitsize */
++         3,                         /* size (0 = byte, 1 = short, 2 = long) */
++         0,                         /* bitsize */
+          FALSE,                     /* pc_relative */
+          0,                         /* bitpos */
+-         complain_overflow_bitfield,/* complain_on_overflow */
++         complain_overflow_dont,    /* complain_on_overflow */
+          bfd_elf_generic_reloc,     /* special_function */
+          "R_LM32_NONE",             /* name */
+          FALSE,                     /* partial_inplace */
+--- a/bfd/elf32-m32c.c
++++ b/bfd/elf32-m32c.c
+@@ -47,11 +47,11 @@ static reloc_howto_type m32c_elf_howto_table [] =
+   /* This reloc does nothing.  */
+   HOWTO (R_M32C_NONE,		/* type */
+ 	 0,			/* rightshift */
+-	 0,			/* size (0 = byte, 1 = short, 2 = long) */
+-	 32,			/* bitsize */
++	 3,			/* size (0 = byte, 1 = short, 2 = long) */
++	 0,			/* bitsize */
+ 	 FALSE,			/* pc_relative */
+ 	 0,			/* bitpos */
+-	 complain_overflow_bitfield, /* complain_on_overflow */
++	 complain_overflow_dont, /* complain_on_overflow */
+ 	 bfd_elf_generic_reloc,	/* special_function */
+ 	 "R_M32C_NONE",		/* name */
+ 	 FALSE,			/* partial_inplace */
+--- a/bfd/elf32-m32r.c
++++ b/bfd/elf32-m32r.c
+@@ -474,11 +474,11 @@ static reloc_howto_type m32r_elf_howto_table[] =
+   /* This reloc does nothing.  */
+   HOWTO (R_M32R_NONE,		/* type */
+ 	 0,			/* rightshift */
+-	 2,			/* size (0 = byte, 1 = short, 2 = long) */
+-	 32,			/* bitsize */
++	 3,			/* size (0 = byte, 1 = short, 2 = long) */
++	 0,			/* bitsize */
+ 	 FALSE,			/* pc_relative */
+ 	 0,			/* bitpos */
+-	 complain_overflow_bitfield, /* complain_on_overflow */
++	 complain_overflow_dont, /* complain_on_overflow */
+ 	 bfd_elf_generic_reloc,	/* special_function */
+ 	 "R_M32R_NONE",		/* name */
+ 	 FALSE,			/* partial_inplace */
+--- a/bfd/elf32-m68hc11.c
++++ b/bfd/elf32-m68hc11.c
+@@ -65,8 +65,8 @@ static reloc_howto_type elf_m68hc11_howto_table[] = {
+   /* This reloc does nothing.  */
+   HOWTO (R_M68HC11_NONE,	/* type */
+ 	 0,			/* rightshift */
+-	 2,			/* size (0 = byte, 1 = short, 2 = long) */
+-	 32,			/* bitsize */
++	 3,			/* size (0 = byte, 1 = short, 2 = long) */
++	 0,			/* bitsize */
+ 	 FALSE,			/* pc_relative */
+ 	 0,			/* bitpos */
+ 	 complain_overflow_dont,/* complain_on_overflow */
+--- a/bfd/elf32-m68hc12.c
++++ b/bfd/elf32-m68hc12.c
+@@ -107,8 +107,8 @@ static reloc_howto_type elf_m68hc11_howto_table[] = {
+   /* This reloc does nothing.  */
+   HOWTO (R_M68HC11_NONE,	/* type */
+ 	 0,			/* rightshift */
+-	 2,			/* size (0 = byte, 1 = short, 2 = long) */
+-	 32,			/* bitsize */
++	 3,			/* size (0 = byte, 1 = short, 2 = long) */
++	 0,			/* bitsize */
+ 	 FALSE,			/* pc_relative */
+ 	 0,			/* bitpos */
+ 	 complain_overflow_dont,/* complain_on_overflow */
+--- a/bfd/elf32-m68k.c
++++ b/bfd/elf32-m68k.c
+@@ -31,7 +31,7 @@ elf_m68k_discard_copies (struct elf_link_hash_entry *, void *);
+ 
+ static reloc_howto_type howto_table[] =
+ {
+-  HOWTO(R_68K_NONE,       0, 0, 0, FALSE,0, complain_overflow_dont,     bfd_elf_generic_reloc, "R_68K_NONE",      FALSE, 0, 0x00000000,FALSE),
++  HOWTO(R_68K_NONE,       0, 3, 0, FALSE,0, complain_overflow_dont,     bfd_elf_generic_reloc, "R_68K_NONE",      FALSE, 0, 0x00000000,FALSE),
+   HOWTO(R_68K_32,         0, 2,32, FALSE,0, complain_overflow_bitfield, bfd_elf_generic_reloc, "R_68K_32",        FALSE, 0, 0xffffffff,FALSE),
+   HOWTO(R_68K_16,         0, 1,16, FALSE,0, complain_overflow_bitfield, bfd_elf_generic_reloc, "R_68K_16",        FALSE, 0, 0x0000ffff,FALSE),
+   HOWTO(R_68K_8,          0, 0, 8, FALSE,0, complain_overflow_bitfield, bfd_elf_generic_reloc, "R_68K_8",         FALSE, 0, 0x000000ff,FALSE),
+--- a/bfd/elf32-mcore.c
++++ b/bfd/elf32-mcore.c
+@@ -110,11 +110,11 @@ static reloc_howto_type mcore_elf_howto_raw[] =
+   /* This reloc does nothing.  */
+   HOWTO (R_MCORE_NONE,		/* type */
+ 	 0,			/* rightshift */
+-	 2,			/* size (0 = byte, 1 = short, 2 = long) */
+-	 32,			/* bitsize */
++	 3,			/* size (0 = byte, 1 = short, 2 = long) */
++	 0,			/* bitsize */
+ 	 FALSE,			/* pc_relative */
+ 	 0,			/* bitpos */
+-	 complain_overflow_bitfield,  /* complain_on_overflow */
++	 complain_overflow_dont,  /* complain_on_overflow */
+ 	 NULL,                  /* special_function */
+ 	 "R_MCORE_NONE",	/* name */
+ 	 FALSE,			/* partial_inplace */
+--- a/bfd/elf32-mep.c
++++ b/bfd/elf32-mep.c
+@@ -42,7 +42,7 @@ static bfd_reloc_status_type mep_reloc (bfd *, arelent *, struct bfd_symbol *,
+ static reloc_howto_type mep_elf_howto_table [] =
+ {
+   /* type, size, bits, leftshift, rightshift, pcrel, OD/OS/OU, mask.  */
+-  MEPREL (R_MEP_NONE,     0,  0, 0, 0, 0, N, 0),
++  MEPREL (R_MEP_NONE,     3,  0, 0, 0, 0, N, 0),
+   MEPREL (R_RELC,         0,  0, 0, 0, 0, N, 0),
+   /* MEPRELOC:HOWTO */
+     /* This section generated from bfd/mep-relocs.pl from include/elf/mep.h.  */
+--- a/bfd/elf32-metag.c
++++ b/bfd/elf32-metag.c
+@@ -142,7 +142,7 @@ static reloc_howto_type elf_metag_howto_table[] =
+   /* No relocation.  */
+   HOWTO (R_METAG_NONE,		/* type */
+ 	 0,			/* rightshift */
+-	 0,			/* size (0 = byte, 1 = short, 2 = long) */
++	 3,			/* size (0 = byte, 1 = short, 2 = long) */
+ 	 0,			/* bitsize */
+ 	 FALSE,			/* pc_relative */
+ 	 0,			/* bitpos */
+--- a/bfd/elf32-microblaze.c
++++ b/bfd/elf32-microblaze.c
+@@ -44,11 +44,11 @@ static reloc_howto_type microblaze_elf_howto_raw[] =
+    /* This reloc does nothing.  */
+    HOWTO (R_MICROBLAZE_NONE,	/* Type.  */
+           0,			/* Rightshift.  */
+-          2,			/* Size (0 = byte, 1 = short, 2 = long).  */
+-          32,			/* Bitsize.  */
++          3,			/* Size (0 = byte, 1 = short, 2 = long).  */
++          0,			/* Bitsize.  */
+           FALSE,		/* PC_relative.  */
+           0,			/* Bitpos.  */
+-          complain_overflow_bitfield,  /* Complain on overflow.  */
++          complain_overflow_dont,  /* Complain on overflow.  */
+           NULL,                  /* Special Function.  */
+           "R_MICROBLAZE_NONE", 	/* Name.  */
+           FALSE,		/* Partial Inplace.  */
+@@ -179,11 +179,11 @@ static reloc_howto_type microblaze_elf_howto_raw[] =
+    /* This reloc does nothing.  Used for relaxation.  */
+    HOWTO (R_MICROBLAZE_64_NONE,	/* Type.  */
+           0,			/* Rightshift.  */
+-          2,			/* Size (0 = byte, 1 = short, 2 = long).  */
+-          32,			/* Bitsize.  */
++          3,			/* Size (0 = byte, 1 = short, 2 = long).  */
++          0,			/* Bitsize.  */
+           TRUE,			/* PC_relative.  */
+           0,			/* Bitpos.  */
+-          complain_overflow_bitfield,  /* Complain on overflow.  */
++          complain_overflow_dont, /* Complain on overflow.  */
+           NULL,                  /* Special Function.  */
+           "R_MICROBLAZE_64_NONE",/* Name.  */
+           FALSE,		/* Partial Inplace.  */
+--- a/bfd/elf32-mips.c
++++ b/bfd/elf32-mips.c
+@@ -107,7 +107,7 @@ static reloc_howto_type elf_mips_howto_table_rel[] =
+   /* No relocation.  */
+   HOWTO (R_MIPS_NONE,		/* type */
+ 	 0,			/* rightshift */
+-	 0,			/* size (0 = byte, 1 = short, 2 = long) */
++	 3,			/* size (0 = byte, 1 = short, 2 = long) */
+ 	 0,			/* bitsize */
+ 	 FALSE,			/* pc_relative */
+ 	 0,			/* bitpos */
+--- a/bfd/elf32-moxie.c
++++ b/bfd/elf32-moxie.c
+@@ -34,11 +34,11 @@ static reloc_howto_type moxie_elf_howto_table [] =
+   /* This reloc does nothing.  */
+   HOWTO (R_MOXIE_NONE,		/* type */
+ 	 0,			/* rightshift */
+-	 2,			/* size (0 = byte, 1 = short, 2 = long) */
+-	 32,			/* bitsize */
++	 3,			/* size (0 = byte, 1 = short, 2 = long) */
++	 0,			/* bitsize */
+ 	 FALSE,			/* pc_relative */
+ 	 0,			/* bitpos */
+-	 complain_overflow_bitfield, /* complain_on_overflow */
++	 complain_overflow_dont, /* complain_on_overflow */
+ 	 bfd_elf_generic_reloc,	/* special_function */
+ 	 "R_MOXIE_NONE",		/* name */
+ 	 FALSE,			/* partial_inplace */
+#--- a/bfd/elf32-msp430.c
+#+++ b/bfd/elf32-msp430.c
+#@@ -30,11 +30,11 @@ static reloc_howto_type elf_msp430_howto_table[] =
+# {
+#   HOWTO (R_MSP430_NONE,		/* type */
+# 	 0,			/* rightshift */
+#-	 2,			/* size (0 = byte, 1 = short, 2 = long) */
+#-	 32,			/* bitsize */
+#+	 3,			/* size (0 = byte, 1 = short, 2 = long) */
+#+	 0,			/* bitsize */
+# 	 FALSE,			/* pc_relative */
+# 	 0,			/* bitpos */
+#-	 complain_overflow_bitfield,/* complain_on_overflow */
+#+	 complain_overflow_dont,/* complain_on_overflow */
+# 	 bfd_elf_generic_reloc,	/* special_function */
+# 	 "R_MSP430_NONE",	/* name */
+# 	 FALSE,			/* partial_inplace */
+#@@ -197,11 +197,11 @@ static reloc_howto_type elf_msp430x_howto_table[] =
+# {
+#   HOWTO (R_MSP430_NONE,		/* type */
+# 	 0,			/* rightshift */
+#-	 2,			/* size (0 = byte, 1 = short, 2 = long) */
+#-	 32,			/* bitsize */
+#+	 3,			/* size (0 = byte, 1 = short, 2 = long) */
+#+	 0,			/* bitsize */
+# 	 FALSE,			/* pc_relative */
+# 	 0,			/* bitpos */
+#-	 complain_overflow_bitfield,/* complain_on_overflow */
+#+	 complain_overflow_dont,/* complain_on_overflow */
+# 	 bfd_elf_generic_reloc,	/* special_function */
+# 	 "R_MSP430_NONE",	/* name */
+# 	 FALSE,			/* partial_inplace */
+--- a/bfd/elf32-mt.c
++++ b/bfd/elf32-mt.c
+@@ -48,8 +48,8 @@ static reloc_howto_type mt_elf_howto_table [] =
+   /* This reloc does nothing.  */
+   HOWTO (R_MT_NONE,           /* type */
+           0,                      /* rightshift */
+-          2,                      /* size (0 = byte, 1 = short, 2 = long) */
+-          32,                     /* bitsize */
++          3,                      /* size (0 = byte, 1 = short, 2 = long) */
++          0,                      /* bitsize */
+           FALSE,                  /* pc_relative */
+           0,                      /* bitpos */
+           complain_overflow_dont, /* complain_on_overflow */
+#--- a/bfd/elf32-nds32.c
+#+++ b/bfd/elf32-nds32.c
+#@@ -321,11 +321,11 @@ static reloc_howto_type nds32_elf_howto_table[] =
+#   /* This reloc does nothing.  */
+#   HOWTO (R_NDS32_NONE,		/* type */
+# 	 0,			/* rightshift */
+#-	 2,			/* size (0 = byte, 1 = short, 2 = long) */
+#-	 32,			/* bitsize */
+#+	 3,			/* size (0 = byte, 1 = short, 2 = long) */
+#+	 0,			/* bitsize */
+# 	 FALSE,			/* pc_relative */
+# 	 0,			/* bitpos */
+#-	 complain_overflow_bitfield,	/* complain_on_overflow */
+#+	 complain_overflow_dont,	/* complain_on_overflow */
+# 	 bfd_elf_generic_reloc,	/* special_function */
+# 	 "R_NDS32_NONE",	/* name */
+# 	 FALSE,			/* partial_inplace */
+#@@ -4186,11 +4186,10 @@ nds32_relocate_contents (reloc_howto_type *howto, bfd *input_bfd,
+#   switch (size)
+#     {
+#     default:
+#-    case 0:
+#-    case 1:
+#-    case 8:
+#       abort ();
+#       break;
+#+    case 0:
+#+      return bfd_reloc_ok;
+#     case 2:
+#       x = bfd_getb16 (location);
+#       break;
+--- a/bfd/elf32-nios2.c
++++ b/bfd/elf32-nios2.c
+@@ -80,7 +80,7 @@ static reloc_howto_type elf_nios2_howto_table_rel[] = {
+   /* No relocation.  */
+   HOWTO (R_NIOS2_NONE,		/* type */
+ 	 0,			/* rightshift */
+-	 0,			/* size (0 = byte, 1 = short, 2 = long) */
++	 3,			/* size (0 = byte, 1 = short, 2 = long) */
+ 	 0,			/* bitsize */
+ 	 FALSE,			/* pc_relative */
+ 	 0,			/* bitpos */
+#--- a/bfd/elf32-or1k.c
+#+++ b/bfd/elf32-or1k.c
+#@@ -60,8 +60,8 @@ static reloc_howto_type or1k_elf_howto_table[] =
+#   /* This reloc does nothing.  */
+#   HOWTO (R_OR1K_NONE,           /* type */
+#          0,                     /* rightshift */
+#-         2,                     /* size (0 = byte, 1 = short, 2 = long) */
+#-         32,                    /* bitsize */
+#+         3,                     /* size (0 = byte, 1 = short, 2 = long) */
+#+         0,                     /* bitsize */
+#          FALSE,                 /* pc_relative */
+#          0,                     /* bitpos */
+#          complain_overflow_dont, /* complain_on_overflow */
+--- a/bfd/elf32-pj.c
++++ b/bfd/elf32-pj.c
+@@ -113,7 +113,7 @@ static reloc_howto_type pj_elf_howto_table[] =
+   /* No relocation.  */
+   HOWTO (R_PJ_NONE,		/* type */
+ 	 0,			/* rightshift */
+-	 0,			/* size (0 = byte, 1 = short, 2 = long) */
++	 3,			/* size (0 = byte, 1 = short, 2 = long) */
+ 	 0,			/* bitsize */
+ 	 FALSE,			/* pc_relative */
+ 	 0,			/* bitpos */
+--- a/bfd/elf32-ppc.c
++++ b/bfd/elf32-ppc.c
+@@ -187,8 +187,8 @@ static reloc_howto_type ppc_elf_howto_raw[] = {
+   /* This reloc does nothing.  */
+   HOWTO (R_PPC_NONE,		/* type */
+ 	 0,			/* rightshift */
+-	 2,			/* size (0 = byte, 1 = short, 2 = long) */
+-	 32,			/* bitsize */
++	 3,			/* size (0 = byte, 1 = short, 2 = long) */
++	 0,			/* bitsize */
+ 	 FALSE,			/* pc_relative */
+ 	 0,			/* bitpos */
+ 	 complain_overflow_dont, /* complain_on_overflow */
+@@ -2066,9 +2066,6 @@ ppc_elf_addr16_ha_reloc (bfd *abfd ATTRIBUTE_UNUSED,
+       return bfd_reloc_ok;
+     }
+ 
+-  if (reloc_entry->address > bfd_get_section_limit (abfd, input_section))
+-    return bfd_reloc_outofrange;
+-
+   if (bfd_is_com_section (symbol->section))
+     relocation = 0;
+   else
+--- a/bfd/elf32-rl78.c
++++ b/bfd/elf32-rl78.c
+@@ -37,7 +37,7 @@
+ 
+ static reloc_howto_type rl78_elf_howto_table [] =
+ {
+-  RL78REL (NONE,         0,  0, 0, dont,     FALSE),
++  RL78REL (NONE,         3,  0, 0, dont,     FALSE),
+   RL78REL (DIR32,        2, 32, 0, signed,   FALSE),
+   RL78REL (DIR24S,       2, 24, 0, signed,   FALSE),
+   RL78REL (DIR16,        1, 16, 0, dont,     FALSE),
+--- a/bfd/elf32-rx.c
++++ b/bfd/elf32-rx.c
+@@ -49,7 +49,7 @@ void rx_dump_symtab (bfd *, void *, void *);
+ 
+ static reloc_howto_type rx_elf_howto_table [] =
+ {
+-  RXREL (NONE,         0,  0, 0, dont,     FALSE),
++  RXREL (NONE,         3,  0, 0, dont,     FALSE),
+   RXREL (DIR32,        2, 32, 0, signed,   FALSE),
+   RXREL (DIR24S,       2, 24, 0, signed,   FALSE),
+   RXREL (DIR16,        1, 16, 0, dont,     FALSE),
+--- a/bfd/elf32-s390.c
++++ b/bfd/elf32-s390.c
+@@ -39,7 +39,7 @@ static reloc_howto_type elf_howto_table[] =
+ {
+   HOWTO (R_390_NONE,		/* type */
+ 	 0,			/* rightshift */
+-	 0,			/* size (0 = byte, 1 = 2 byte, 2 = 4 byte) */
++	 3,			/* size (0 = byte, 1 = 2 byte, 2 = 4 byte) */
+ 	 0,			/* bitsize */
+ 	 FALSE,			/* pc_relative */
+ 	 0,			/* bitpos */
+--- a/bfd/elf32-score.c
++++ b/bfd/elf32-score.c
+@@ -645,7 +645,7 @@ static reloc_howto_type elf32_score_howto_table[] =
+   /* No relocation.  */
+   HOWTO (R_SCORE_NONE,          /* type */
+          0,                     /* rightshift */
+-         0,                     /* size (0 = byte, 1 = short, 2 = long) */
++         3,                     /* size (0 = byte, 1 = short, 2 = long) */
+          0,                     /* bitsize */
+          FALSE,                 /* pc_relative */
+          0,                     /* bitpos */
+--- a/bfd/elf32-score7.c
++++ b/bfd/elf32-score7.c
+@@ -546,7 +546,7 @@ static reloc_howto_type elf32_score_howto_table[] =
+   /* No relocation.  */
+   HOWTO (R_SCORE_NONE,          /* type */
+          0,                     /* rightshift */
+-         0,                     /* size (0 = byte, 1 = short, 2 = long) */
++         3,                     /* size (0 = byte, 1 = short, 2 = long) */
+          0,                     /* bitsize */
+          FALSE,                 /* pc_relative */
+          0,                     /* bitpos */
+--- a/bfd/elf32-sh-relocs.h
++++ b/bfd/elf32-sh-relocs.h
+@@ -20,7 +20,7 @@
+ /* No relocation.  */
+   HOWTO (R_SH_NONE,		/* type */
+ 	 0,			/* rightshift */
+-	 0,			/* size (0 = byte, 1 = short, 2 = long) */
++	 3,			/* size (0 = byte, 1 = short, 2 = long) */
+ 	 0,			/* bitsize */
+ 	 FALSE,			/* pc_relative */
+ 	 0,			/* bitpos */
+--- a/bfd/elf32-sh.c
++++ b/bfd/elf32-sh.c
+@@ -256,10 +256,8 @@ sh_elf_reloc (bfd *abfd, arelent *reloc_entry, asymbol *symbol_in,
+     return bfd_reloc_undefined;
+ 
+   /* PR 17512: file: 9891ca98.  */
+-  if (addr > bfd_get_section_limit (abfd, input_section)
+-      - bfd_get_reloc_size (reloc_entry->howto)
+-      || bfd_get_reloc_size (reloc_entry->howto)
+-      > bfd_get_section_limit (abfd, input_section))
++  if (addr * bfd_octets_per_byte (abfd) + bfd_get_reloc_size (reloc_entry->howto)
++      > bfd_get_section_limit_octets (abfd, input_section))
+     return bfd_reloc_outofrange;
+ 
+   if (bfd_is_com_section (symbol_in->section))
+--- a/bfd/elf32-spu.c
++++ b/bfd/elf32-spu.c
+@@ -37,7 +37,7 @@ static bfd_reloc_status_type spu_elf_rel9 (bfd *, arelent *, asymbol *,
+    array, so it must be declared in the order of that type.  */
+ 
+ static reloc_howto_type elf_howto_table[] = {
+-  HOWTO (R_SPU_NONE,       0, 0,  0, FALSE,  0, complain_overflow_dont,
++  HOWTO (R_SPU_NONE,       0, 3,  0, FALSE,  0, complain_overflow_dont,
+ 	 bfd_elf_generic_reloc, "SPU_NONE",
+ 	 FALSE, 0, 0x00000000, FALSE),
+   HOWTO (R_SPU_ADDR10,     4, 2, 10, FALSE, 14, complain_overflow_bitfield,
+--- a/bfd/elf32-tic6x.c
++++ b/bfd/elf32-tic6x.c
+@@ -152,7 +152,7 @@ static reloc_howto_type elf32_tic6x_howto_table[] =
+ {
+   HOWTO (R_C6000_NONE,		/* type */
+ 	 0,			/* rightshift */
+-	 0,			/* size (0 = byte, 1 = short, 2 = long) */
++	 3,			/* size (0 = byte, 1 = short, 2 = long) */
+ 	 0,			/* bitsize */
+ 	 FALSE,			/* pc_relative */
+ 	 0,			/* bitpos */
+@@ -820,7 +820,7 @@ static reloc_howto_type elf32_tic6x_howto_table_rel[] =
+ {
+   HOWTO (R_C6000_NONE,		/* type */
+ 	 0,			/* rightshift */
+-	 0,			/* size (0 = byte, 1 = short, 2 = long) */
++	 3,			/* size (0 = byte, 1 = short, 2 = long) */
+ 	 0,			/* bitsize */
+ 	 FALSE,			/* pc_relative */
+ 	 0,			/* bitpos */
+--- a/bfd/elf32-tilepro.c
++++ b/bfd/elf32-tilepro.c
+@@ -34,11 +34,11 @@ static reloc_howto_type tilepro_elf_howto_table [] =
+   /* This reloc does nothing.  */
+   HOWTO (R_TILEPRO_NONE,	/* type */
+ 	 0,			/* rightshift */
+-	 2,			/* size (0 = byte, 1 = short, 2 = long) */
+-	 32,			/* bitsize */
++	 3,			/* size (0 = byte, 1 = short, 2 = long) */
++	 0,			/* bitsize */
+ 	 FALSE,			/* pc_relative */
+ 	 0,			/* bitpos */
+-	 complain_overflow_bitfield, /* complain_on_overflow */
++	 complain_overflow_dont, /* complain_on_overflow */
+ 	 bfd_elf_generic_reloc,	/* special_function */
+ 	 "R_TILEPRO_NONE",	/* name */
+ 	 FALSE,			/* partial_inplace */
+--- a/bfd/elf32-v850.c
++++ b/bfd/elf32-v850.c
+@@ -895,11 +895,11 @@ static reloc_howto_type v850_elf_howto_table[] =
+   /* This reloc does nothing.  */
+   HOWTO (R_V850_NONE,			/* Type.  */
+ 	 0,				/* Rightshift.  */
+-	 2,				/* Size (0 = byte, 1 = short, 2 = long).  */
+-	 32,				/* Bitsize.  */
++	 3,				/* Size (0 = byte, 1 = short, 2 = long).  */
++	 0,				/* Bitsize.  */
+ 	 FALSE,				/* PC_relative.  */
+ 	 0,				/* Bitpos.  */
+-	 complain_overflow_bitfield,	/* Complain_on_overflow.  */
++	 complain_overflow_dont,	/* Complain_on_overflow.  */
+ 	 bfd_elf_generic_reloc,		/* Special_function.  */
+ 	 "R_V850_NONE",			/* Name.  */
+ 	 FALSE,				/* Partial_inplace.  */
+--- a/bfd/elf32-vax.c
++++ b/bfd/elf32-vax.c
+@@ -56,7 +56,7 @@ static bfd_boolean elf32_vax_print_private_bfd_data (bfd *, void *);
+ static reloc_howto_type howto_table[] = {
+   HOWTO (R_VAX_NONE,		/* type */
+ 	 0,			/* rightshift */
+-	 0,			/* size (0 = byte, 1 = short, 2 = long) */
++	 3,			/* size (0 = byte, 1 = short, 2 = long) */
+ 	 0,			/* bitsize */
+ 	 FALSE,			/* pc_relative */
+ 	 0,			/* bitpos */
+#--- a/bfd/elf32-visium.c
+#+++ b/bfd/elf32-visium.c
+#@@ -33,11 +33,11 @@ static reloc_howto_type visium_elf_howto_table[] = {
+#   /* This reloc does nothing.  */
+#   HOWTO (R_VISIUM_NONE,		/* type */
+# 	 0,			/* rightshift */
+#-	 2,			/* size (0 = byte, 1 = short, 2 = long) */
+#-	 32,			/* bitsize */
+#+	 3,			/* size (0 = byte, 1 = short, 2 = long) */
+#+	 0,			/* bitsize */
+# 	 FALSE,			/* pc_relative */
+# 	 0,			/* bitpos */
+#-	 complain_overflow_bitfield,	/* complain_on_overflow */
+#+	 complain_overflow_dont,	/* complain_on_overflow */
+# 	 bfd_elf_generic_reloc,	/* special_function */
+# 	 "R_VISIUM_NONE",	/* name */
+# 	 FALSE,			/* partial_inplace */
+--- a/bfd/elf32-xc16x.c
++++ b/bfd/elf32-xc16x.c
+@@ -32,11 +32,11 @@ static reloc_howto_type xc16x_elf_howto_table [] =
+   /* This reloc does nothing.  */
+   HOWTO (R_XC16X_NONE,		/* type */
+ 	 0,			/* rightshift */
+-	 1,			/* size (0 = byte, 1 = short, 2 = long) */
+-	 16,			/* bitsize */
++	 3,			/* size (0 = byte, 1 = short, 2 = long) */
++	 0,			/* bitsize */
+ 	 FALSE,			/* pc_relative */
+ 	 0,			/* bitpos */
+-	 complain_overflow_bitfield, /* complain_on_overflow */
++	 complain_overflow_dont, /* complain_on_overflow */
+ 	 bfd_elf_generic_reloc,	/* special_function */
+ 	 "R_XC16X_NONE",	/* name */
+ 	 FALSE,			/* partial_inplace */
+--- a/bfd/elf32-xgate.c
++++ b/bfd/elf32-xgate.c
+@@ -52,8 +52,8 @@ static reloc_howto_type elf_xgate_howto_table[] =
+   /* This reloc does nothing.  */
+   HOWTO (R_XGATE_NONE, /* type */
+ 	 0, /* rightshift */
+-	 2, /* size (0 = byte, 1 = short, 2 = long) */
+-	 32, /* bitsize */
++	 3, /* size (0 = byte, 1 = short, 2 = long) */
++	 0, /* bitsize */
+ 	 FALSE, /* pc_relative */
+ 	 0, /* bitpos */
+ 	 complain_overflow_dont,/* complain_on_overflow */
+--- a/bfd/elf32-xstormy16.c
++++ b/bfd/elf32-xstormy16.c
+@@ -73,11 +73,11 @@ static reloc_howto_type xstormy16_elf_howto_table [] =
+   /* This reloc does nothing.  */
+   HOWTO (R_XSTORMY16_NONE,	/* type */
+ 	 0,			/* rightshift */
+-	 2,			/* size (0 = byte, 1 = short, 2 = long) */
+-	 32,			/* bitsize */
++	 3,			/* size (0 = byte, 1 = short, 2 = long) */
++	 0,			/* bitsize */
+ 	 FALSE,			/* pc_relative */
+ 	 0,			/* bitpos */
+-	 complain_overflow_bitfield, /* complain_on_overflow */
++	 complain_overflow_dont, /* complain_on_overflow */
+ 	 bfd_elf_generic_reloc,	/* special_function */
+ 	 "R_XSTORMY16_NONE",	/* name */
+ 	 FALSE,			/* partial_inplace */
+--- a/bfd/elf32-xtensa.c
++++ b/bfd/elf32-xtensa.c
+@@ -161,7 +161,7 @@ int elf32xtensa_no_literal_movement = 1;
+ 
+ static reloc_howto_type elf_howto_table[] =
+ {
+-  HOWTO (R_XTENSA_NONE, 0, 0, 0, FALSE, 0, complain_overflow_dont,
++  HOWTO (R_XTENSA_NONE, 0, 3, 0, FALSE, 0, complain_overflow_dont,
+ 	 bfd_elf_xtensa_reloc, "R_XTENSA_NONE",
+ 	 FALSE, 0, 0, FALSE),
+   HOWTO (R_XTENSA_32, 0, 2, 32, FALSE, 0, complain_overflow_bitfield,
+--- a/bfd/elf64-alpha.c
++++ b/bfd/elf64-alpha.c
+@@ -486,8 +486,8 @@ static reloc_howto_type elf64_alpha_howto_table[] =
+ {
+   HOWTO (R_ALPHA_NONE,		/* type */
+ 	 0,			/* rightshift */
+-	 0,			/* size (0 = byte, 1 = short, 2 = long) */
+-	 8,			/* bitsize */
++	 3,			/* size (0 = byte, 1 = short, 2 = long) */
++	 0,			/* bitsize */
+ 	 TRUE,			/* pc_relative */
+ 	 0,			/* bitpos */
+ 	 complain_overflow_dont, /* complain_on_overflow */
+--- a/bfd/elf64-mips.c
++++ b/bfd/elf64-mips.c
+@@ -145,7 +145,7 @@ static reloc_howto_type mips_elf64_howto_table_rel[] =
+   /* No relocation.  */
+   HOWTO (R_MIPS_NONE,		/* type */
+ 	 0,			/* rightshift */
+-	 0,			/* size (0 = byte, 1 = short, 2 = long) */
++	 3,			/* size (0 = byte, 1 = short, 2 = long) */
+ 	 0,			/* bitsize */
+ 	 FALSE,			/* pc_relative */
+ 	 0,			/* bitpos */
+@@ -908,7 +908,7 @@ static reloc_howto_type mips_elf64_howto_table_rela[] =
+   /* No relocation.  */
+   HOWTO (R_MIPS_NONE,		/* type */
+ 	 0,			/* rightshift */
+-	 0,			/* size (0 = byte, 1 = short, 2 = long) */
++	 3,			/* size (0 = byte, 1 = short, 2 = long) */
+ 	 0,			/* bitsize */
+ 	 FALSE,			/* pc_relative */
+ 	 0,			/* bitpos */
+--- a/bfd/elf64-mmix.c
++++ b/bfd/elf64-mmix.c
+@@ -192,11 +192,11 @@ static reloc_howto_type elf_mmix_howto_table[] =
+   /* This reloc does nothing.  */
+   HOWTO (R_MMIX_NONE,		/* type */
+ 	 0,			/* rightshift */
+-	 2,			/* size (0 = byte, 1 = short, 2 = long) */
+-	 32,			/* bitsize */
++	 3,			/* size (0 = byte, 1 = short, 2 = long) */
++	 0,			/* bitsize */
+ 	 FALSE,			/* pc_relative */
+ 	 0,			/* bitpos */
+-	 complain_overflow_bitfield, /* complain_on_overflow */
++	 complain_overflow_dont, /* complain_on_overflow */
+ 	 bfd_elf_generic_reloc,	/* special_function */
+ 	 "R_MMIX_NONE",		/* name */
+ 	 FALSE,			/* partial_inplace */
+--- a/bfd/elf64-ppc.c
++++ b/bfd/elf64-ppc.c
+@@ -258,8 +258,8 @@ static reloc_howto_type ppc64_elf_howto_raw[] = {
+   /* This reloc does nothing.  */
+   HOWTO (R_PPC64_NONE,		/* type */
+ 	 0,			/* rightshift */
+-	 2,			/* size (0 = byte, 1 = short, 2 = long) */
+-	 32,			/* bitsize */
++	 3,			/* size (0 = byte, 1 = short, 2 = long) */
++	 0,			/* bitsize */
+ 	 FALSE,			/* pc_relative */
+ 	 0,			/* bitpos */
+ 	 complain_overflow_dont, /* complain_on_overflow */
+--- a/bfd/elf64-s390.c
++++ b/bfd/elf64-s390.c
+@@ -42,7 +42,7 @@ static reloc_howto_type elf_howto_table[] =
+ {
+   HOWTO (R_390_NONE,		/* type */
+ 	 0,			/* rightshift */
+-	 0,			/* size (0 = byte, 1 = 2 byte, 2 = 4 byte) */
++	 3,			/* size (0 = byte, 1 = 2 byte, 2 = 4 byte) */
+ 	 0,			/* bitsize */
+ 	 FALSE,			/* pc_relative */
+ 	 0,			/* bitpos */
+--- a/bfd/elf64-sh64.c
++++ b/bfd/elf64-sh64.c
+@@ -105,7 +105,7 @@ static reloc_howto_type sh_elf64_howto_table[] = {
+   /* No relocation.  */
+   HOWTO (R_SH_NONE,		/* type */
+ 	 0,			/* rightshift */
+-	 0,			/* size (0 = byte, 1 = short, 2 = long) */
++	 3,			/* size (0 = byte, 1 = short, 2 = long) */
+ 	 0,			/* bitsize */
+ 	 FALSE,			/* pc_relative */
+ 	 0,			/* bitpos */
+--- a/bfd/elf64-x86-64.c
++++ b/bfd/elf64-x86-64.c
+@@ -54,7 +54,7 @@
+    special_function, name, partial_inplace, src_mask, dst_mask, pcrel_offset.  */
+ static reloc_howto_type x86_64_elf_howto_table[] =
+ {
+-  HOWTO(R_X86_64_NONE, 0, 0, 0, FALSE, 0, complain_overflow_dont,
++  HOWTO(R_X86_64_NONE, 0, 3, 0, FALSE, 0, complain_overflow_dont,
+ 	bfd_elf_generic_reloc, "R_X86_64_NONE",	FALSE, 0x00000000, 0x00000000,
+ 	FALSE),
+   HOWTO(R_X86_64_64, 0, 4, 64, FALSE, 0, complain_overflow_bitfield,
+--- a/bfd/elflink.c
++++ b/bfd/elflink.c
+@@ -10329,7 +10329,7 @@ elf_reloc_link_order (bfd *output_bfd,
+ 
+       size = (bfd_size_type) bfd_get_reloc_size (howto);
+       buf = (bfd_byte *) bfd_zmalloc (size);
+-      if (buf == NULL)
++      if (buf == NULL && size != 0)
+ 	return FALSE;
+       rstat = _bfd_relocate_contents (howto, output_bfd, addend, buf);
+       switch (rstat)
+--- a/bfd/elfn32-mips.c
++++ b/bfd/elfn32-mips.c
+@@ -108,7 +108,7 @@ static reloc_howto_type elf_mips_howto_table_rel[] =
+   /* No relocation.  */
+   HOWTO (R_MIPS_NONE,		/* type */
+ 	 0,			/* rightshift */
+-	 0,			/* size (0 = byte, 1 = short, 2 = long) */
++	 3,			/* size (0 = byte, 1 = short, 2 = long) */
+ 	 0,			/* bitsize */
+ 	 FALSE,			/* pc_relative */
+ 	 0,			/* bitpos */
+#--- a/bfd/elfnn-aarch64.c
+#+++ b/bfd/elfnn-aarch64.c
+#@@ -296,7 +296,7 @@ static reloc_howto_type elfNN_aarch64_howto_table[] =
+# #if ARCH_SIZE == 64
+#   HOWTO (R_AARCH64_NULL,	/* type */
+# 	 0,			/* rightshift */
+#-	 0,			/* size (0 = byte, 1 = short, 2 = long) */
+#+	 3,			/* size (0 = byte, 1 = short, 2 = long) */
+# 	 0,			/* bitsize */
+# 	 FALSE,			/* pc_relative */
+# 	 0,			/* bitpos */
+#@@ -310,7 +310,7 @@ static reloc_howto_type elfNN_aarch64_howto_table[] =
+# #else
+#   HOWTO (R_AARCH64_NONE,	/* type */
+# 	 0,			/* rightshift */
+#-	 0,			/* size (0 = byte, 1 = short, 2 = long) */
+#+	 3,			/* size (0 = byte, 1 = short, 2 = long) */
+# 	 0,			/* bitsize */
+# 	 FALSE,			/* pc_relative */
+# 	 0,			/* bitpos */
+#@@ -1377,7 +1377,7 @@ static reloc_howto_type elfNN_aarch64_howto_table[] =
+# static reloc_howto_type elfNN_aarch64_howto_none =
+#   HOWTO (R_AARCH64_NONE,	/* type */
+# 	 0,			/* rightshift */
+#-	 0,			/* size (0 = byte, 1 = short, 2 = long) */
+#+	 3,			/* size (0 = byte, 1 = short, 2 = long) */
+# 	 0,			/* bitsize */
+# 	 FALSE,			/* pc_relative */
+# 	 0,			/* bitpos */
+#--- a/bfd/elfxx-aarch64.c
+#+++ b/bfd/elfxx-aarch64.c
+#@@ -187,6 +187,8 @@ _bfd_aarch64_elf_put_addend (bfd *abfd,
+#   size = bfd_get_reloc_size (howto);
+#   switch (size)
+#     {
+#+    case 0:
+#+      return status;
+#     case 2:
+#       contents = bfd_get_16 (abfd, address);
+#       break;
+--- a/bfd/elfxx-ia64.c
++++ b/bfd/elfxx-ia64.c
+@@ -91,7 +91,7 @@ ia64_elf_reloc (bfd *abfd ATTRIBUTE_UNUSED, arelent *reloc,
+    TYPE field.  */
+ static reloc_howto_type ia64_howto_table[] =
+   {
+-    IA64_HOWTO (R_IA64_NONE,	    "NONE",	   0, FALSE, TRUE),
++    IA64_HOWTO (R_IA64_NONE,	    "NONE",	   3, FALSE, TRUE),
+ 
+     IA64_HOWTO (R_IA64_IMM14,	    "IMM14",	   0, FALSE, TRUE),
+     IA64_HOWTO (R_IA64_IMM22,	    "IMM22",	   0, FALSE, TRUE),
+--- a/bfd/elfxx-mips.c
++++ b/bfd/elfxx-mips.c
+@@ -6194,11 +6194,13 @@ mips_elf_obtain_contents (reloc_howto_type *howto,
+ 			  const Elf_Internal_Rela *relocation,
+ 			  bfd *input_bfd, bfd_byte *contents)
+ {
+-  bfd_vma x;
++  bfd_vma x = 0;
+   bfd_byte *location = contents + relocation->r_offset;
++  unsigned int size = bfd_get_reloc_size (howto);
+ 
+   /* Obtain the bytes.  */
+-  x = bfd_get ((8 * bfd_get_reloc_size (howto)), input_bfd, location);
++  if (size != 0)
++    x = bfd_get (8 * size, input_bfd, location);
+ 
+   return x;
+ }
+@@ -6223,6 +6225,7 @@ mips_elf_perform_relocation (struct bfd_link_info *info,
+   bfd_vma x;
+   bfd_byte *location;
+   int r_type = ELF_R_TYPE (input_bfd, relocation->r_info);
++  unsigned int size;
+ 
+   /* Figure out where the relocation is occurring.  */
+   location = contents + relocation->r_offset;
+@@ -6316,7 +6319,9 @@ mips_elf_perform_relocation (struct bfd_link_info *info,
+     }
+ 
+   /* Put the value into the output.  */
+-  bfd_put (8 * bfd_get_reloc_size (howto), input_bfd, x, location);
++  size = bfd_get_reloc_size (howto);
++  if (size != 0)
++    bfd_put (8 * size, input_bfd, x, location);
+ 
+   _bfd_mips_elf_reloc_shuffle (input_bfd, r_type, !info->relocatable,
+ 			       location);
+--- a/bfd/elfxx-sparc.c
++++ b/bfd/elfxx-sparc.c
+@@ -209,7 +209,7 @@ sparc_elf_lox10_reloc (bfd *abfd, arelent *reloc_entry, asymbol *symbol,
+ 
+ static reloc_howto_type _bfd_sparc_elf_howto_table[] =
+ {
+-  HOWTO(R_SPARC_NONE,      0,0, 0,FALSE,0,complain_overflow_dont,    bfd_elf_generic_reloc,  "R_SPARC_NONE",    FALSE,0,0x00000000,TRUE),
++  HOWTO(R_SPARC_NONE,      0,3, 0,FALSE,0,complain_overflow_dont,    bfd_elf_generic_reloc,  "R_SPARC_NONE",    FALSE,0,0x00000000,TRUE),
+   HOWTO(R_SPARC_8,         0,0, 8,FALSE,0,complain_overflow_bitfield,bfd_elf_generic_reloc,  "R_SPARC_8",       FALSE,0,0x000000ff,TRUE),
+   HOWTO(R_SPARC_16,        0,1,16,FALSE,0,complain_overflow_bitfield,bfd_elf_generic_reloc,  "R_SPARC_16",      FALSE,0,0x0000ffff,TRUE),
+   HOWTO(R_SPARC_32,        0,2,32,FALSE,0,complain_overflow_bitfield,bfd_elf_generic_reloc,  "R_SPARC_32",      FALSE,0,0xffffffff,TRUE),
+--- a/bfd/elfxx-tilegx.c
++++ b/bfd/elfxx-tilegx.c
+@@ -72,11 +72,11 @@ static reloc_howto_type tilegx_elf_howto_table [] =
+   /* This reloc does nothing.  */
+   HOWTO (R_TILEGX_NONE,	/* type */
+ 	 0,			/* rightshift */
+-	 2,			/* size (0 = byte, 1 = short, 2 = long) */
+-	 32,			/* bitsize */
++	 3,			/* size (0 = byte, 1 = short, 2 = long) */
++	 0,			/* bitsize */
+ 	 FALSE,			/* pc_relative */
+ 	 0,			/* bitpos */
+-	 complain_overflow_bitfield, /* complain_on_overflow */
++	 complain_overflow_dont, /* complain_on_overflow */
+ 	 bfd_elf_generic_reloc,	/* special_function */
+ 	 "R_TILEGX_NONE",	/* name */
+ 	 FALSE,			/* partial_inplace */
+--- a/bfd/linker.c
++++ b/bfd/linker.c
+@@ -2434,7 +2434,7 @@ _bfd_generic_reloc_link_order (bfd *abfd,
+ 
+       size = bfd_get_reloc_size (r->howto);
+       buf = (bfd_byte *) bfd_zmalloc (size);
+-      if (buf == NULL)
++      if (buf == NULL && size != 0)
+ 	return FALSE;
+       rstat = _bfd_relocate_contents (r->howto, abfd,
+ 				      (bfd_vma) link_order->u.reloc.p->addend,
+--- a/bfd/nlm32-sparc.c
++++ b/bfd/nlm32-sparc.c
+@@ -49,7 +49,7 @@ enum reloc_type
+ 
+ static reloc_howto_type nlm32_sparc_howto_table[] =
+ {
+-  HOWTO (R_SPARC_NONE,    0,0, 0,FALSE,0,complain_overflow_dont,    0,"R_SPARC_NONE",    FALSE,0,0x00000000,TRUE),
++  HOWTO (R_SPARC_NONE,    0,3, 0,FALSE,0,complain_overflow_dont,    0,"R_SPARC_NONE",    FALSE,0,0x00000000,TRUE),
+   HOWTO (R_SPARC_8,       0,0, 8,FALSE,0,complain_overflow_bitfield,0,"R_SPARC_8",       FALSE,0,0x000000ff,TRUE),
+   HOWTO (R_SPARC_16,      0,1,16,FALSE,0,complain_overflow_bitfield,0,"R_SPARC_16",      FALSE,0,0x0000ffff,TRUE),
+   HOWTO (R_SPARC_32,      0,2,32,FALSE,0,complain_overflow_bitfield,0,"R_SPARC_32",      FALSE,0,0xffffffff,TRUE),
+--- a/bfd/pdp11.c
++++ b/bfd/pdp11.c
+@@ -3152,7 +3152,7 @@ aout_link_reloc_link_order (struct aout_final_link_info *flaginfo,
+ 
+       size = bfd_get_reloc_size (howto);
+       buf = bfd_zmalloc (size);
+-      if (buf == NULL)
++      if (buf == NULL && size != 0)
+ 	return FALSE;
+       r = MY_relocate_contents (howto, flaginfo->output_bfd,
+ 				pr->addend, buf);
+--- a/bfd/reloc.c
++++ b/bfd/reloc.c
+@@ -579,7 +579,7 @@ bfd_perform_relocation (bfd *abfd,
+ {
+   bfd_vma relocation;
+   bfd_reloc_status_type flag = bfd_reloc_ok;
+-  bfd_size_type octets = reloc_entry->address * bfd_octets_per_byte (abfd);
++  bfd_size_type octets;
+   bfd_vma output_base = 0;
+   reloc_howto_type *howto = reloc_entry->howto;
+   asection *reloc_target_output_section;
+@@ -618,15 +618,12 @@ bfd_perform_relocation (bfd *abfd,
+ 	return cont;
+     }
+ 
+-  /* Is the address of the relocation really within the section?  */
+-  if (reloc_entry->address > bfd_get_section_limit (abfd, input_section)
+-      /* PR 17512: file: c146ab8b.
+-	 PR 17512: file: 46dff27f.
+-	 Include the size of the reloc in the test for out of range addresses.  */
+-      - bfd_get_reloc_size (howto)
+-      /* PR 17512: file: 38e53ebf
+-	 Add make sure that there is enough room for the relocation to be applied.  */
+-      || bfd_get_reloc_size (howto) > bfd_get_section_limit (abfd, input_section))
++  /* Is the address of the relocation really within the section?
++     Include the size of the reloc in the test for out of range addresses.
++     PR 17512: file: c146ab8b, 46dff27f, 38e53ebf.  */
++  octets = reloc_entry->address * bfd_octets_per_byte (abfd);
++  if (octets + bfd_get_reloc_size (howto)
++      > bfd_get_section_limit_octets (abfd, input_section))
+     return bfd_reloc_outofrange;
+ 
+   /* Work out which section the relocation is targeted at and the
+@@ -976,7 +973,7 @@ bfd_install_relocation (bfd *abfd,
+ {
+   bfd_vma relocation;
+   bfd_reloc_status_type flag = bfd_reloc_ok;
+-  bfd_size_type octets = reloc_entry->address * bfd_octets_per_byte (abfd);
++  bfd_size_type octets;
+   bfd_vma output_base = 0;
+   reloc_howto_type *howto = reloc_entry->howto;
+   asection *reloc_target_output_section;
+@@ -1009,7 +1006,9 @@ bfd_install_relocation (bfd *abfd,
+     }
+ 
+   /* Is the address of the relocation really within the section?  */
+-  if (reloc_entry->address > bfd_get_section_limit (abfd, input_section))
++  octets = reloc_entry->address * bfd_octets_per_byte (abfd);
++  if (octets + bfd_get_reloc_size (howto)
++      > bfd_get_section_limit_octets (abfd, input_section))
+     return bfd_reloc_outofrange;
+ 
+   /* Work out which section the relocation is targeted at and the
+@@ -1344,9 +1343,11 @@ _bfd_final_link_relocate (reloc_howto_type *howto,
+ 			  bfd_vma addend)
+ {
+   bfd_vma relocation;
++  bfd_size_type octets = address * bfd_octets_per_byte (input_bfd);
+ 
+   /* Sanity check the address.  */
+-  if (address > bfd_get_section_limit (input_bfd, input_section))
++  if (octets + bfd_get_reloc_size (howto)
++      > bfd_get_section_limit_octets (input_bfd, input_section))
+     return bfd_reloc_outofrange;
+ 
+   /* This function assumes that we are dealing with a basic relocation
+@@ -1401,8 +1402,9 @@ _bfd_relocate_contents (reloc_howto_type *howto,
+   switch (size)
+     {
+     default:
+-    case 0:
+       abort ();
++    case 0:
++      return bfd_reloc_ok;
+     case 1:
+       x = bfd_get_8 (input_bfd, location);
+       break;
+@@ -1569,8 +1571,9 @@ _bfd_clear_contents (reloc_howto_type *howto,
+   switch (size)
+     {
+     default:
+-    case 0:
+       abort ();
++    case 0:
++      return;
+     case 1:
+       x = bfd_get_8 (input_bfd, location);
+       break;
+--- a/bfd/xcofflink.c
++++ b/bfd/xcofflink.c
+@@ -5738,7 +5738,7 @@ xcoff_reloc_link_order (bfd *output_bfd,
+ 
+       size = bfd_get_reloc_size (howto);
+       buf = bfd_zmalloc (size);
+-      if (buf == NULL)
++      if (buf == NULL && size != 0)
+ 	return FALSE;
+ 
+       rstat = _bfd_relocate_contents (howto, output_bfd, addend, buf);

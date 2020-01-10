@@ -1,0 +1,173 @@
+commit 45965137bee4946dca3cd99285f2a7afe6b99aeb
+Author: Alan Modra <amodra@gmail.com>
+Date:   Wed Mar 5 19:57:39 2014 +1030
+
+    Support R_PPC64_ADDR64_LOCAL
+    
+    This adds support for "func@localentry", an expression that returns the
+    ELFv2 local entry point address of function "func".  I've excluded
+    dynamic relocation support because that obviously would require glibc
+    changes.
+    
+    include/elf/
+            * ppc64.h (R_PPC64_REL24_NOTOC, R_PPC64_ADDR64_LOCAL): Define.
+    bfd/
+            * elf64-ppc.c (ppc64_elf_howto_raw): Add R_PPC64_ADDR64_LOCAL entry.
+            (ppc64_elf_reloc_type_lookup): Support R_PPC64_ADDR64_LOCAL.
+            (ppc64_elf_check_relocs): Likewise.
+            (ppc64_elf_relocate_section): Likewise.
+            * Add BFD_RELOC_PPC64_ADDR64_LOCAL.
+            * bfd-in2.h: Regenerate.
+            * libbfd.h: Regenerate.
+    gas/
+            * config/tc-ppc.c (ppc_elf_suffix): Support @localentry.
+            (md_apply_fix): Support R_PPC64_ADDR64_LOCAL.
+    ld/testsuite/
+            * ld-powerpc/elfv2-2a.s, ld-powerpc/elfv2-2b.s: New files.
+            * ld-powerpc/elfv2-2exe.d, ld-powerpc/elfv2-2so.d: New files.
+            * ld-powerpc/powerpc.exp: Run new test.
+    elfcpp/
+            * powerpc.h (R_PPC64_REL24_NOTOC, R_PPC64_ADDR64_LOCAL): Define.
+    gold/
+            * powerpc.cc (Target_powerpc::Scan::local, global): Support
+            R_PPC64_ADDR64_LOCAL.
+            (Target_powerpc::Relocate::relocate): Likewise.
+
+### a/bfd/ChangeLog
+### b/bfd/ChangeLog
+## -1,3 +1,13 @@
++2014-03-05  Alan Modra  <amodra@gmail.com>
++
++	* elf64-ppc.c (ppc64_elf_howto_raw): Add R_PPC64_ADDR64_LOCAL entry.
++	(ppc64_elf_reloc_type_lookup): Support R_PPC64_ADDR64_LOCAL.
++	(ppc64_elf_check_relocs): Likewise.
++	(ppc64_elf_relocate_section): Likewise.
++	* Add BFD_RELOC_PPC64_ADDR64_LOCAL.
++	* bfd-in2.h: Regenerate.
++	* libbfd.h: Regenerate.
++
+ 2014-03-04  Heiher  <r@hev.cc>
+ 
+ 	* elfxx-mips.c (mips_set_isa_flags): Use E_MIPS_ARCH_64R2 for
+--- a/bfd/bfd-in2.h
++++ b/bfd/bfd-in2.h
+@@ -3259,6 +3259,7 @@ instruction.  */
+   BFD_RELOC_PPC64_PLTGOT16_LO_DS,
+   BFD_RELOC_PPC64_ADDR16_HIGH,
+   BFD_RELOC_PPC64_ADDR16_HIGHA,
++  BFD_RELOC_PPC64_ADDR64_LOCAL,
+ 
+ /* PowerPC and PowerPC64 thread-local storage relocations.  */
+   BFD_RELOC_PPC_TLS,
+--- a/bfd/elf64-ppc.c
++++ b/bfd/elf64-ppc.c
+@@ -2095,6 +2095,21 @@ static reloc_howto_type ppc64_elf_howto_raw[] = {
+ 	 0xffff,		/* dst_mask */
+ 	 FALSE),		/* pcrel_offset */
+ 
++  /* Like ADDR64, but use local entry point of function.  */
++  HOWTO (R_PPC64_ADDR64_LOCAL,	/* type */
++	 0,			/* rightshift */
++	 4,			/* size (0=byte, 1=short, 2=long, 4=64 bits) */
++	 64,			/* bitsize */
++	 FALSE,			/* pc_relative */
++	 0,			/* bitpos */
++	 complain_overflow_dont, /* complain_on_overflow */
++	 bfd_elf_generic_reloc,	/* special_function */
++	 "R_PPC64_ADDR64_LOCAL", /* name */
++	 FALSE,			/* partial_inplace */
++	 0,			/* src_mask */
++	 ONES (64),		/* dst_mask */
++	 FALSE),		/* pcrel_offset */
++
+   /* GNU extension to record C++ vtable hierarchy.  */
+   HOWTO (R_PPC64_GNU_VTINHERIT,	/* type */
+ 	 0,			/* rightshift */
+@@ -2383,6 +2398,8 @@ ppc64_elf_reloc_type_lookup (bfd *abfd ATTRIBUTE_UNUSED,
+       break;
+     case BFD_RELOC_HI16_S_PCREL:		r = R_PPC64_REL16_HA;
+       break;
++    case BFD_RELOC_PPC64_ADDR64_LOCAL:		r = R_PPC64_ADDR64_LOCAL;
++      break;
+     case BFD_RELOC_VTABLE_INHERIT:		r = R_PPC64_GNU_VTINHERIT;
+       break;
+     case BFD_RELOC_VTABLE_ENTRY:		r = R_PPC64_GNU_VTENTRY;
+@@ -5400,6 +5417,21 @@ ppc64_elf_check_relocs (bfd *abfd, struct bfd_link_info *info,
+ 	case R_PPC64_REL16_HA:
+ 	  break;
+ 
++	  /* Not supported as a dynamic relocation.  */
++	case R_PPC64_ADDR64_LOCAL:
++	  if (info->shared)
++	    {
++	      if (!ppc64_elf_howto_table[R_PPC64_ADDR32])
++		ppc_howto_init ();
++	      info->callbacks->einfo (_("%P: %H: %s reloc unsupported "
++					"in shared libraries and PIEs.\n"),
++				      abfd, sec, rel->r_offset,
++				      ppc64_elf_howto_table[r_type]->name);
++	      bfd_set_error (bfd_error_bad_value);
++	      return FALSE;
++	    }
++	  break;
++
+ 	case R_PPC64_TOC16:
+ 	case R_PPC64_TOC16_DS:
+ 	  htab->do_multi_toc = 1;
+@@ -14134,6 +14166,12 @@ ppc64_elf_relocate_section (bfd *output_bfd,
+ 	  addend -= htab->elf.tls_sec->vma + DTP_OFFSET;
+ 	  break;
+ 
++	case R_PPC64_ADDR64_LOCAL:
++	  addend += PPC64_LOCAL_ENTRY_OFFSET (h != NULL
++					      ? h->elf.other
++					      : sym->st_other);
++	  break;
++
+ 	case R_PPC64_DTPMOD64:
+ 	  relocation = 1;
+ 	  addend = 0;
+--- a/bfd/libbfd.h
++++ b/bfd/libbfd.h
+@@ -1401,6 +1401,7 @@ static const char *const bfd_reloc_code_real_names[] = { "@@uninitialized@@",
+   "BFD_RELOC_PPC64_PLTGOT16_LO_DS",
+   "BFD_RELOC_PPC64_ADDR16_HIGH",
+   "BFD_RELOC_PPC64_ADDR16_HIGHA",
++  "BFD_RELOC_PPC64_ADDR64_LOCAL",
+   "BFD_RELOC_PPC_TLS",
+   "BFD_RELOC_PPC_TLSGD",
+   "BFD_RELOC_PPC_TLSLD",
+--- a/bfd/reloc.c
++++ b/bfd/reloc.c
+@@ -2899,6 +2899,8 @@ ENUMX
+   BFD_RELOC_PPC64_ADDR16_HIGH
+ ENUMX
+   BFD_RELOC_PPC64_ADDR16_HIGHA
++ENUMX
++  BFD_RELOC_PPC64_ADDR64_LOCAL
+ ENUMDOC
+   Power(rs6000) and PowerPC relocations.
+ 
+### a/include/elf/ChangeLog
+### b/include/elf/ChangeLog
+## -1,3 +1,7 @@
++2014-03-05  Alan Modra  <amodra@gmail.com>
++
++	* ppc64.h (R_PPC64_REL24_NOTOC, R_PPC64_ADDR64_LOCAL): Define.
++
+ 2014-02-06  Andrew Pinski  <apinski@cavium.com>
+ 
+ 	* mips.h (E_MIPS_MACH_OCTEON3): New machine flag.
+--- a/include/elf/ppc64.h
++++ b/include/elf/ppc64.h
+@@ -149,6 +149,10 @@ START_RELOC_NUMBERS (elf_ppc64_reloc_type)
+   RELOC_NUMBER (R_PPC64_DTPREL16_HIGH,	   114)
+   RELOC_NUMBER (R_PPC64_DTPREL16_HIGHA,	   115)
+ 
++/* Added for ELFv2.  */
++  RELOC_NUMBER (R_PPC64_REL24_NOTOC,	   116)
++  RELOC_NUMBER (R_PPC64_ADDR64_LOCAL,	   117)
++
+ #ifndef RELOC_MACROS_GEN_FUNC
+ /* Fake relocation only used internally by ld.  */
+   RELOC_NUMBER (R_PPC64_LO_DS_OPT,	   128)

@@ -1,0 +1,220 @@
+commit 80c570537e380c1b8e48754c0ddbce2abcde2d00
+Author: Jan Kratochvil <jan.kratochvil@redhat.com>
+Date:   Thu Feb 26 14:08:01 2015 +0100
+
+    SEGV in ppc64_elf_get_synthetic_symtab reading a separate debug file
+    
+    The attached patch fixes the SEGV and lets GDB successfully
+    load all kernel modules installed by default on RHEL 7.
+    
+    Valgrind on F-21 x86_64 host has shown me more clear what is the problem:
+    
+    Reading symbols from /home/jkratoch/t/cordic.ko...Reading symbols from
+    /home/jkratoch/t/cordic.ko.debug...=================================================================
+    ==22763==ERROR: AddressSanitizer: heap-use-after-free on address 0x6120000461c8 at pc 0x150cdbd bp 0x7fffffffc7e0 sp 0x7fffffffc7d0
+    READ of size 8 at 0x6120000461c8 thread T0
+        #0 0x150cdbc in ppc64_elf_get_synthetic_symtab /home/jkratoch/redhat/gdb-test-asan/bfd/elf64-ppc.c:3282
+        #1 0x8c5274 in elf_read_minimal_symbols /home/jkratoch/redhat/gdb-test-asan/gdb/elfread.c:1205
+        #2 0x8c55e7 in elf_symfile_read /home/jkratoch/redhat/gdb-test-asan/gdb/elfread.c:1268
+    [...]
+    0x6120000461c8 is located 264 bytes inside of 288-byte region [0x6120000460c0,0x6120000461e0)
+    freed by thread T0 here:
+        #0 0x7ffff715454f in __interceptor_free (/lib64/libasan.so.1+0x5754f)
+        #1 0xde9cde in xfree common/common-utils.c:98
+        #2 0x9a04f7 in do_my_cleanups common/cleanups.c:155
+        #3 0x9a05d3 in do_cleanups common/cleanups.c:177
+        #4 0x8c538a in elf_read_minimal_symbols /home/jkratoch/redhat/gdb-test-asan/gdb/elfread.c:1229
+        #5 0x8c55e7 in elf_symfile_read /home/jkratoch/redhat/gdb-test-asan/gdb/elfread.c:1268
+    [...]
+    previously allocated by thread T0 here:
+        #0 0x7ffff71547c7 in malloc (/lib64/libasan.so.1+0x577c7)
+        #1 0xde9b95 in xmalloc common/common-utils.c:41
+        #2 0x8c4da2 in elf_read_minimal_symbols /home/jkratoch/redhat/gdb-test-asan/gdb/elfread.c:1147
+        #3 0x8c55e7 in elf_symfile_read /home/jkratoch/redhat/gdb-test-asan/gdb/elfread.c:1268
+    [...]
+    SUMMARY: AddressSanitizer: heap-use-after-free /home/jkratoch/redhat/gdb-test-asan/bfd/elf64-ppc.c:3282 ppc64_elf_get_synthetic_symtab
+    [...]
+    ==22763==ABORTING
+    
+    A similar case a few lines later I have fixed in 2010 by:
+            https://sourceware.org/git/?p=binutils-gdb.git;a=commit;h=3f1eff0a2c7f0e7078f011f55b8e7f710aae0cc2
+    
+    My testcase does not always reproduce it but at least a bit:
+     * GDB without ppc64 target (even as a secondary one) is reported as "untested"
+     * ASAN-built GDB with ppc64 target always crashes (and PASSes with this fix)
+     * unpatched non-ASAN-built GDB with ppc64 target crashes from commandline
+     * unpatched non-ASAN-built GDB with ppc64 target PASSes from runtest (?)
+    
+    gdb/ChangeLog
+    2015-02-26  Jan Kratochvil  <jan.kratochvil@redhat.com>
+    
+    	* elfread.c (elf_read_minimal_symbols): Use bfd_alloc for
+    	bfd_canonicalize_symtab.
+    
+    gdb/testsuite/ChangeLog
+    2015-02-26  Jan Kratochvil  <jan.kratochvil@redhat.com>
+    
+    	* gdb.arch/cordic.ko.bz2: New file.
+    	* gdb.arch/cordic.ko.debug.bz2: New file.
+    	* gdb.arch/ppc64-symtab-cordic.exp: New file.
+
+Index: gdb-7.6.1/gdb/elfread.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/elfread.c
++++ gdb-7.6.1/gdb/elfread.c
+@@ -2308,8 +2308,10 @@ elf_symfile_read (struct objfile *objfil
+ 
+   if (storage_needed > 0)
+     {
+-      symbol_table = (asymbol **) xmalloc (storage_needed);
+-      make_cleanup (xfree, symbol_table);
++      /* Memory gets permanently referenced from ABFD after
++	 bfd_canonicalize_symtab so it must not get freed before ABFD gets.  */
++
++      symbol_table = bfd_alloc (abfd, storage_needed);
+       symcount = bfd_canonicalize_symtab (objfile->obfd, symbol_table);
+ 
+       if (symcount < 0)
+Index: gdb-7.6.1/gdb/testsuite/gdb.arch/ppc64-symtab-cordic.exp
+===================================================================
+--- /dev/null
++++ gdb-7.6.1/gdb/testsuite/gdb.arch/ppc64-symtab-cordic.exp
+@@ -0,0 +1,51 @@
++# Copyright 2015 Free Software Foundation, Inc.
++
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 3 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License
++# along with this program.  If not, see <http://www.gnu.org/licenses/>.
++
++standard_testfile
++
++set kobz2uufile ${srcdir}/${subdir}/cordic.ko.bz2.uu
++set kofile ${objdir}/${subdir}/cordic.ko
++set kodebugbz2uufile ${srcdir}/${subdir}/cordic.ko.debug.bz2.uu
++set kodebugfile ${objdir}/${subdir}/cordic.ko.debug
++
++if {[catch "system \"uudecode -o - ${kobz2uufile} | bzip2 -dc >${kofile}\""] != 0} {
++    untested "failed bzip2 for ${kobz2uufile}"
++    return -1
++}
++if {[catch "system \"uudecode -o - ${kodebugbz2uufile} | bzip2 -dc >${kodebugfile}\""] != 0} {
++    untested "failed bzip2 for ${kodebugbz2uufile}"
++    return -1
++}
++
++gdb_exit
++gdb_start
++gdb_reinitialize_dir $srcdir/$subdir
++
++# This test won't work properly if system debuginfo is installed.
++# Test message is suppressed by "" as otherwise we could print PASS+UNTESTED
++# result to gdb.sum making a false feeling the issue has been tested.
++gdb_test_no_output "set debug-file-directory" ""
++
++gdb_load ${kofile}
++
++set test "show architecture"
++gdb_test_multiple $test $test {
++    -re "\r\nThe target architecture is set automatically \\(currently powerpc:common64\\)\r\n$gdb_prompt $" {
++	pass $test
++    }
++    -re "\r\nThe target architecture is set automatically \\(currently .*\\)\r\n$gdb_prompt $" {
++	untested "powerpc:common64 is not supported"
++    }
++}
+Index: gdb-7.6.1/gdb/testsuite/gdb.arch/cordic.ko.bz2.uu
+===================================================================
+--- /dev/null
++++ gdb-7.6.1/gdb/testsuite/gdb.arch/cordic.ko.bz2.uu
+@@ -0,0 +1,53 @@
++begin 664 cordic.ko.bz2.uu
++M0EIH.3%!62936:QR$J<`!:7____________^___________]__O_U__]_N]]
++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
++#Y"5.
++`
++end
+Index: gdb-7.6.1/gdb/testsuite/gdb.arch/cordic.ko.debug.bz2.uu
+===================================================================
+--- /dev/null
++++ gdb-7.6.1/gdb/testsuite/gdb.arch/cordic.ko.debug.bz2.uu
+@@ -0,0 +1,24 @@
++begin 664 cordic.ko.debug.bz2.uu
++M0EIH.3%!62936;;3U;4``^=______^==:W]63^U^1+_O_V"H4V#`)$A@F@90
++M"D$!"""2P`,!Q0-*1AHB-4])ZGI-#3U`T:8C0``-``-`:-#0`:#T@!IH-&@-
++M!HA$\D](])E)Z(V@)A#30TT,1@`C-`)@(!H8"8!,--!!@``````````$P```
++M`$8``F``2)$FF@FDVIZGJ>BFF1A-/-)HVJ'J8`#U3,H:#"-D@'H:@8CT&("]
++M???6F=%1'FNGCPP"I4HL6ZE@2>=E(>L$@&5?>9ZJAI%`&%I2P2MAW226F58=
++M!Z[0:D$@C,S$%$*-\ZZF[U##1Q9M=6V$MAXS#$,A5@8IA,-^8#:S#*JAEJUA
++M.ZJWN+EH.Z>`5$02]B/^B\^*GMP%%$,#,BH!`%2&""YD(Z$``3/9]@Y;'/LR
++M6_C%]&YT&1HR5[H(&VQ`9U[/&/_IX]&CA3,4BW\%WK:>,KF?AA?;I0M)HJHA
++M))0E$!$-PFTDHB!1$`@;;*T0".1!";2&QM!L,.,TDA*LQ:G*A?T5HS.EQQ-^
++MXX9F.PV"$H]V,TTRF$T%@NHPIQ2[]T6@8*!#(2$CYW1@8Y(S,WQ[.UM[GKY.
++M"Y^V=].A<UFI,NGU92)29WV1.9)H:[UE)0D)4,"\PS?KC;T(3=0U#]C`"0J4
++MLR"24H($(R60S'.$.0^K9F@,AZ&K`@I92T5.3:4H@=-7S'#/C,1QSD%>INN_
++MT#7-^3M?A9*J-8-<-'1M[-.*2H<Y0M)B'-Y(3XMHL#)[--X-<BGOA\YO#T,(
++M,AEB@'L$[^WOL#7!:ID4FH5S_!;7O`M!KRV?T3%):X7H+A!38."$$X!D+S@4
++MP3/-VM<9?0%-"Z.(MVYY(FE7$V?"QM'CX*6-4;^9,4A1\1$4<"4GCOX3S(:1
++MY[`HM?>82JW<$8<LTV:J##D"KBRIUZS2>`0=$2U,`K^AD\-A$N6%@!,)D\40
++MG+A5S!8)K\D>T%$6+5VX1Q3?#S@85E<O5&TQ;KCX)9$]Y54IR%L'KW<C)87T
++M718+9P'1>LW\N1-;@7B98=FRJ21(E>-R[9:8#GQ6&((U`"<&M?(D**&1(`:P
++MAXD/K49))+)4^H3%*:%H4QQ2+J4.>B,&7.N<`R,SB0A!LB3&(`J?03!*`8:!
++M$Z0H8&G/30D@`M$O`Z5)%-CU'QCR@Z6&_RJIJ@M5&8H8&$O*6ESP4],\P7^+
++*N2*<*$A;:>K:@```
++`
++end

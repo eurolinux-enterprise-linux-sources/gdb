@@ -1,0 +1,419 @@
+commit 9b790ce7227fa346d08a41462119e9a3e93f5e80
+Author: Ulrich Weigand <ulrich.weigand@de.ibm.com>
+Date:   Tue Sep 6 17:31:53 2016 +0200
+
+    Add gdbarch callback to provide formats for debug info float types
+    
+    At this point, all TYPE_CODE_FLT types carry their floating-point format,
+    except for those creating from reading DWARF or stabs debug info.  Those
+    will be addressed by this commit.
+    
+    The main issue here is that we actually have to determine which floating-
+    point format to use.  Currently, we only have the type length as input
+    to this decision.  In the future, we may hopefully get --at least in
+    DWARF-- additional information to help disambiguate multiple different
+    formats of the same length.  For now, we can still look at the type name
+    as a hint.
+    
+    This decision logic is encapsulated in a gdbarch callback to allow
+    platform-specific overrides.  The default implementation use the same
+    logic (compare type length against the various gdbarch_..._bit sizes)
+    that is currently implemented in floatformat_from_length.
+    
+    With this commit, all platforms still use the default logic, so there
+    should be no actual change in behavior.  A follow-on commit will add
+    support for __float128 on Intel and Power.
+    
+    Once dwarf2read.c and stabsread.c make use of the new callback to
+    determine floating-point formats, we're now sure every TYPE_CODE_FLT
+    type will always carry its format.  The commit therefore adds asserts
+    to verify_floatformat to ensure new code will continue to always
+    provide formats, and removes the code in floatformat_from_type that
+    used to handle types with a NULL TYPE_FLOATFORMAT.
+    
+    gdb/ChangeLog:
+    
+            * gdbarch.sh (floatformat_for_type): New gdbarch callback.
+            * gdbarch.h, gdbarch.c: Re-generate.
+            * arch-utils.h (default_floatformat_for_type): New prototype.
+            * arch-utils.c (default_floatformat_for_type): New function.
+    
+            * doublest.c (floatformat_from_length): Remove.
+            (floatformat_from_type): Assume TYPE_FLOATFORMAT is non-NULL.
+            * gdbtypes.c (verify_floatformat): Require non-NULL format.
+    
+            * dwarf2read.c (dwarf2_init_float_type): New function.
+            (read_base_type): Use it.
+            * stabsread.c (dbx_init_float_type): New function.
+            (read_sun_floating_type): Use it.
+            (read_range_type): Likewise.
+    
+    Signed-off-by: Ulrich Weigand <ulrich.weigand@de.ibm.com>
+
+### a/gdb/ChangeLog
+### b/gdb/ChangeLog
+## -1,5 +1,22 @@
+ 2016-09-05  Ulrich Weigand  <uweigand@de.ibm.com>
+ 
++	* gdbarch.sh (floatformat_for_type): New gdbarch callback.
++	* gdbarch.h, gdbarch.c: Re-generate.
++	* arch-utils.h (default_floatformat_for_type): New prototype.
++	* arch-utils.c (default_floatformat_for_type): New function.
++
++	* doublest.c (floatformat_from_length): Remove.
++	(floatformat_from_type): Assume TYPE_FLOATFORMAT is non-NULL.
++	* gdbtypes.c (verify_floatformat): Require non-NULL format.
++
++	* dwarf2read.c (dwarf2_init_float_type): New function.
++	(read_base_type): Use it.
++	* stabsread.c (dbx_init_float_type): New function.
++	(read_sun_floating_type): Use it.
++	(read_range_type): Likewise.
++
++2016-09-05  Ulrich Weigand  <uweigand@de.ibm.com>
++
+ 	* ada-lang.c (ada_language_arch_info): Use gdbarch-provided
+ 	platform ABI floating-point formats for built-in types.
+ 	* d-lang.c (build_d_types): Likewise.
+Index: gdb-7.6.1/gdb/arch-utils.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/arch-utils.c	2017-03-11 21:42:26.681253106 +0100
++++ gdb-7.6.1/gdb/arch-utils.c	2017-03-11 21:48:54.872873908 +0100
+@@ -216,6 +216,34 @@
+   *frame_offset = 0;
+ }
+ 
++/* Return a floating-point format for a floating-point variable of
++   length LEN in bits.  If non-NULL, NAME is the name of its type.
++   If no suitable type is found, return NULL.  */
++
++const struct floatformat **
++default_floatformat_for_type (struct gdbarch *gdbarch,
++			      const char *name, int len)
++{
++  const struct floatformat **format = NULL;
++
++  if (len == gdbarch_half_bit (gdbarch))
++    format = gdbarch_half_format (gdbarch);
++  else if (len == gdbarch_float_bit (gdbarch))
++    format = gdbarch_float_format (gdbarch);
++  else if (len == gdbarch_double_bit (gdbarch))
++    format = gdbarch_double_format (gdbarch);
++  else if (len == gdbarch_long_double_bit (gdbarch))
++    format = gdbarch_long_double_format (gdbarch);
++  /* On i386 the 'long double' type takes 96 bits,
++     while the real number of used bits is only 80,
++     both in processor and in memory.
++     The code below accepts the real bit size.  */
++  else if (gdbarch_long_double_format (gdbarch) != NULL
++	   && len == gdbarch_long_double_format (gdbarch)[0]->totalsize)
++    format = gdbarch_long_double_format (gdbarch);
++
++  return format;
++}
+ 
+ int
+ generic_convert_register_p (struct gdbarch *gdbarch, int regnum,
+Index: gdb-7.6.1/gdb/arch-utils.h
+===================================================================
+--- gdb-7.6.1.orig/gdb/arch-utils.h	2017-03-11 21:42:26.681253106 +0100
++++ gdb-7.6.1/gdb/arch-utils.h	2017-03-11 21:48:54.872873908 +0100
+@@ -88,6 +88,11 @@
+ 
+ extern gdbarch_virtual_frame_pointer_ftype legacy_virtual_frame_pointer;
+ 
++/* Default implementation of gdbarch_floatformat_for_type.  */
++extern const struct floatformat **
++  default_floatformat_for_type (struct gdbarch *gdbarch,
++				const char *name, int len);
++
+ extern CORE_ADDR generic_skip_trampoline_code (struct frame_info *frame,
+ 					       CORE_ADDR pc);
+ 
+Index: gdb-7.6.1/gdb/doublest.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/doublest.c	2017-03-11 21:42:26.681253106 +0100
++++ gdb-7.6.1/gdb/doublest.c	2017-03-11 21:51:53.062063411 +0100
+@@ -800,63 +800,16 @@
+ }
+ 
+ 
+-/* Return a floating-point format for a floating-point variable of
+-   length LEN.  If no suitable floating-point format is found, an
+-   error is thrown.
+-
+-   We need this functionality since information about the
+-   floating-point format of a type is not always available to GDB; the
+-   debug information typically only tells us the size of a
+-   floating-point type.
+-
+-   FIXME: kettenis/2001-10-28: In many places, particularly in
+-   target-dependent code, the format of floating-point types is known,
+-   but not passed on by GDB.  This should be fixed.  */
+-
+-static const struct floatformat *
+-floatformat_from_length (struct gdbarch *gdbarch, LONGEST len)
+-{
+-  const struct floatformat *format;
+-
+-  if (len * TARGET_CHAR_BIT == gdbarch_half_bit (gdbarch))
+-    format = gdbarch_half_format (gdbarch)
+-	       [gdbarch_byte_order (gdbarch)];
+-  else if (len * TARGET_CHAR_BIT == gdbarch_float_bit (gdbarch))
+-    format = gdbarch_float_format (gdbarch)
+-	       [gdbarch_byte_order (gdbarch)];
+-  else if (len * TARGET_CHAR_BIT == gdbarch_double_bit (gdbarch))
+-    format = gdbarch_double_format (gdbarch)
+-	       [gdbarch_byte_order (gdbarch)];
+-  else if (len * TARGET_CHAR_BIT == gdbarch_long_double_bit (gdbarch))
+-    format = gdbarch_long_double_format (gdbarch)
+-	       [gdbarch_byte_order (gdbarch)];
+-  /* On i386 the 'long double' type takes 96 bits,
+-     while the real number of used bits is only 80,
+-     both in processor and in memory.
+-     The code below accepts the real bit size.  */ 
+-  else if ((gdbarch_long_double_format (gdbarch) != NULL)
+-	   && (len * TARGET_CHAR_BIT
+-               == gdbarch_long_double_format (gdbarch)[0]->totalsize))
+-    format = gdbarch_long_double_format (gdbarch)
+-	       [gdbarch_byte_order (gdbarch)];
+-  else
+-    format = NULL;
+-  if (format == NULL)
+-    error (_("Unrecognized %s-bit floating-point type."),
+-	   plongest (len * TARGET_CHAR_BIT));
+-  return format;
+-}
++/* Return the floating-point format for a floating-point variable of
++   type TYPE.  */
+ 
+ const struct floatformat *
+ floatformat_from_type (const struct type *type)
+ {
+   struct gdbarch *gdbarch = get_type_arch (type);
+ 
+-  gdb_assert (TYPE_CODE (type) == TYPE_CODE_FLT);
+-  if (TYPE_FLOATFORMAT (type) != NULL)
+-    return TYPE_FLOATFORMAT (type)[gdbarch_byte_order (gdbarch)];
+-  else
+-    return floatformat_from_length (gdbarch, TYPE_LENGTH (type));
++  gdb_assert (TYPE_FLOATFORMAT (type));
++  return TYPE_FLOATFORMAT (type)[gdbarch_byte_order (gdbarch)];
+ }
+ 
+ /* Extract a floating-point number of type TYPE from a target-order
+Index: gdb-7.6.1/gdb/dwarf2read.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/dwarf2read.c	2017-03-11 21:45:39.098565504 +0100
++++ gdb-7.6.1/gdb/dwarf2read.c	2017-03-11 21:48:54.877873941 +0100
+@@ -12901,6 +12901,27 @@
+   return this_type;
+ }
+ 
++/* Allocate a floating-point type of size BITS and name NAME.  Pass NAME_HINT
++   (which may be different from NAME) to the architecture back-end to allow
++   it to guess the correct format if necessary.  */
++
++static struct type *
++dwarf2_init_float_type (struct objfile *objfile, int bits, const char *name,
++			const char *name_hint)
++{
++  struct gdbarch *gdbarch = get_objfile_arch (objfile);
++  const struct floatformat **format;
++  struct type *type;
++
++  format = gdbarch_floatformat_for_type (gdbarch, name_hint, bits);
++  if (format)
++    type = init_float_type (objfile, bits, name, format);
++  else
++    type = init_type (objfile, TYPE_CODE_ERROR, bits / TARGET_CHAR_BIT, name);
++
++  return type;
++}
++
+ /* Find a representation of a given base type and install
+    it in the TYPE field of the die.  */
+ 
+@@ -12941,14 +12962,14 @@
+ 	type = init_boolean_type (objfile, bits, 1, name);
+ 	break;
+       case DW_ATE_complex_float:
+-	type = init_float_type (objfile, bits / 2, NULL, NULL);
++	type = dwarf2_init_float_type (objfile, bits / 2, NULL, name);
+ 	type = init_complex_type (objfile, name, type);
+ 	break;
+       case DW_ATE_decimal_float:
+ 	type = init_decfloat_type (objfile, bits, name);
+ 	break;
+       case DW_ATE_float:
+-	type = init_float_type (objfile, bits, name, NULL);
++	type = dwarf2_init_float_type (objfile, bits, name, name);
+ 	break;
+       case DW_ATE_signed:
+ 	type = init_integer_type (objfile, bits, 0, name);
+Index: gdb-7.6.1/gdb/gdbarch.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/gdbarch.c	2017-03-11 21:42:26.681253106 +0100
++++ gdb-7.6.1/gdb/gdbarch.c	2017-03-11 21:49:55.628279481 +0100
+@@ -181,6 +181,7 @@
+   const struct floatformat ** double_format;
+   int long_double_bit;
+   const struct floatformat ** long_double_format;
++  gdbarch_floatformat_for_type_ftype *floatformat_for_type;
+   int ptr_bit;
+   int addr_bit;
+   int dwarf2_addr_size;
+@@ -353,6 +354,7 @@
+   0,  /* double_format */
+   8 * sizeof (long double),  /* long_double_bit */
+   0,  /* long_double_format */
++  default_floatformat_for_type,  /* floatformat_for_type */
+   8 * sizeof (void*),  /* ptr_bit */
+   8 * sizeof (void*),  /* addr_bit */
+   sizeof (void*),  /* dwarf2_addr_size */
+@@ -438,7 +440,7 @@
+   default_register_reggroup_p,  /* register_reggroup_p */
+   0,  /* fetch_pointer_argument */
+   0,  /* regset_from_core_section */
+-  0,  /* core_regset_sections */
++  0,  /* iterate_over_regset_sections */
+   0,  /* make_corefile_notes */
+   0,  /* elfcore_write_linux_prpsinfo */
+   0,  /* find_memory_regions */
+@@ -530,6 +532,7 @@
+   gdbarch->float_bit = 4*TARGET_CHAR_BIT;
+   gdbarch->double_bit = 8*TARGET_CHAR_BIT;
+   gdbarch->long_double_bit = 8*TARGET_CHAR_BIT;
++  gdbarch->floatformat_for_type = default_floatformat_for_type;
+   gdbarch->ptr_bit = gdbarch->int_bit;
+   gdbarch->char_signed = -1;
+   gdbarch->virtual_frame_pointer = legacy_virtual_frame_pointer;
+@@ -652,6 +655,7 @@
+   /* Skip verify of long_double_bit, invalid_p == 0 */
+   if (gdbarch->long_double_format == 0)
+     gdbarch->long_double_format = floatformats_ieee_double;
++  /* Skip verify of floatformat_for_type, invalid_p == 0 */
+   /* Skip verify of ptr_bit, invalid_p == 0 */
+   if (gdbarch->addr_bit == 0)
+     gdbarch->addr_bit = gdbarch_ptr_bit (gdbarch);
+@@ -1021,6 +1025,9 @@
+                       "gdbarch_dump: float_format = %s\n",
+                       pformat (gdbarch->float_format));
+   fprintf_unfiltered (file,
++                      "gdbarch_dump: floatformat_for_type = <%s>\n",
++                      host_address_to_string (gdbarch->floatformat_for_type));
++  fprintf_unfiltered (file,
+                       "gdbarch_dump: fp0_regnum = %s\n",
+                       plongest (gdbarch->fp0_regnum));
+   fprintf_unfiltered (file,
+@@ -1738,6 +1745,23 @@
+   gdbarch->long_double_format = long_double_format;
+ }
+ 
++const struct floatformat **
++gdbarch_floatformat_for_type (struct gdbarch *gdbarch, const char *name, int length)
++{
++  gdb_assert (gdbarch != NULL);
++  gdb_assert (gdbarch->floatformat_for_type != NULL);
++  if (gdbarch_debug >= 2)
++    fprintf_unfiltered (gdb_stdlog, "gdbarch_floatformat_for_type called\n");
++  return gdbarch->floatformat_for_type (gdbarch, name, length);
++}
++
++void
++set_gdbarch_floatformat_for_type (struct gdbarch *gdbarch,
++                                  gdbarch_floatformat_for_type_ftype floatformat_for_type)
++{
++  gdbarch->floatformat_for_type = floatformat_for_type;
++}
++
+ int
+ gdbarch_ptr_bit (struct gdbarch *gdbarch)
+ {
+Index: gdb-7.6.1/gdb/gdbarch.h
+===================================================================
+--- gdb-7.6.1.orig/gdb/gdbarch.h	2017-03-11 21:42:26.681253106 +0100
++++ gdb-7.6.1/gdb/gdbarch.h	2017-03-11 21:48:54.879873955 +0100
+@@ -176,6 +176,14 @@
+ extern const struct floatformat ** gdbarch_long_double_format (struct gdbarch *gdbarch);
+ extern void set_gdbarch_long_double_format (struct gdbarch *gdbarch, const struct floatformat ** long_double_format);
+ 
++/* Returns the floating-point format to be used for values of length LENGTH.
++   NAME, if non-NULL, is the type name, which may be used to distinguish
++   different target formats of the same length. */
++
++typedef const struct floatformat ** (gdbarch_floatformat_for_type_ftype) (struct gdbarch *gdbarch, const char *name, int length);
++extern const struct floatformat ** gdbarch_floatformat_for_type (struct gdbarch *gdbarch, const char *name, int length);
++extern void set_gdbarch_floatformat_for_type (struct gdbarch *gdbarch, gdbarch_floatformat_for_type_ftype *floatformat_for_type);
++
+ /* For most targets, a pointer on the target and its representation as an
+    address in GDB have the same size and "look the same".  For such a
+    target, you need only set gdbarch_ptr_bit and gdbarch_addr_bit
+Index: gdb-7.6.1/gdb/gdbarch.sh
+===================================================================
+--- gdb-7.6.1.orig/gdb/gdbarch.sh	2017-03-11 21:42:26.681253106 +0100
++++ gdb-7.6.1/gdb/gdbarch.sh	2017-03-11 21:48:54.880873961 +0100
+@@ -383,6 +383,11 @@
+ v:int:long_double_bit:::8 * sizeof (long double):8*TARGET_CHAR_BIT::0
+ v:const struct floatformat **:long_double_format:::::floatformats_ieee_double::pformat (gdbarch->long_double_format)
+ 
++# Returns the floating-point format to be used for values of length LENGTH.
++# NAME, if non-NULL, is the type name, which may be used to distinguish
++# different target formats of the same length.
++m:const struct floatformat **:floatformat_for_type:const char *name, int length:name, length:0:default_floatformat_for_type::0
++
+ # For most targets, a pointer on the target and its representation as an
+ # address in GDB have the same size and "look the same".  For such a
+ # target, you need only set gdbarch_ptr_bit and gdbarch_addr_bit
+Index: gdb-7.6.1/gdb/stabsread.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/stabsread.c	2017-03-11 21:48:47.133822245 +0100
++++ gdb-7.6.1/gdb/stabsread.c	2017-03-11 21:48:54.881873968 +0100
+@@ -338,6 +338,24 @@
+   return (*type_addr);
+ }
+ 
++/* Allocate a floating-point type of size BITS.  */
++
++static struct type *
++dbx_init_float_type (struct objfile *objfile, int bits)
++{
++  struct gdbarch *gdbarch = get_objfile_arch (objfile);
++  const struct floatformat **format;
++  struct type *type;
++
++  format = gdbarch_floatformat_for_type (gdbarch, NULL, bits);
++  if (format)
++    type = init_float_type (objfile, bits, NULL, format);
++  else
++    type = init_type (objfile, TYPE_CODE_ERROR, bits / TARGET_CHAR_BIT, NULL);
++
++  return type;
++}
++
+ /* for all the stabs in a given stab vector, build appropriate types 
+    and fix their symbols in given symbol vector.  */
+ 
+@@ -3842,11 +3860,11 @@
+   if (details == NF_COMPLEX || details == NF_COMPLEX16
+       || details == NF_COMPLEX32)
+     {
+-      rettype = init_float_type (objfile, nbits / 2, NULL, NULL);
++      rettype = dbx_init_float_type (objfile, nbits / 2);
+       return init_complex_type (objfile, NULL, rettype);
+     }
+ 
+-  return init_float_type (objfile, nbits, NULL, NULL);
++  return dbx_init_float_type (objfile, nbits);
+ }
+ 
+ /* Read a number from the string pointed to by *PP.
+@@ -4133,7 +4151,7 @@
+   if (n3 == 0 && n2 > 0)
+     {
+       struct type *float_type
+-	= init_float_type (objfile, n2 * TARGET_CHAR_BIT, NULL, NULL);
++	= dbx_init_float_type (objfile, n2 * TARGET_CHAR_BIT);
+ 
+       if (self_subrange)
+ 	return init_complex_type (objfile, NULL, float_type);

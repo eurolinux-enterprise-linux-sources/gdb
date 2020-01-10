@@ -1,0 +1,44 @@
+From d5552aabd6c68147421819577108b51ff25ea064 Mon Sep 17 00:00:00 2001
+From: Andreas Arnez <arnez@linux.vnet.ibm.com>
+Date: Tue, 2 Dec 2014 10:47:30 +0100
+Subject: [PATCH] S390: Fix 'expedite' for s390-te-linux64
+
+Fix a typo in the expedited registers for s390-te-linux64.
+
+gdb/ChangeLog:
+
+	* features/Makefile (s390-te-linux64-expedite): Replace
+	non-existant r14 and r15 by r14l and r15l, respectively.
+	* regformats/s390-te-linux64.dat: Regenerate.
+---
+ gdb/ChangeLog                      | 6 ++++++
+ gdb/features/Makefile              | 2 +-
+ gdb/regformats/s390-te-linux64.dat | 2 +-
+ 3 files changed, 8 insertions(+), 2 deletions(-)
+
+Index: gdb-7.6.1/gdb/features/Makefile
+===================================================================
+--- gdb-7.6.1.orig/gdb/features/Makefile
++++ gdb-7.6.1/gdb/features/Makefile
+@@ -83,7 +83,7 @@ s390-linux32v2-expedite = r14,r15,pswa
+ s390-linux64-expedite = r14l,r15l,pswa
+ s390-linux64v1-expedite = r14l,r15l,pswa
+ s390-linux64v2-expedite = r14l,r15l,pswa
+-s390-te-linux64-expedite = r14,r15,pswa
++s390-te-linux64-expedite = r14l,r15l,pswa
+ s390x-linux64-expedite = r14,r15,pswa
+ s390x-linux64v1-expedite = r14,r15,pswa
+ s390x-linux64v2-expedite = r14,r15,pswa
+Index: gdb-7.6.1/gdb/regformats/s390-te-linux64.dat
+===================================================================
+--- gdb-7.6.1.orig/gdb/regformats/s390-te-linux64.dat
++++ gdb-7.6.1/gdb/regformats/s390-te-linux64.dat
+@@ -1,7 +1,7 @@
+ # DO NOT EDIT: generated from s390-te-linux64.xml
+ name:s390_te_linux64
+ xmltarget:s390-te-linux64.xml
+-expedite:r14,r15,pswa
++expedite:r14l,r15l,pswa
+ 32:pswm
+ 32:pswa
+ 32:r0h

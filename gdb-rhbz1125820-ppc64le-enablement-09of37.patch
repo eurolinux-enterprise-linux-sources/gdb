@@ -1,0 +1,302 @@
+commit 6911b7dcb8ea17f8b811578dd4ac1ab7bb675e7b
+Author: Alan Modra <amodra@gmail.com>
+Date:   Tue Oct 29 15:37:43 2013 +1030
+
+    Add ELFv2 .localentry support.
+    
+    This defines the ELF symbol st_other field used to encode the number
+    of instructions between a function "global entry" and its "local entry",
+    and adds support related to the local entry offset.
+    
+    include/elf/
+    	* ppc64.h (STO_PPC64_LOCAL_BIT, STO_PPC64_LOCAL_MASK): Define.
+    	(ppc64_decode_local_entry, ppc64_encode_local_entry): New functions.
+    	(PPC64_LOCAL_ENTRY_OFFSET, PPC64_SET_LOCAL_ENTRY_OFFSET): Define.
+    bfd/
+    	* elf64-ppc.c (struct ppc_stub_hash_entry): Add "other".
+    	(stub_hash_newfunc): Init new ppc_stub_hash_entry field, and one
+    	we forgot, "plt_ent".
+    	(ppc64_elf_add_symbol_hook): Check ELFv1 objects don't have
+    	st_other bits only valid in ELFv2.
+    	(ppc64_elf_merge_symbol_attribute): New function.
+    	(ppc_type_of_stub): Add local_off param to test branch range.
+    	(ppc_build_one_stub): Adjust destinations for ELFv2 locals.
+    	(ppc_size_one_stub, toc_adjusting_stub_needed): Similarly.
+    	(ppc64_elf_size_stubs): Pass local_off to ppc_type_of_stub.
+    	Set "other" field.
+    	(ppc64_elf_relocate_section): Adjust destination for ELFv2 local
+    	calls.
+    gas/
+    	* config/tc-ppc.c (md_pseudo_table): Add .localentry.
+    	(ppc_elf_localentry): New function.
+    	(ppc_force_relocation): Force relocs on all branches to localenty
+    	symbols.
+    	(ppc_fix_adjustable): Don't reduce such symbols to section+offset.
+    binutils/
+    	* readelf.c (get_ppc64_symbol_other): New function.
+    	(get_symbol_other): Use it for EM_PPC64.
+
+Index: gdb-7.6.1/bfd/elf64-ppc.c
+===================================================================
+--- gdb-7.6.1.orig/bfd/elf64-ppc.c
++++ gdb-7.6.1/bfd/elf64-ppc.c
+@@ -118,6 +118,7 @@ static bfd_vma opd_entry_value
+ #define elf_backend_link_output_symbol_hook   ppc64_elf_output_symbol_hook
+ #define elf_backend_special_sections	      ppc64_elf_special_sections
+ #define elf_backend_post_process_headers      _bfd_elf_set_osabi
++#define elf_backend_merge_symbol_attribute    ppc64_elf_merge_symbol_attribute
+ 
+ /* The name of the dynamic interpreter.  This is put in the .interp
+    section.  */
+@@ -3640,6 +3641,9 @@ struct ppc_stub_hash_entry {
+   /* Where this stub is being called from, or, in the case of combined
+      stub sections, the first input section in the group.  */
+   asection *id_sec;
++
++  /* Symbol st_other.  */
++  unsigned char other;
+ };
+ 
+ struct ppc_branch_hash_entry {
+@@ -3886,7 +3890,9 @@ stub_hash_newfunc (struct bfd_hash_entry
+       eh->target_value = 0;
+       eh->target_section = NULL;
+       eh->h = NULL;
++      eh->plt_ent = NULL;
+       eh->id_sec = NULL;
++      eh->other = 0;
+     }
+ 
+   return entry;
+@@ -4629,7 +4635,7 @@ static bfd_boolean
+ ppc64_elf_add_symbol_hook (bfd *ibfd,
+ 			   struct bfd_link_info *info,
+ 			   Elf_Internal_Sym *isym,
+-			   const char **name ATTRIBUTE_UNUSED,
++			   const char **name,
+ 			   flagword *flags ATTRIBUTE_UNUSED,
+ 			   asection **sec,
+ 			   bfd_vma *value ATTRIBUTE_UNUSED)
+@@ -4649,9 +4655,35 @@ ppc64_elf_add_symbol_hook (bfd *ibfd,
+ 	   && strcmp ((*sec)->name, ".opd") == 0)
+     isym->st_info = ELF_ST_INFO (ELF_ST_BIND (isym->st_info), STT_FUNC);
+ 
++  if ((STO_PPC64_LOCAL_MASK & isym->st_other) != 0)
++    {
++      if (abiversion (ibfd) == 0)
++	set_abiversion (ibfd, 2);
++      else if (abiversion (ibfd) == 1)
++	{
++	  info->callbacks->einfo (_("%P: symbol '%s' has invalid st_other"
++				    " for ABI version 1\n"), name);
++	  bfd_set_error (bfd_error_bad_value);
++	  return FALSE;
++	}
++    }
++
+   return TRUE;
+ }
+ 
++/* Merge non-visibility st_other attributes: local entry point.  */
++
++static void
++ppc64_elf_merge_symbol_attribute (struct elf_link_hash_entry *h,
++				  const Elf_Internal_Sym *isym,
++				  bfd_boolean definition,
++				  bfd_boolean dynamic)
++{
++  if (definition && !dynamic)
++    h->other = ((isym->st_other & ~ELF_ST_VISIBILITY (-1))
++		| ELF_ST_VISIBILITY (h->other));
++}
++
+ /* This function makes an old ABI object reference to ".bar" cause the
+    inclusion of a new ABI object archive that defines "bar".
+    NAME is a symbol defined in an archive.  Return a symbol in the hash
+@@ -9586,7 +9618,8 @@ ppc_type_of_stub (asection *input_sec,
+ 		  const Elf_Internal_Rela *rel,
+ 		  struct ppc_link_hash_entry **hash,
+ 		  struct plt_entry **plt_ent,
+-		  bfd_vma destination)
++		  bfd_vma destination,
++		  unsigned long local_off)
+ {
+   struct ppc_link_hash_entry *h = *hash;
+   bfd_vma location;
+@@ -9655,7 +9688,7 @@ ppc_type_of_stub (asection *input_sec,
+   if (r_type != R_PPC64_REL24)
+     max_branch_offset = 1 << 15;
+ 
+-  if (branch_offset + max_branch_offset >= 2 * max_branch_offset)
++  if (branch_offset + max_branch_offset >= 2 * max_branch_offset - local_off)
+     /* We need a stub.  Figure out whether a long_branch or plt_branch
+        is needed later.  */
+     return ppc_stub_long_branch;
+@@ -10023,9 +10056,11 @@ ppc_build_one_stub (struct bfd_hash_entr
+     case ppc_stub_long_branch:
+     case ppc_stub_long_branch_r2off:
+       /* Branches are relative.  This is where we are going to.  */
+-      off = dest = (stub_entry->target_value
+-		    + stub_entry->target_section->output_offset
+-		    + stub_entry->target_section->output_section->vma);
++      dest = (stub_entry->target_value
++	      + stub_entry->target_section->output_offset
++	      + stub_entry->target_section->output_section->vma);
++      dest += PPC64_LOCAL_ENTRY_OFFSET (stub_entry->other);
++      off = dest;
+ 
+       /* And this is where we are coming from.  */
+       off -= (stub_entry->stub_offset
+@@ -10128,6 +10163,8 @@ ppc_build_one_stub (struct bfd_hash_entr
+       dest = (stub_entry->target_value
+ 	      + stub_entry->target_section->output_offset
+ 	      + stub_entry->target_section->output_section->vma);
++      if (stub_entry->stub_type != ppc_stub_plt_branch_r2off)
++	dest += PPC64_LOCAL_ENTRY_OFFSET (stub_entry->other);
+ 
+       bfd_put_64 (htab->brlt->owner, dest,
+ 		  htab->brlt->contents + br_entry->offset);
+@@ -10472,6 +10509,7 @@ ppc_size_one_stub (struct bfd_hash_entry
+       /* ppc_stub_long_branch or ppc_stub_plt_branch, or their r2off
+ 	 variants.  */
+       bfd_vma r2off = 0;
++      bfd_vma local_off = 0;
+ 
+       off = (stub_entry->target_value
+ 	     + stub_entry->target_section->output_offset
+@@ -10500,8 +10538,10 @@ ppc_size_one_stub (struct bfd_hash_entry
+ 	  off -= size - 4;
+ 	}
+ 
++      local_off = PPC64_LOCAL_ENTRY_OFFSET (stub_entry->other);
++
+       /* If the branch offset if too big, use a ppc_stub_plt_branch.  */
+-      if (off + (1 << 25) >= (bfd_vma) (1 << 26))
++      if (off + (1 << 25) >= (bfd_vma) (1 << 26) - local_off)
+ 	{
+ 	  struct ppc_branch_hash_entry *br_entry;
+ 
+@@ -11097,7 +11137,10 @@ toc_adjusting_stub_needed (struct bfd_li
+ 	     need a plt_branch stub.  A plt_branch stub uses r2.  */
+ 	  else if (dest - (isec->output_offset
+ 			   + isec->output_section->vma
+-			   + rel->r_offset) + (1 << 25) >= (2 << 25))
++			   + rel->r_offset) + (1 << 25)
++		   >= (2u << 25) - PPC64_LOCAL_ENTRY_OFFSET (h
++							     ? h->other
++							     : sym->st_other))
+ 	    {
+ 	      ret = 1;
+ 	      break;
+@@ -11553,6 +11596,7 @@ ppc64_elf_size_stubs (struct bfd_link_in
+ 		  asection *sym_sec, *code_sec;
+ 		  bfd_vma sym_value, code_value;
+ 		  bfd_vma destination;
++		  unsigned long local_off;
+ 		  bfd_boolean ok_dest;
+ 		  struct ppc_link_hash_entry *hash;
+ 		  struct ppc_link_hash_entry *fdh;
+@@ -11629,12 +11673,16 @@ ppc64_elf_size_stubs (struct bfd_link_in
+ 		    }
+ 
+ 		  destination = 0;
++		  local_off = 0;
+ 		  if (ok_dest)
+ 		    {
+ 		      sym_value += irela->r_addend;
+ 		      destination = (sym_value
+ 				     + sym_sec->output_offset
+ 				     + sym_sec->output_section->vma);
++		      local_off = PPC64_LOCAL_ENTRY_OFFSET (hash
++							    ? hash->elf.other
++							    : sym->st_other);
+ 		    }
+ 
+ 		  code_sec = sym_sec;
+@@ -11671,7 +11719,8 @@ ppc64_elf_size_stubs (struct bfd_link_in
+ 		  /* Determine what (if any) linker stub is needed.  */
+ 		  plt_ent = NULL;
+ 		  stub_type = ppc_type_of_stub (section, irela, &hash,
+-						&plt_ent, destination);
++						&plt_ent, destination,
++						local_off);
+ 
+ 		  if (stub_type != ppc_stub_plt_call)
+ 		    {
+@@ -11771,6 +11820,7 @@ ppc64_elf_size_stubs (struct bfd_link_in
+ 		    }
+ 		  stub_entry->h = hash;
+ 		  stub_entry->plt_ent = plt_ent;
++		  stub_entry->other = hash ? hash->elf.other : sym->st_other;
+ 		  stub_entry->addend = irela->r_addend;
+ 
+ 		  if (stub_entry->h != NULL)
+@@ -13105,6 +13155,10 @@ ppc64_elf_relocate_section (bfd *output_
+ 		  + input_section->output_offset
+ 		  + input_section->output_section->vma);
+ 
++	  relocation += PPC64_LOCAL_ENTRY_OFFSET (fdh
++						  ? fdh->elf.other
++						  : sym->st_other);
++
+ 	  if (stub_entry != NULL
+ 	      && (stub_entry->stub_type == ppc_stub_long_branch
+ 		  || stub_entry->stub_type == ppc_stub_plt_branch)
+Index: gdb-7.6.1/include/elf/ppc64.h
+===================================================================
+--- gdb-7.6.1.orig/include/elf/ppc64.h
++++ gdb-7.6.1/include/elf/ppc64.h
+@@ -171,6 +171,53 @@ END_RELOC_NUMBERS (R_PPC64_max)
+    0 for unspecified or not using any features affected by the differences.  */
+ #define EF_PPC64_ABI	3
+ 
++/* The ELFv2 ABI uses three bits in the symbol st_other field of a
++   function definition to specify the number of instructions between a
++   function's global entry point and local entry point.
++   The global entry point is used when it is necessary to set up the
++   toc pointer (r2) for the function.  Callers must enter the global
++   entry point with r12 set to the global entry point address.  On
++   return from the function, r2 may have a different value to that
++   which it had on entry.
++   The local entry point is used when r2 is known to already be valid
++   for the function.  There is no requirement on r12 when using the
++   local entry point, and on return r2 will contain the same value as
++   at entry.
++   A value of zero in these bits means that the function has a single
++   entry point with no requirement on r12 or r2, and that on return r2
++   will contain the same value as at entry.
++   Values of one and seven are reserved.  */
++#define STO_PPC64_LOCAL_BIT		5
++#define STO_PPC64_LOCAL_MASK		(7 << STO_PPC64_LOCAL_BIT)
++
++// 3 bit other field to bytes.
++static inline unsigned int
++ppc64_decode_local_entry(unsigned int other)
++{
++  return ((1 << other) >> 2) << 2;
++}
++
++// bytes to field value.
++static inline unsigned int
++ppc64_encode_local_entry(unsigned int val)
++{
++  return (val >= 4 * 4
++	  ? (val >= 8 * 4
++	     ? (val >= 16 * 4 ? 6 : 5)
++	     : 4)
++	  : (val >= 2 * 4
++	     ? 3
++	     : (val >= 1 * 4 ? 2 : 0)));
++}
++
++/* st_other to number of bytes.  */
++#define PPC64_LOCAL_ENTRY_OFFSET(other)				\
++  ppc64_decode_local_entry (((other) & STO_PPC64_LOCAL_MASK)	\
++			    >> STO_PPC64_LOCAL_BIT)
++/* number of bytes to st_other.  */
++#define PPC64_SET_LOCAL_ENTRY_OFFSET(val)		\
++  ppc64_encode_local_entry (val) << STO_PPC64_LOCAL_BIT
++
+ /* Specify the start of the .glink section.  */
+ #define DT_PPC64_GLINK		DT_LOPROC
+ 

@@ -1,0 +1,1120 @@
+commit 05c0465e16a5e2db92f8975aebf2bb5aacb1c542
+Author: Sergio Durigan Junior <sergiodj@redhat.com>
+Date:   Thu Dec 19 18:53:40 2013 -0200
+
+    Extend SystemTap SDT probe argument parser
+    
+    This patch extends the current generic parser for SystemTap SDT probe
+    arguments.  It can be almost considered a cleanup, but the main point of
+    it is actually to allow the generic parser to accept multiple prefixes
+    and suffixes for the its operands (i.e., integers, register names, and
+    register indirection).
+    
+    I have chosen to implement this as a list of const strings, and declare
+    this list as "static" inside each target's method used to initialize
+    gdbarch.
+    
+    This patch is actually a preparation for an upcoming patch for ARM,
+    which implements the support for multiple integer prefixes (as defined
+    by ARM's asm spec).  And AArch64 will also need this, for the same
+    reason.
+    
+    This patch was regtested on all architectures that it touches (i.e.,
+    i386, x86_64, ARM, PPC/PPC64, s390x and IA-64).  No regressions were found.
+    
+    2013-12-19  Sergio Durigan Junior  <sergiodj@redhat.com>
+    
+    	* amd64-tdep.c (amd64_init_abi): Declare SystemTap SDT probe
+    	argument prefixes and suffixes.  Initialize gdbarch with them.
+    	* arm-linux-tdep.c (arm_linux_init_abi): Likewise.
+    	* gdbarch.c: Regenerate.
+    	* gdbarch.h: Regenerate.
+    	* gdbarch.sh (stap_integer_prefix, stap_integer_suffix)
+    	(stap_register_prefix, stap_register_suffix)
+    	(stap_register_indirection_prefix)
+    	(stap_register_indirection_suffix): Declare as "const char *const
+    	*" instead of "const char *".  Adjust printing function.  Rename
+    	all of the variables to the plural.
+    	(pstring_list): New function.
+    	* i386-tdep.c (i386_elf_init_abi): Declare SystemTap SDT probe
+    	argument prefixes and suffixes.  Initialize gdbarch with them.
+    	* ia64-linux-tdep.c (ia64_linux_init_abi): Likewise.
+    	* ppc-linux-tdep.c (ppc_linux_init_abi): Likewise.
+    	* s390-linux-tdep.c (s390_gdbarch_init): Likewise.
+    	* stap-probe.c (stap_is_generic_prefix): New function.
+    	(stap_is_register_prefix): Likewise.
+    	(stap_is_register_indirection_prefix): Likewise.
+    	(stap_is_integer_prefix): Likewise.
+    	(stap_generic_check_suffix): Likewise.
+    	(stap_check_integer_suffix): Likewise.
+    	(stap_check_register_suffix): Likewise.
+    	(stap_check_register_indirection_suffix): Likewise.
+    	(stap_parse_register_operand): Remove unecessary declarations for
+    	variables holding prefix and suffix information.  Use the new
+    	functions listed above for checking for prefixes and suffixes.
+    	(stap_parse_single_operand): Likewise.
+
+Index: gdb-7.6.1/gdb/amd64-tdep.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/amd64-tdep.c
++++ gdb-7.6.1/gdb/amd64-tdep.c
+@@ -2867,6 +2867,12 @@ amd64_init_abi (struct gdbarch_info info
+ {
+   struct gdbarch_tdep *tdep = gdbarch_tdep (gdbarch);
+   const struct target_desc *tdesc = info.target_desc;
++  static const char *const stap_integer_prefixes[] = { "$", NULL };
++  static const char *const stap_register_prefixes[] = { "%", NULL };
++  static const char *const stap_register_indirection_prefixes[] = { "(",
++								    NULL };
++  static const char *const stap_register_indirection_suffixes[] = { ")",
++								    NULL };
+ 
+   /* AMD64 generally uses `fxsave' instead of `fsave' for saving its
+      floating-point registers.  */
+@@ -2976,10 +2982,12 @@ amd64_init_abi (struct gdbarch_info info
+   set_gdbarch_gen_return_address (gdbarch, amd64_gen_return_address);
+ 
+   /* SystemTap variables and functions.  */
+-  set_gdbarch_stap_integer_prefix (gdbarch, "$");
+-  set_gdbarch_stap_register_prefix (gdbarch, "%");
+-  set_gdbarch_stap_register_indirection_prefix (gdbarch, "(");
+-  set_gdbarch_stap_register_indirection_suffix (gdbarch, ")");
++  set_gdbarch_stap_integer_prefixes (gdbarch, stap_integer_prefixes);
++  set_gdbarch_stap_register_prefixes (gdbarch, stap_register_prefixes);
++  set_gdbarch_stap_register_indirection_prefixes (gdbarch,
++					  stap_register_indirection_prefixes);
++  set_gdbarch_stap_register_indirection_suffixes (gdbarch,
++					  stap_register_indirection_suffixes);
+   set_gdbarch_stap_is_single_operand (gdbarch,
+ 				      i386_stap_is_single_operand);
+   set_gdbarch_stap_parse_special_token (gdbarch,
+Index: gdb-7.6.1/gdb/arm-linux-tdep.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/arm-linux-tdep.c
++++ gdb-7.6.1/gdb/arm-linux-tdep.c
+@@ -1182,6 +1182,12 @@ static void
+ arm_linux_init_abi (struct gdbarch_info info,
+ 		    struct gdbarch *gdbarch)
+ {
++  static const char *const stap_integer_prefixes[] = { "#", NULL };
++  static const char *const stap_register_prefixes[] = { "r", NULL };
++  static const char *const stap_register_indirection_prefixes[] = { "[",
++								    NULL };
++  static const char *const stap_register_indirection_suffixes[] = { "]",
++								    NULL };
+   struct gdbarch_tdep *tdep = gdbarch_tdep (gdbarch);
+ 
+   linux_init_abi (info, gdbarch);
+@@ -1281,10 +1287,12 @@ arm_linux_init_abi (struct gdbarch_info
+   set_gdbarch_process_record (gdbarch, arm_process_record);
+ 
+   /* SystemTap functions.  */
+-  set_gdbarch_stap_integer_prefix (gdbarch, "#");
+-  set_gdbarch_stap_register_prefix (gdbarch, "r");
+-  set_gdbarch_stap_register_indirection_prefix (gdbarch, "[");
+-  set_gdbarch_stap_register_indirection_suffix (gdbarch, "]");
++  set_gdbarch_stap_integer_prefixes (gdbarch, stap_integer_prefixes);
++  set_gdbarch_stap_register_prefixes (gdbarch, stap_register_prefixes);
++  set_gdbarch_stap_register_indirection_prefixes (gdbarch,
++					  stap_register_indirection_prefixes);
++  set_gdbarch_stap_register_indirection_suffixes (gdbarch,
++					  stap_register_indirection_suffixes);
+   set_gdbarch_stap_gdb_register_prefix (gdbarch, "r");
+   set_gdbarch_stap_is_single_operand (gdbarch, arm_stap_is_single_operand);
+   set_gdbarch_stap_parse_special_token (gdbarch,
+Index: gdb-7.6.1/gdb/gdbarch.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/gdbarch.c
++++ gdb-7.6.1/gdb/gdbarch.c
+@@ -86,6 +86,35 @@ pstring (const char *string)
+   return string;
+ }
+ 
++/* Helper function to print a list of strings, represented as "const
++   char *const *".  The list is printed comma-separated.  */
++
++static char *
++pstring_list (const char *const *list)
++{
++  static char ret[100];
++  const char *const *p;
++  size_t offset = 0;
++
++  if (list == NULL)
++    return "(null)";
++
++  ret[0] = '\0';
++  for (p = list; *p != NULL && offset < sizeof (ret); ++p)
++    {
++      size_t s = xsnprintf (ret + offset, sizeof (ret) - offset, "%s, ", *p);
++      offset += 2 + s;
++    }
++
++  if (offset > 0)
++    {
++      gdb_assert (offset - 2 < sizeof (ret));
++      ret[offset - 2] = '\0';
++    }
++
++  return ret;
++}
++
+ 
+ /* Maintain the struct gdbarch object.  */
+ 
+@@ -264,12 +293,12 @@ struct gdbarch
+   gdbarch_get_siginfo_type_ftype *get_siginfo_type;
+   gdbarch_record_special_symbol_ftype *record_special_symbol;
+   gdbarch_get_syscall_number_ftype *get_syscall_number;
+-  const char * stap_integer_prefix;
+-  const char * stap_integer_suffix;
+-  const char * stap_register_prefix;
+-  const char * stap_register_suffix;
+-  const char * stap_register_indirection_prefix;
+-  const char * stap_register_indirection_suffix;
++  const char *const * stap_integer_prefixes;
++  const char *const * stap_integer_suffixes;
++  const char *const * stap_register_prefixes;
++  const char *const * stap_register_suffixes;
++  const char *const * stap_register_indirection_prefixes;
++  const char *const * stap_register_indirection_suffixes;
+   const char * stap_gdb_register_prefix;
+   const char * stap_gdb_register_suffix;
+   gdbarch_stap_is_single_operand_ftype *stap_is_single_operand;
+@@ -436,12 +465,12 @@ struct gdbarch startup_gdbarch =
+   0,  /* get_siginfo_type */
+   0,  /* record_special_symbol */
+   0,  /* get_syscall_number */
+-  0,  /* stap_integer_prefix */
+-  0,  /* stap_integer_suffix */
+-  0,  /* stap_register_prefix */
+-  0,  /* stap_register_suffix */
+-  0,  /* stap_register_indirection_prefix */
+-  0,  /* stap_register_indirection_suffix */
++  0,  /* stap_integer_prefixes */
++  0,  /* stap_integer_suffixes */
++  0,  /* stap_register_prefixes */
++  0,  /* stap_register_suffixes */
++  0,  /* stap_register_indirection_prefixes */
++  0,  /* stap_register_indirection_suffixes */
+   0,  /* stap_gdb_register_prefix */
+   0,  /* stap_gdb_register_suffix */
+   0,  /* stap_is_single_operand */
+@@ -741,12 +770,12 @@ verify_gdbarch (struct gdbarch *gdbarch)
+   /* Skip verify of get_siginfo_type, has predicate.  */
+   /* Skip verify of record_special_symbol, has predicate.  */
+   /* Skip verify of get_syscall_number, has predicate.  */
+-  /* Skip verify of stap_integer_prefix, invalid_p == 0 */
+-  /* Skip verify of stap_integer_suffix, invalid_p == 0 */
+-  /* Skip verify of stap_register_prefix, invalid_p == 0 */
+-  /* Skip verify of stap_register_suffix, invalid_p == 0 */
+-  /* Skip verify of stap_register_indirection_prefix, invalid_p == 0 */
+-  /* Skip verify of stap_register_indirection_suffix, invalid_p == 0 */
++  /* Skip verify of stap_integer_prefixes, invalid_p == 0 */
++  /* Skip verify of stap_integer_suffixes, invalid_p == 0 */
++  /* Skip verify of stap_register_prefixes, invalid_p == 0 */
++  /* Skip verify of stap_register_suffixes, invalid_p == 0 */
++  /* Skip verify of stap_register_indirection_prefixes, invalid_p == 0 */
++  /* Skip verify of stap_register_indirection_suffixes, invalid_p == 0 */
+   /* Skip verify of stap_gdb_register_prefix, invalid_p == 0 */
+   /* Skip verify of stap_gdb_register_suffix, invalid_p == 0 */
+   /* Skip verify of stap_is_single_operand, has predicate.  */
+@@ -1342,11 +1371,11 @@ gdbarch_dump (struct gdbarch *gdbarch, s
+                       "gdbarch_dump: stap_gdb_register_suffix = %s\n",
+                       pstring (gdbarch->stap_gdb_register_suffix));
+   fprintf_unfiltered (file,
+-                      "gdbarch_dump: stap_integer_prefix = %s\n",
+-                      pstring (gdbarch->stap_integer_prefix));
++                      "gdbarch_dump: stap_integer_prefixes = %s\n",
++                      pstring_list (gdbarch->stap_integer_prefixes));
+   fprintf_unfiltered (file,
+-                      "gdbarch_dump: stap_integer_suffix = %s\n",
+-                      pstring (gdbarch->stap_integer_suffix));
++                      "gdbarch_dump: stap_integer_suffixes = %s\n",
++                      pstring_list (gdbarch->stap_integer_suffixes));
+   fprintf_unfiltered (file,
+                       "gdbarch_dump: gdbarch_stap_is_single_operand_p() = %d\n",
+                       gdbarch_stap_is_single_operand_p (gdbarch));
+@@ -1360,17 +1389,17 @@ gdbarch_dump (struct gdbarch *gdbarch, s
+                       "gdbarch_dump: stap_parse_special_token = <%s>\n",
+                       host_address_to_string (gdbarch->stap_parse_special_token));
+   fprintf_unfiltered (file,
+-                      "gdbarch_dump: stap_register_indirection_prefix = %s\n",
+-                      pstring (gdbarch->stap_register_indirection_prefix));
++                      "gdbarch_dump: stap_register_indirection_prefixes = %s\n",
++                      pstring_list (gdbarch->stap_register_indirection_prefixes));
+   fprintf_unfiltered (file,
+-                      "gdbarch_dump: stap_register_indirection_suffix = %s\n",
+-                      pstring (gdbarch->stap_register_indirection_suffix));
++                      "gdbarch_dump: stap_register_indirection_suffixes = %s\n",
++                      pstring_list (gdbarch->stap_register_indirection_suffixes));
+   fprintf_unfiltered (file,
+-                      "gdbarch_dump: stap_register_prefix = %s\n",
+-                      pstring (gdbarch->stap_register_prefix));
++                      "gdbarch_dump: stap_register_prefixes = %s\n",
++                      pstring_list (gdbarch->stap_register_prefixes));
+   fprintf_unfiltered (file,
+-                      "gdbarch_dump: stap_register_suffix = %s\n",
+-                      pstring (gdbarch->stap_register_suffix));
++                      "gdbarch_dump: stap_register_suffixes = %s\n",
++                      pstring_list (gdbarch->stap_register_suffixes));
+   fprintf_unfiltered (file,
+                       "gdbarch_dump: gdbarch_static_transform_name_p() = %d\n",
+                       gdbarch_static_transform_name_p (gdbarch));
+@@ -3971,106 +4000,106 @@ set_gdbarch_get_syscall_number (struct g
+   gdbarch->get_syscall_number = get_syscall_number;
+ }
+ 
+-const char *
+-gdbarch_stap_integer_prefix (struct gdbarch *gdbarch)
++const char *const *
++gdbarch_stap_integer_prefixes (struct gdbarch *gdbarch)
+ {
+   gdb_assert (gdbarch != NULL);
+-  /* Skip verify of stap_integer_prefix, invalid_p == 0 */
++  /* Skip verify of stap_integer_prefixes, invalid_p == 0 */
+   if (gdbarch_debug >= 2)
+-    fprintf_unfiltered (gdb_stdlog, "gdbarch_stap_integer_prefix called\n");
+-  return gdbarch->stap_integer_prefix;
++    fprintf_unfiltered (gdb_stdlog, "gdbarch_stap_integer_prefixes called\n");
++  return gdbarch->stap_integer_prefixes;
+ }
+ 
+ void
+-set_gdbarch_stap_integer_prefix (struct gdbarch *gdbarch,
+-                                 const char * stap_integer_prefix)
++set_gdbarch_stap_integer_prefixes (struct gdbarch *gdbarch,
++                                   const char *const * stap_integer_prefixes)
+ {
+-  gdbarch->stap_integer_prefix = stap_integer_prefix;
++  gdbarch->stap_integer_prefixes = stap_integer_prefixes;
+ }
+ 
+-const char *
+-gdbarch_stap_integer_suffix (struct gdbarch *gdbarch)
++const char *const *
++gdbarch_stap_integer_suffixes (struct gdbarch *gdbarch)
+ {
+   gdb_assert (gdbarch != NULL);
+-  /* Skip verify of stap_integer_suffix, invalid_p == 0 */
++  /* Skip verify of stap_integer_suffixes, invalid_p == 0 */
+   if (gdbarch_debug >= 2)
+-    fprintf_unfiltered (gdb_stdlog, "gdbarch_stap_integer_suffix called\n");
+-  return gdbarch->stap_integer_suffix;
++    fprintf_unfiltered (gdb_stdlog, "gdbarch_stap_integer_suffixes called\n");
++  return gdbarch->stap_integer_suffixes;
+ }
+ 
+ void
+-set_gdbarch_stap_integer_suffix (struct gdbarch *gdbarch,
+-                                 const char * stap_integer_suffix)
++set_gdbarch_stap_integer_suffixes (struct gdbarch *gdbarch,
++                                   const char *const * stap_integer_suffixes)
+ {
+-  gdbarch->stap_integer_suffix = stap_integer_suffix;
++  gdbarch->stap_integer_suffixes = stap_integer_suffixes;
+ }
+ 
+-const char *
+-gdbarch_stap_register_prefix (struct gdbarch *gdbarch)
++const char *const *
++gdbarch_stap_register_prefixes (struct gdbarch *gdbarch)
+ {
+   gdb_assert (gdbarch != NULL);
+-  /* Skip verify of stap_register_prefix, invalid_p == 0 */
++  /* Skip verify of stap_register_prefixes, invalid_p == 0 */
+   if (gdbarch_debug >= 2)
+-    fprintf_unfiltered (gdb_stdlog, "gdbarch_stap_register_prefix called\n");
+-  return gdbarch->stap_register_prefix;
++    fprintf_unfiltered (gdb_stdlog, "gdbarch_stap_register_prefixes called\n");
++  return gdbarch->stap_register_prefixes;
+ }
+ 
+ void
+-set_gdbarch_stap_register_prefix (struct gdbarch *gdbarch,
+-                                  const char * stap_register_prefix)
++set_gdbarch_stap_register_prefixes (struct gdbarch *gdbarch,
++                                    const char *const * stap_register_prefixes)
+ {
+-  gdbarch->stap_register_prefix = stap_register_prefix;
++  gdbarch->stap_register_prefixes = stap_register_prefixes;
+ }
+ 
+-const char *
+-gdbarch_stap_register_suffix (struct gdbarch *gdbarch)
++const char *const *
++gdbarch_stap_register_suffixes (struct gdbarch *gdbarch)
+ {
+   gdb_assert (gdbarch != NULL);
+-  /* Skip verify of stap_register_suffix, invalid_p == 0 */
++  /* Skip verify of stap_register_suffixes, invalid_p == 0 */
+   if (gdbarch_debug >= 2)
+-    fprintf_unfiltered (gdb_stdlog, "gdbarch_stap_register_suffix called\n");
+-  return gdbarch->stap_register_suffix;
++    fprintf_unfiltered (gdb_stdlog, "gdbarch_stap_register_suffixes called\n");
++  return gdbarch->stap_register_suffixes;
+ }
+ 
+ void
+-set_gdbarch_stap_register_suffix (struct gdbarch *gdbarch,
+-                                  const char * stap_register_suffix)
++set_gdbarch_stap_register_suffixes (struct gdbarch *gdbarch,
++                                    const char *const * stap_register_suffixes)
+ {
+-  gdbarch->stap_register_suffix = stap_register_suffix;
++  gdbarch->stap_register_suffixes = stap_register_suffixes;
+ }
+ 
+-const char *
+-gdbarch_stap_register_indirection_prefix (struct gdbarch *gdbarch)
++const char *const *
++gdbarch_stap_register_indirection_prefixes (struct gdbarch *gdbarch)
+ {
+   gdb_assert (gdbarch != NULL);
+-  /* Skip verify of stap_register_indirection_prefix, invalid_p == 0 */
++  /* Skip verify of stap_register_indirection_prefixes, invalid_p == 0 */
+   if (gdbarch_debug >= 2)
+-    fprintf_unfiltered (gdb_stdlog, "gdbarch_stap_register_indirection_prefix called\n");
+-  return gdbarch->stap_register_indirection_prefix;
++    fprintf_unfiltered (gdb_stdlog, "gdbarch_stap_register_indirection_prefixes called\n");
++  return gdbarch->stap_register_indirection_prefixes;
+ }
+ 
+ void
+-set_gdbarch_stap_register_indirection_prefix (struct gdbarch *gdbarch,
+-                                              const char * stap_register_indirection_prefix)
++set_gdbarch_stap_register_indirection_prefixes (struct gdbarch *gdbarch,
++                                                const char *const * stap_register_indirection_prefixes)
+ {
+-  gdbarch->stap_register_indirection_prefix = stap_register_indirection_prefix;
++  gdbarch->stap_register_indirection_prefixes = stap_register_indirection_prefixes;
+ }
+ 
+-const char *
+-gdbarch_stap_register_indirection_suffix (struct gdbarch *gdbarch)
++const char *const *
++gdbarch_stap_register_indirection_suffixes (struct gdbarch *gdbarch)
+ {
+   gdb_assert (gdbarch != NULL);
+-  /* Skip verify of stap_register_indirection_suffix, invalid_p == 0 */
++  /* Skip verify of stap_register_indirection_suffixes, invalid_p == 0 */
+   if (gdbarch_debug >= 2)
+-    fprintf_unfiltered (gdb_stdlog, "gdbarch_stap_register_indirection_suffix called\n");
+-  return gdbarch->stap_register_indirection_suffix;
++    fprintf_unfiltered (gdb_stdlog, "gdbarch_stap_register_indirection_suffixes called\n");
++  return gdbarch->stap_register_indirection_suffixes;
+ }
+ 
+ void
+-set_gdbarch_stap_register_indirection_suffix (struct gdbarch *gdbarch,
+-                                              const char * stap_register_indirection_suffix)
++set_gdbarch_stap_register_indirection_suffixes (struct gdbarch *gdbarch,
++                                                const char *const * stap_register_indirection_suffixes)
+ {
+-  gdbarch->stap_register_indirection_suffix = stap_register_indirection_suffix;
++  gdbarch->stap_register_indirection_suffixes = stap_register_indirection_suffixes;
+ }
+ 
+ const char *
+Index: gdb-7.6.1/gdb/gdbarch.h
+===================================================================
+--- gdb-7.6.1.orig/gdb/gdbarch.h
++++ gdb-7.6.1/gdb/gdbarch.h
+@@ -1030,37 +1030,42 @@ extern LONGEST gdbarch_get_syscall_numbe
+ extern void set_gdbarch_get_syscall_number (struct gdbarch *gdbarch, gdbarch_get_syscall_number_ftype *get_syscall_number);
+ 
+ /* SystemTap related fields and functions.
+-   Prefix used to mark an integer constant on the architecture's assembly
++   A NULL-terminated array of prefixes used to mark an integer constant
++   on the architecture's assembly.
+    For example, on x86 integer constants are written as:
+   
+     $10 ;; integer constant 10
+   
+    in this case, this prefix would be the character `$'. */
+ 
+-extern const char * gdbarch_stap_integer_prefix (struct gdbarch *gdbarch);
+-extern void set_gdbarch_stap_integer_prefix (struct gdbarch *gdbarch, const char * stap_integer_prefix);
++extern const char *const * gdbarch_stap_integer_prefixes (struct gdbarch *gdbarch);
++extern void set_gdbarch_stap_integer_prefixes (struct gdbarch *gdbarch, const char *const * stap_integer_prefixes);
+ 
+-/* Suffix used to mark an integer constant on the architecture's assembly. */
++/* A NULL-terminated array of suffixes used to mark an integer constant
++   on the architecture's assembly. */
+ 
+-extern const char * gdbarch_stap_integer_suffix (struct gdbarch *gdbarch);
+-extern void set_gdbarch_stap_integer_suffix (struct gdbarch *gdbarch, const char * stap_integer_suffix);
++extern const char *const * gdbarch_stap_integer_suffixes (struct gdbarch *gdbarch);
++extern void set_gdbarch_stap_integer_suffixes (struct gdbarch *gdbarch, const char *const * stap_integer_suffixes);
+ 
+-/* Prefix used to mark a register name on the architecture's assembly.
++/* A NULL-terminated array of prefixes used to mark a register name on
++   the architecture's assembly.
+    For example, on x86 the register name is written as:
+   
+     %eax ;; register eax
+   
+    in this case, this prefix would be the character `%'. */
+ 
+-extern const char * gdbarch_stap_register_prefix (struct gdbarch *gdbarch);
+-extern void set_gdbarch_stap_register_prefix (struct gdbarch *gdbarch, const char * stap_register_prefix);
++extern const char *const * gdbarch_stap_register_prefixes (struct gdbarch *gdbarch);
++extern void set_gdbarch_stap_register_prefixes (struct gdbarch *gdbarch, const char *const * stap_register_prefixes);
+ 
+-/* Suffix used to mark a register name on the architecture's assembly */
++/* A NULL-terminated array of suffixes used to mark a register name on
++   the architecture's assembly. */
+ 
+-extern const char * gdbarch_stap_register_suffix (struct gdbarch *gdbarch);
+-extern void set_gdbarch_stap_register_suffix (struct gdbarch *gdbarch, const char * stap_register_suffix);
++extern const char *const * gdbarch_stap_register_suffixes (struct gdbarch *gdbarch);
++extern void set_gdbarch_stap_register_suffixes (struct gdbarch *gdbarch, const char *const * stap_register_suffixes);
+ 
+-/* Prefix used to mark a register indirection on the architecture's assembly.
++/* A NULL-terminated array of prefixes used to mark a register
++   indirection on the architecture's assembly.
+    For example, on x86 the register indirection is written as:
+   
+     (%eax) ;; indirecting eax
+@@ -1070,10 +1075,11 @@ extern void set_gdbarch_stap_register_su
+    Please note that we use the indirection prefix also for register
+    displacement, e.g., `4(%eax)' on x86. */
+ 
+-extern const char * gdbarch_stap_register_indirection_prefix (struct gdbarch *gdbarch);
+-extern void set_gdbarch_stap_register_indirection_prefix (struct gdbarch *gdbarch, const char * stap_register_indirection_prefix);
++extern const char *const * gdbarch_stap_register_indirection_prefixes (struct gdbarch *gdbarch);
++extern void set_gdbarch_stap_register_indirection_prefixes (struct gdbarch *gdbarch, const char *const * stap_register_indirection_prefixes);
+ 
+-/* Suffix used to mark a register indirection on the architecture's assembly.
++/* A NULL-terminated array of suffixes used to mark a register
++   indirection on the architecture's assembly.
+    For example, on x86 the register indirection is written as:
+   
+     (%eax) ;; indirecting eax
+@@ -1083,10 +1089,10 @@ extern void set_gdbarch_stap_register_in
+    Please note that we use the indirection suffix also for register
+    displacement, e.g., `4(%eax)' on x86. */
+ 
+-extern const char * gdbarch_stap_register_indirection_suffix (struct gdbarch *gdbarch);
+-extern void set_gdbarch_stap_register_indirection_suffix (struct gdbarch *gdbarch, const char * stap_register_indirection_suffix);
++extern const char *const * gdbarch_stap_register_indirection_suffixes (struct gdbarch *gdbarch);
++extern void set_gdbarch_stap_register_indirection_suffixes (struct gdbarch *gdbarch, const char *const * stap_register_indirection_suffixes);
+ 
+-/* Prefix used to name a register using GDB's nomenclature.
++/* Prefix(es) used to name a register using GDB's nomenclature.
+   
+    For example, on PPC a register is represented by a number in the assembly
+    language (e.g., `10' is the 10th general-purpose register).  However,
+Index: gdb-7.6.1/gdb/gdbarch.sh
+===================================================================
+--- gdb-7.6.1.orig/gdb/gdbarch.sh
++++ gdb-7.6.1/gdb/gdbarch.sh
+@@ -823,29 +823,34 @@ M:LONGEST:get_syscall_number:ptid_t ptid
+ 
+ # SystemTap related fields and functions.
+ 
+-# Prefix used to mark an integer constant on the architecture's assembly
++# A NULL-terminated array of prefixes used to mark an integer constant
++# on the architecture's assembly.
+ # For example, on x86 integer constants are written as:
+ #
+ #  \$10 ;; integer constant 10
+ #
+ # in this case, this prefix would be the character \`\$\'.
+-v:const char *:stap_integer_prefix:::0:0::0:pstring (gdbarch->stap_integer_prefix)
++v:const char *const *:stap_integer_prefixes:::0:0::0:pstring_list (gdbarch->stap_integer_prefixes)
+ 
+-# Suffix used to mark an integer constant on the architecture's assembly.
+-v:const char *:stap_integer_suffix:::0:0::0:pstring (gdbarch->stap_integer_suffix)
++# A NULL-terminated array of suffixes used to mark an integer constant
++# on the architecture's assembly.
++v:const char *const *:stap_integer_suffixes:::0:0::0:pstring_list (gdbarch->stap_integer_suffixes)
+ 
+-# Prefix used to mark a register name on the architecture's assembly.
++# A NULL-terminated array of prefixes used to mark a register name on
++# the architecture's assembly.
+ # For example, on x86 the register name is written as:
+ #
+ #  \%eax ;; register eax
+ #
+ # in this case, this prefix would be the character \`\%\'.
+-v:const char *:stap_register_prefix:::0:0::0:pstring (gdbarch->stap_register_prefix)
++v:const char *const *:stap_register_prefixes:::0:0::0:pstring_list (gdbarch->stap_register_prefixes)
+ 
+-# Suffix used to mark a register name on the architecture's assembly
+-v:const char *:stap_register_suffix:::0:0::0:pstring (gdbarch->stap_register_suffix)
++# A NULL-terminated array of suffixes used to mark a register name on
++# the architecture's assembly.
++v:const char *const *:stap_register_suffixes:::0:0::0:pstring_list (gdbarch->stap_register_suffixes)
+ 
+-# Prefix used to mark a register indirection on the architecture's assembly.
++# A NULL-terminated array of prefixes used to mark a register
++# indirection on the architecture's assembly.
+ # For example, on x86 the register indirection is written as:
+ #
+ #  \(\%eax\) ;; indirecting eax
+@@ -854,9 +859,10 @@ v:const char *:stap_register_suffix:::0:
+ #
+ # Please note that we use the indirection prefix also for register
+ # displacement, e.g., \`4\(\%eax\)\' on x86.
+-v:const char *:stap_register_indirection_prefix:::0:0::0:pstring (gdbarch->stap_register_indirection_prefix)
++v:const char *const *:stap_register_indirection_prefixes:::0:0::0:pstring_list (gdbarch->stap_register_indirection_prefixes)
+ 
+-# Suffix used to mark a register indirection on the architecture's assembly.
++# A NULL-terminated array of suffixes used to mark a register
++# indirection on the architecture's assembly.
+ # For example, on x86 the register indirection is written as:
+ #
+ #  \(\%eax\) ;; indirecting eax
+@@ -865,9 +871,9 @@ v:const char *:stap_register_indirection
+ #
+ # Please note that we use the indirection suffix also for register
+ # displacement, e.g., \`4\(\%eax\)\' on x86.
+-v:const char *:stap_register_indirection_suffix:::0:0::0:pstring (gdbarch->stap_register_indirection_suffix)
++v:const char *const *:stap_register_indirection_suffixes:::0:0::0:pstring_list (gdbarch->stap_register_indirection_suffixes)
+ 
+-# Prefix used to name a register using GDB's nomenclature.
++# Prefix(es) used to name a register using GDB's nomenclature.
+ #
+ # For example, on PPC a register is represented by a number in the assembly
+ # language (e.g., \`10\' is the 10th general-purpose register).  However,
+@@ -1478,6 +1484,35 @@ pstring (const char *string)
+   return string;
+ }
+ 
++/* Helper function to print a list of strings, represented as "const
++   char *const *".  The list is printed comma-separated.  */
++
++static char *
++pstring_list (const char *const *list)
++{
++  static char ret[100];
++  const char *const *p;
++  size_t offset = 0;
++
++  if (list == NULL)
++    return "(null)";
++
++  ret[0] = '\0';
++  for (p = list; *p != NULL && offset < sizeof (ret); ++p)
++    {
++      size_t s = xsnprintf (ret + offset, sizeof (ret) - offset, "%s, ", *p);
++      offset += 2 + s;
++    }
++
++  if (offset > 0)
++    {
++      gdb_assert (offset - 2 < sizeof (ret));
++      ret[offset - 2] = '\0';
++    }
++
++  return ret;
++}
++
+ EOF
+ 
+ # gdbarch open the gdbarch object
+Index: gdb-7.6.1/gdb/i386-tdep.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/i386-tdep.c
++++ gdb-7.6.1/gdb/i386-tdep.c
+@@ -3767,14 +3767,23 @@ i386_stap_parse_special_token (struct gd
+ void
+ i386_elf_init_abi (struct gdbarch_info info, struct gdbarch *gdbarch)
+ {
++  static const char *const stap_integer_prefixes[] = { "$", NULL };
++  static const char *const stap_register_prefixes[] = { "%", NULL };
++  static const char *const stap_register_indirection_prefixes[] = { "(",
++								    NULL };
++  static const char *const stap_register_indirection_suffixes[] = { ")",
++								    NULL };
++
+   /* We typically use stabs-in-ELF with the SVR4 register numbering.  */
+   set_gdbarch_stab_reg_to_regnum (gdbarch, i386_svr4_reg_to_regnum);
+ 
+   /* Registering SystemTap handlers.  */
+-  set_gdbarch_stap_integer_prefix (gdbarch, "$");
+-  set_gdbarch_stap_register_prefix (gdbarch, "%");
+-  set_gdbarch_stap_register_indirection_prefix (gdbarch, "(");
+-  set_gdbarch_stap_register_indirection_suffix (gdbarch, ")");
++  set_gdbarch_stap_integer_prefixes (gdbarch, stap_integer_prefixes);
++  set_gdbarch_stap_register_prefixes (gdbarch, stap_register_prefixes);
++  set_gdbarch_stap_register_indirection_prefixes (gdbarch,
++					  stap_register_indirection_prefixes);
++  set_gdbarch_stap_register_indirection_suffixes (gdbarch,
++					  stap_register_indirection_suffixes);
+   set_gdbarch_stap_is_single_operand (gdbarch,
+ 				      i386_stap_is_single_operand);
+   set_gdbarch_stap_parse_special_token (gdbarch,
+Index: gdb-7.6.1/gdb/ppc-linux-tdep.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/ppc-linux-tdep.c
++++ gdb-7.6.1/gdb/ppc-linux-tdep.c
+@@ -1723,6 +1723,11 @@ ppc_linux_init_abi (struct gdbarch_info
+ {
+   struct gdbarch_tdep *tdep = gdbarch_tdep (gdbarch);
+   struct tdesc_arch_data *tdesc_data = (void *) info.tdep_info;
++  static const char *const stap_integer_prefixes[] = { "i", NULL };
++  static const char *const stap_register_indirection_prefixes[] = { "(",
++								    NULL };
++  static const char *const stap_register_indirection_suffixes[] = { ")",
++								    NULL };
+ 
+   linux_init_abi (info, gdbarch);
+ 
+@@ -1741,9 +1746,11 @@ ppc_linux_init_abi (struct gdbarch_info
+   set_gdbarch_get_syscall_number (gdbarch, ppc_linux_get_syscall_number);
+ 
+   /* SystemTap functions.  */
+-  set_gdbarch_stap_integer_prefix (gdbarch, "i");
+-  set_gdbarch_stap_register_indirection_prefix (gdbarch, "(");
+-  set_gdbarch_stap_register_indirection_suffix (gdbarch, ")");
++  set_gdbarch_stap_integer_prefixes (gdbarch, stap_integer_prefixes);
++  set_gdbarch_stap_register_indirection_prefixes (gdbarch,
++					  stap_register_indirection_prefixes);
++  set_gdbarch_stap_register_indirection_suffixes (gdbarch,
++					  stap_register_indirection_suffixes);
+   set_gdbarch_stap_gdb_register_prefix (gdbarch, "r");
+   set_gdbarch_stap_is_single_operand (gdbarch, ppc_stap_is_single_operand);
+   set_gdbarch_stap_parse_special_token (gdbarch,
+Index: gdb-7.6.1/gdb/s390-tdep.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/s390-tdep.c
++++ gdb-7.6.1/gdb/s390-tdep.c
+@@ -3032,6 +3032,11 @@ s390_gdbarch_init (struct gdbarch_info i
+   int have_linux_v1 = 0;
+   int have_linux_v2 = 0;
+   int first_pseudo_reg, last_pseudo_reg;
++  static const char *const stap_register_prefixes[] = { "%", NULL };
++  static const char *const stap_register_indirection_prefixes[] = { "(",
++								    NULL };
++  static const char *const stap_register_indirection_suffixes[] = { ")",
++								    NULL };
+ 
+   /* Default ABI and register size.  */
+   switch (info.bfd_arch_info->mach)
+@@ -3364,9 +3369,11 @@ s390_gdbarch_init (struct gdbarch_info i
+   set_gdbarch_get_siginfo_type (gdbarch, linux_get_siginfo_type);
+ 
+   /* SystemTap functions.  */
+-  set_gdbarch_stap_register_prefix (gdbarch, "%");
+-  set_gdbarch_stap_register_indirection_prefix (gdbarch, "(");
+-  set_gdbarch_stap_register_indirection_suffix (gdbarch, ")");
++  set_gdbarch_stap_register_prefixes (gdbarch, stap_register_prefixes);
++  set_gdbarch_stap_register_indirection_prefixes (gdbarch,
++					  stap_register_indirection_prefixes);
++  set_gdbarch_stap_register_indirection_suffixes (gdbarch,
++					  stap_register_indirection_suffixes);
+   set_gdbarch_stap_is_single_operand (gdbarch, s390_stap_is_single_operand);
+ 
+   return gdbarch;
+Index: gdb-7.6.1/gdb/stap-probe.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/stap-probe.c
++++ gdb-7.6.1/gdb/stap-probe.c
+@@ -346,6 +346,191 @@ stap_get_expected_argument_type (struct
+     }
+ }
+ 
++/* Helper function to check for a generic list of prefixes.  GDBARCH
++   is the current gdbarch being used.  S is the expression being
++   analyzed.  If R is not NULL, it will be used to return the found
++   prefix.  PREFIXES is the list of expected prefixes.
++
++   This function does a case-insensitive match.
++
++   Return 1 if any prefix has been found, zero otherwise.  */
++
++static int
++stap_is_generic_prefix (struct gdbarch *gdbarch, const char *s,
++			const char **r, const char *const *prefixes)
++{
++  const char *const *p;
++
++  if (prefixes == NULL)
++    {
++      if (r != NULL)
++	*r = "";
++
++      return 1;
++    }
++
++  for (p = prefixes; *p != NULL; ++p)
++    {
++      if (strncasecmp (s, *p, strlen (*p)) == 0)
++	{
++	  if (r != NULL)
++	    *r = *p;
++
++	  return 1;
++	}
++    }
++
++  return 0;
++}
++
++/* Return 1 if S points to a register prefix, zero otherwise.  For a
++   description of the arguments, look at stap_is_generic_prefix.  */
++
++static int
++stap_is_register_prefix (struct gdbarch *gdbarch, const char *s,
++			 const char **r)
++{
++  const char *const *t = gdbarch_stap_register_prefixes (gdbarch);
++
++  return stap_is_generic_prefix (gdbarch, s, r, t);
++}
++
++/* Return 1 if S points to a register indirection prefix, zero
++   otherwise.  For a description of the arguments, look at
++   stap_is_generic_prefix.  */
++
++static int
++stap_is_register_indirection_prefix (struct gdbarch *gdbarch, const char *s,
++				     const char **r)
++{
++  const char *const *t = gdbarch_stap_register_indirection_prefixes (gdbarch);
++
++  return stap_is_generic_prefix (gdbarch, s, r, t);
++}
++
++/* Return 1 if S points to an integer prefix, zero otherwise.  For a
++   description of the arguments, look at stap_is_generic_prefix.
++
++   This function takes care of analyzing whether we are dealing with
++   an expected integer prefix, or, if there is no integer prefix to be
++   expected, whether we are dealing with a digit.  It does a
++   case-insensitive match.  */
++
++static int
++stap_is_integer_prefix (struct gdbarch *gdbarch, const char *s,
++			const char **r)
++{
++  const char *const *t = gdbarch_stap_integer_prefixes (gdbarch);
++  const char *const *p;
++
++  if (t == NULL)
++    {
++      /* A NULL value here means that integers do not have a prefix.
++	 We just check for a digit then.  */
++      if (r != NULL)
++	*r = "";
++
++      return isdigit (*s);
++    }
++
++  for (p = t; *p != NULL; ++p)
++    {
++      size_t len = strlen (*p);
++
++      if ((len == 0 && isdigit (*s))
++	  || (len > 0 && strncasecmp (s, *p, len) == 0))
++	{
++	  /* Integers may or may not have a prefix.  The "len == 0"
++	     check covers the case when integers do not have a prefix
++	     (therefore, we just check if we have a digit).  The call
++	     to "strncasecmp" covers the case when they have a
++	     prefix.  */
++	  if (r != NULL)
++	    *r = *p;
++
++	  return 1;
++	}
++    }
++
++  return 0;
++}
++
++/* Helper function to check for a generic list of suffixes.  If we are
++   not expecting any suffixes, then it just returns 1.  If we are
++   expecting at least one suffix, then it returns 1 if a suffix has
++   been found, zero otherwise.  GDBARCH is the current gdbarch being
++   used.  S is the expression being analyzed.  If R is not NULL, it
++   will be used to return the found suffix.  SUFFIXES is the list of
++   expected suffixes.  This function does a case-insensitive
++   match.  */
++
++static int
++stap_generic_check_suffix (struct gdbarch *gdbarch, const char *s,
++			   const char **r, const char *const *suffixes)
++{
++  const char *const *p;
++  int found = 0;
++
++  if (suffixes == NULL)
++    {
++      if (r != NULL)
++	*r = "";
++
++      return 1;
++    }
++
++  for (p = suffixes; *p != NULL; ++p)
++    if (strncasecmp (s, *p, strlen (*p)) == 0)
++      {
++	if (r != NULL)
++	  *r = *p;
++
++	found = 1;
++	break;
++      }
++
++  return found;
++}
++
++/* Return 1 if S points to an integer suffix, zero otherwise.  For a
++   description of the arguments, look at
++   stap_generic_check_suffix.  */
++
++static int
++stap_check_integer_suffix (struct gdbarch *gdbarch, const char *s,
++			   const char **r)
++{
++  const char *const *p = gdbarch_stap_integer_suffixes (gdbarch);
++
++  return stap_generic_check_suffix (gdbarch, s, r, p);
++}
++
++/* Return 1 if S points to a register suffix, zero otherwise.  For a
++   description of the arguments, look at
++   stap_generic_check_suffix.  */
++
++static int
++stap_check_register_suffix (struct gdbarch *gdbarch, const char *s,
++			    const char **r)
++{
++  const char *const *p = gdbarch_stap_register_suffixes (gdbarch);
++
++  return stap_generic_check_suffix (gdbarch, s, r, p);
++}
++
++/* Return 1 if S points to a register indirection suffix, zero
++   otherwise.  For a description of the arguments, look at
++   stap_generic_check_suffix.  */
++
++static int
++stap_check_register_indirection_suffix (struct gdbarch *gdbarch, const char *s,
++					const char **r)
++{
++  const char *const *p = gdbarch_stap_register_indirection_suffixes (gdbarch);
++
++  return stap_generic_check_suffix (gdbarch, s, r, p);
++}
++
+ /* Function responsible for parsing a register operand according to
+    SystemTap parlance.  Assuming:
+ 
+@@ -385,24 +570,14 @@ stap_parse_register_operand (struct stap
+   const char *start;
+   char *regname;
+   int len;
+-
+-  /* Prefixes for the parser.  */
+-  const char *reg_prefix = gdbarch_stap_register_prefix (gdbarch);
+-  const char *reg_ind_prefix
+-    = gdbarch_stap_register_indirection_prefix (gdbarch);
+   const char *gdb_reg_prefix = gdbarch_stap_gdb_register_prefix (gdbarch);
+-  int reg_prefix_len = reg_prefix ? strlen (reg_prefix) : 0;
+-  int reg_ind_prefix_len = reg_ind_prefix ? strlen (reg_ind_prefix) : 0;
+   int gdb_reg_prefix_len = gdb_reg_prefix ? strlen (gdb_reg_prefix) : 0;
+-
+-  /* Suffixes for the parser.  */
+-  const char *reg_suffix = gdbarch_stap_register_suffix (gdbarch);
+-  const char *reg_ind_suffix
+-    = gdbarch_stap_register_indirection_suffix (gdbarch);
+   const char *gdb_reg_suffix = gdbarch_stap_gdb_register_suffix (gdbarch);
+-  int reg_suffix_len = reg_suffix ? strlen (reg_suffix) : 0;
+-  int reg_ind_suffix_len = reg_ind_suffix ? strlen (reg_ind_suffix) : 0;
+   int gdb_reg_suffix_len = gdb_reg_suffix ? strlen (gdb_reg_suffix) : 0;
++  const char *reg_prefix;
++  const char *reg_ind_prefix;
++  const char *reg_suffix;
++  const char *reg_ind_suffix;
+ 
+   /* Checking for a displacement argument.  */
+   if (*p->arg == '+')
+@@ -436,11 +611,10 @@ stap_parse_register_operand (struct stap
+     }
+ 
+   /* Getting rid of register indirection prefix.  */
+-  if (reg_ind_prefix
+-      && strncmp (p->arg, reg_ind_prefix, reg_ind_prefix_len) == 0)
++  if (stap_is_register_indirection_prefix (gdbarch, p->arg, &reg_ind_prefix))
+     {
+       indirect_p = 1;
+-      p->arg += reg_ind_prefix_len;
++      p->arg += strlen (reg_ind_prefix);
+     }
+ 
+   if (disp_p && !indirect_p)
+@@ -448,8 +622,8 @@ stap_parse_register_operand (struct stap
+ 	   p->saved_arg);
+ 
+   /* Getting rid of register prefix.  */
+-  if (reg_prefix && strncmp (p->arg, reg_prefix, reg_prefix_len) == 0)
+-    p->arg += reg_prefix_len;
++  if (stap_is_register_prefix (gdbarch, p->arg, &reg_prefix))
++    p->arg += strlen (reg_prefix);
+ 
+   /* Now we should have only the register name.  Let's extract it and get
+      the associated number.  */
+@@ -507,23 +681,21 @@ stap_parse_register_operand (struct stap
+     }
+ 
+   /* Getting rid of the register name suffix.  */
+-  if (reg_suffix)
+-    {
+-      if (strncmp (p->arg, reg_suffix, reg_suffix_len) != 0)
+-	error (_("Missing register name suffix `%s' on expression `%s'."),
+-	       reg_suffix, p->saved_arg);
+-
+-      p->arg += reg_suffix_len;
+-    }
++  if (stap_check_register_suffix (gdbarch, p->arg, &reg_suffix))
++    p->arg += strlen (reg_suffix);
++  else
++    error (_("Missing register name suffix on expression `%s'."),
++	   p->saved_arg);
+ 
+   /* Getting rid of the register indirection suffix.  */
+-  if (indirect_p && reg_ind_suffix)
++  if (indirect_p)
+     {
+-      if (strncmp (p->arg, reg_ind_suffix, reg_ind_suffix_len) != 0)
+-	error (_("Missing indirection suffix `%s' on expression `%s'."),
+-	       reg_ind_suffix, p->saved_arg);
+-
+-      p->arg += reg_ind_suffix_len;
++      if (stap_check_register_indirection_suffix (gdbarch, p->arg,
++						  &reg_ind_suffix))
++	p->arg += strlen (reg_ind_suffix);
++      else
++	error (_("Missing indirection suffix on expression `%s'."),
++	       p->saved_arg);
+     }
+ }
+ 
+@@ -546,19 +718,7 @@ static void
+ stap_parse_single_operand (struct stap_parse_info *p)
+ {
+   struct gdbarch *gdbarch = p->gdbarch;
+-
+-  /* Prefixes for the parser.  */
+-  const char *const_prefix = gdbarch_stap_integer_prefix (gdbarch);
+-  const char *reg_prefix = gdbarch_stap_register_prefix (gdbarch);
+-  const char *reg_ind_prefix
+-    = gdbarch_stap_register_indirection_prefix (gdbarch);
+-  int const_prefix_len = const_prefix ? strlen (const_prefix) : 0;
+-  int reg_prefix_len = reg_prefix ? strlen (reg_prefix) : 0;
+-  int reg_ind_prefix_len = reg_ind_prefix ? strlen (reg_ind_prefix) : 0;
+-
+-  /* Suffixes for the parser.  */
+-  const char *const_suffix = gdbarch_stap_integer_suffix (gdbarch);
+-  int const_suffix_len = const_suffix ? strlen (const_suffix) : 0;
++  const char *int_prefix = NULL;
+ 
+   /* We first try to parse this token as a "special token".  */
+   if (gdbarch_stap_parse_special_token_p (gdbarch))
+@@ -600,8 +760,7 @@ stap_parse_single_operand (struct stap_p
+       if (isdigit (*tmp))
+ 	number = strtol (tmp, (char **) &tmp, 10);
+ 
+-      if (!reg_ind_prefix
+-	  || strncmp (tmp, reg_ind_prefix, reg_ind_prefix_len) != 0)
++      if (!stap_is_register_indirection_prefix (gdbarch, tmp, NULL))
+ 	{
+ 	  /* This is not a displacement.  We skip the operator, and deal
+ 	     with it later.  */
+@@ -629,15 +788,22 @@ stap_parse_single_operand (struct stap_p
+       const char *tmp = p->arg;
+       long number;
+ 
+-      /* We can be dealing with a numeric constant (if `const_prefix' is
+-	 NULL), or with a register displacement.  */
++      /* We can be dealing with a numeric constant, or with a register
++	 displacement.  */
+       number = strtol (tmp, (char **) &tmp, 10);
+ 
+       if (p->inside_paren_p)
+ 	tmp = skip_spaces_const (tmp);
+-      if (!const_prefix && reg_ind_prefix
+-	  && strncmp (tmp, reg_ind_prefix, reg_ind_prefix_len) != 0)
++
++      /* If "stap_is_integer_prefix" returns true, it means we can
++	 accept integers without a prefix here.  But we also need to
++	 check whether the next token (i.e., "tmp") is not a register
++	 indirection prefix.  */
++      if (stap_is_integer_prefix (gdbarch, p->arg, NULL)
++	  && !stap_is_register_indirection_prefix (gdbarch, tmp, NULL))
+ 	{
++	  const char *int_suffix;
++
+ 	  /* We are dealing with a numeric constant.  */
+ 	  write_exp_elt_opcode (OP_LONG);
+ 	  write_exp_elt_type (builtin_type (gdbarch)->builtin_long);
+@@ -646,29 +812,25 @@ stap_parse_single_operand (struct stap_p
+ 
+ 	  p->arg = tmp;
+ 
+-	  if (const_suffix)
+-	    {
+-	      if (strncmp (p->arg, const_suffix, const_suffix_len) == 0)
+-		p->arg += const_suffix_len;
+-	      else
+-		error (_("Invalid constant suffix on expression `%s'."),
+-		       p->saved_arg);
+-	    }
++	  if (stap_check_integer_suffix (gdbarch, p->arg, &int_suffix))
++	    p->arg += strlen (int_suffix);
++	  else
++	    error (_("Invalid constant suffix on expression `%s'."),
++		   p->saved_arg);
+ 	}
+-      else if (reg_ind_prefix
+-	       && strncmp (tmp, reg_ind_prefix, reg_ind_prefix_len) == 0)
++      else if (stap_is_register_indirection_prefix (gdbarch, tmp, NULL))
+ 	stap_parse_register_operand (p);
+       else
+ 	error (_("Unknown numeric token on expression `%s'."),
+ 	       p->saved_arg);
+     }
+-  else if (const_prefix
+-	   && strncmp (p->arg, const_prefix, const_prefix_len) == 0)
++  else if (stap_is_integer_prefix (gdbarch, p->arg, &int_prefix))
+     {
+       /* We are dealing with a numeric constant.  */
+       long number;
++      const char *int_suffix;
+ 
+-      p->arg += const_prefix_len;
++      p->arg += strlen (int_prefix);
+       number = strtol (p->arg, (char **) &p->arg, 10);
+ 
+       write_exp_elt_opcode (OP_LONG);
+@@ -676,19 +838,14 @@ stap_parse_single_operand (struct stap_p
+       write_exp_elt_longcst (number);
+       write_exp_elt_opcode (OP_LONG);
+ 
+-      if (const_suffix)
+-	{
+-	  if (strncmp (p->arg, const_suffix, const_suffix_len) == 0)
+-	    p->arg += const_suffix_len;
+-	  else
+-	    error (_("Invalid constant suffix on expression `%s'."),
+-		   p->saved_arg);
+-	}
++      if (stap_check_integer_suffix (gdbarch, p->arg, &int_suffix))
++	p->arg += strlen (int_suffix);
++      else
++	error (_("Invalid constant suffix on expression `%s'."),
++	       p->saved_arg);
+     }
+-  else if ((reg_prefix
+-	    && strncmp (p->arg, reg_prefix, reg_prefix_len) == 0)
+-	   || (reg_ind_prefix
+-	       && strncmp (p->arg, reg_ind_prefix, reg_ind_prefix_len) == 0))
++  else if (stap_is_register_prefix (gdbarch, p->arg, NULL)
++	   || stap_is_register_indirection_prefix (gdbarch, p->arg, NULL))
+     stap_parse_register_operand (p);
+   else
+     error (_("Operator `%c' not recognized on expression `%s'."),

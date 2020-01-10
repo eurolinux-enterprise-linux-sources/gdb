@@ -1,0 +1,261 @@
+commit e6c693af14c0488998a784d560b8cfbcf15db99a
+Author: Andreas Arnez <arnez@linux.vnet.ibm.com>
+Date:   Wed Jun 17 11:17:07 2015 +0200
+
+    Add vector ABI tests to gnu_vector.exp
+    
+    So far the gnu_vector test was limited to "static" aspects of GDB's
+    vector support, like evaluating vector-valued expressions.  This patch
+    enriches the test and adds checks for GDB's vector ABI support as well.
+    The new checks particularly verify inferior function calls with vector
+    arguments and GDB's handling of vector return values.
+    
+    The test now attempts to compile for the target's "native" architecture,
+    such that a hardware vector ABI is used if available.
+    
+    Since GDB has no vector ABI support for x86 and x86_64 targets, most of
+    the new checks are KFAILed there.
+    
+    gdb/testsuite/ChangeLog:
+    
+    	* gdb.base/gnu_vector.c: Include stdarg.h and stdio.h.
+    	(VECTOR): New macro.  Use it...
+    	(int4, uint4, char4, float4, int2, longlong2, float2, double2):
+    	...for these typedefs.
+    	(int8, char1, int1, double1): New typedefs.
+    	(struct just_int2, struct two_int2): New structures.
+    	(add_some_intvecs, add_many_charvecs, add_various_floatvecs)
+    	(add_structvecs, add_singlevecs): New functions.
+    	(main): Call add_some_intvecs twice.
+    	* gdb.base/gnu_vector.exp: Drop GCC version check; just attempt
+    	the compile and exit upon failure.  Try compiling for the "native"
+    	architecture.  Test inferior function calls with vector arguments
+    	and vector return value handling with "finish" and "return".
+
+### a/gdb/testsuite/ChangeLog
+### b/gdb/testsuite/ChangeLog
+## -1,3 +1,19 @@
++2015-06-17  Andreas Arnez  <arnez@linux.vnet.ibm.com>
++
++	* gdb.base/gnu_vector.c: Include stdarg.h and stdio.h.
++	(VECTOR): New macro.  Use it...
++	(int4, uint4, char4, float4, int2, longlong2, float2, double2):
++	...for these typedefs.
++	(int8, char1, int1, double1): New typedefs.
++	(struct just_int2, struct two_int2): New structures.
++	(add_some_intvecs, add_many_charvecs, add_various_floatvecs)
++	(add_structvecs, add_singlevecs): New functions.
++	(main): Call add_some_intvecs twice.
++	* gdb.base/gnu_vector.exp: Drop GCC version check; just attempt
++	the compile and exit upon failure.  Try compiling for the "native"
++	architecture.  Test inferior function calls with vector arguments
++	and vector return value handling with "finish" and "return".
++
+ 2015-06-10  Jon Turney  <jon.turney@dronecode.org.uk>
+ 
+ 	* gdb.base/sepdebug.exp: Add EXEEXT where needed.
+Index: gdb-7.6.1/gdb/testsuite/gdb.base/gnu_vector.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/testsuite/gdb.base/gnu_vector.c	2016-02-24 17:31:37.147569951 +0100
++++ gdb-7.6.1/gdb/testsuite/gdb.base/gnu_vector.c	2016-02-24 17:31:46.248638945 +0100
+@@ -17,15 +17,27 @@
+ 
+    Contributed by Ken Werner <ken.werner@de.ibm.com>  */
+ 
+-typedef int __attribute__ ((vector_size (4 * sizeof(int)))) int4;
+-typedef unsigned int __attribute__ ((vector_size (4 * sizeof(unsigned int)))) uint4;
+-typedef char __attribute__ ((vector_size (4 * sizeof(char)))) char4;
+-typedef float __attribute__ ((vector_size (4 * sizeof(float)))) float4;
+-
+-typedef int __attribute__ ((vector_size (2 * sizeof(int)))) int2;
+-typedef long long __attribute__ ((vector_size (2 * sizeof(long long)))) longlong2;
+-typedef float __attribute__ ((vector_size (2 * sizeof(float)))) float2;
+-typedef double __attribute__ ((vector_size (2 * sizeof(double)))) double2;
++#include <stdarg.h>
++#include <stdio.h>
++
++#define VECTOR(n, type)					\
++  type __attribute__ ((vector_size (n * sizeof(type))))
++
++typedef VECTOR (8, int) int8;
++
++typedef VECTOR (4, int) int4;
++typedef VECTOR (4, unsigned int) uint4;
++typedef VECTOR (4, char) char4;
++typedef VECTOR (4, float) float4;
++
++typedef VECTOR (2, int) int2;
++typedef VECTOR (2, long long) longlong2;
++typedef VECTOR (2, float) float2;
++typedef VECTOR (2, double) double2;
++
++typedef VECTOR (1, char) char1;
++typedef VECTOR (1, int) int1;
++typedef VECTOR (1, double) double1;
+ 
+ int ia = 2;
+ int ib = 1;
+@@ -46,18 +58,91 @@
+ union
+ {
+   int i;
+-  char cv __attribute__ ((vector_size (sizeof (int))));
++  VECTOR (sizeof(int), char) cv;
+ } union_with_vector_1;
+ 
+ struct
+ {
+   int i;
+-  char cv __attribute__ ((vector_size (sizeof (int))));
++  VECTOR (sizeof(int), char) cv;
+   float4 f4;
+ } struct_with_vector_1;
+ 
++struct just_int2
++{
++  int2 i;
++};
++
++struct two_int2
++{
++  int2 i, j;
++};
++
++
++/* Simple vector-valued function with a few 16-byte vector
++   arguments.  */
++
++int4
++add_some_intvecs (int4 a, int4 b, int4 c)
++{
++  return a + b + c;
++}
++
++/* Many small vector arguments, 4 bytes each.  */
++
++char4
++add_many_charvecs (char4 a, char4 b, char4 c, char4 d, char4 e,
++		   char4 f, char4 g, char4 h, char4 i, char4 j)
++{
++  return (a + b + c + d + e + f + g + h + i + j);
++}
++
++/* Varargs: One fixed and N-1 variable vector arguments.  */
++
++float4
++add_various_floatvecs (int n, float4 a, ...)
++{
++  int i;
++  va_list argp;
++
++  va_start (argp, a);
++  for (i = 1; i < n; i++)
++    a += va_arg (argp, float4);
++  va_end (argp);
++
++  return a;
++}
++
++/* Struct-wrapped vectors (might be passed as if not wrapped).  */
++
++struct just_int2
++add_structvecs (int2 a, struct just_int2 b, struct two_int2 c)
++{
++  struct just_int2 res;
++
++  res.i = a + b.i + c.i + c.j;
++  return res;
++}
++
++/* Single-element vectors (might be treated like scalars).  */
++
++double1
++add_singlevecs (char1 a, int1 b, double1 c)
++{
++  return (double1) {a[0] + b[0] + c[0]};
++}
++
++
+ int
+ main ()
+ {
++  int4 res;
++
++  res = add_some_intvecs (i4a, i4a + i4b, i4b);
++  printf ("%d %d %d %d\n", res[0], res[1], res[2], res[3]);
++
++  res = add_some_intvecs (i4a, i4a + i4b, i4b);
++  printf ("%d %d %d %d\n", res[0], res[1], res[2], res[3]);
++
+   return 0;
+ }
+Index: gdb-7.6.1/gdb/testsuite/gdb.base/gnu_vector.exp
+===================================================================
+--- gdb-7.6.1.orig/gdb/testsuite/gdb.base/gnu_vector.exp	2016-02-24 17:31:37.147569951 +0100
++++ gdb-7.6.1/gdb/testsuite/gdb.base/gnu_vector.exp	2016-02-24 17:31:46.248638945 +0100
+@@ -22,20 +22,19 @@
+ set srcfile ${testfile}.c
+ set binfile ${objdir}/${subdir}/${testfile}
+ 
+-if [get_compiler_info] {
++# If supported by the compiler, "-mcpu=native" or "-march=native"
++# should enable the highest available vector ABI.  Try both, then try
++# without a CPU option.  If all variants fail, assume that the
++# compiler can not handle GNU vectors.
++
++if { [gdb_compile "${srcdir}/${subdir}/${srcfile}" ${binfile} executable {debug quiet additional_flags=-mcpu=native}] != ""
++     && [gdb_compile "${srcdir}/${subdir}/${srcfile}" ${binfile} executable {debug quiet additional_flags=-march=native}] != ""
++     && [gdb_compile "${srcdir}/${subdir}/${srcfile}" ${binfile} executable {debug quiet}] != ""} {
++    untested "compiler can't handle the vector_size attribute?"
+     return -1
+ }
+ 
+-# Check if our compiler is a GCC that suppports the vector extension
+-if { ![test_compiler_info gcc-4-*] } {
+-    setup_xfail "*-*-*"
+-    fail "This compiler can not handle GNU vectors"
+-    return 0
+-}
+-
+-if { [prepare_for_testing ${testfile}.exp ${testfile} ${srcfile} {debug}] } {
+-    return -1
+-}
++clean_restart ${binfile}
+ 
+ if { ![runto main] } {
+     fail "runto main"
+@@ -177,3 +176,34 @@
+ 
+ gdb_test "ptype union_with_vector_1" "type = union {\r\n\[\t \]+int i;\r\n\[\t \]+char cv __attribute__ \\(\\(vector_size\\(4\\)\\)\\);\r\n}"
+ gdb_test "ptype struct_with_vector_1" "type = struct {\r\n\[\t \]+int i;\r\n\[\t \]+char cv __attribute__ \\(\\(vector_size\\(4\\)\\)\\);\r\n\[\t \]+float4 f4;\r\n}"
++
++# Test inferior function calls with vector arguments and/or vector
++# return values.
++setup_kfail gdb/18537 "i?86-*-*" "x86_64-*-*"
++gdb_test "print add_some_intvecs(i4a, i4b, 3 * i4a)" "= \\{17, 34, 72, 132\\}" \
++    "call add_some_intvecs"
++setup_kfail gdb/18537 "i?86-*-*" "x86_64-*-*"
++gdb_test "print add_many_charvecs(c4, c4, c4, c4, c4, c4, c4, c4, c4, c4)" \
++    "= \\{10, 20, 30, 40\\}" "call add_many_charvecs"
++setup_kfail gdb/18537 "i?86-*-*" "x86_64-*-*"
++gdb_test "print add_various_floatvecs(2, f4a, f4b)" "= \\{3, 6, 16, 20\\}" \
++    "call add_various_floatvecs"
++setup_kfail gdb/18537 "i?86-*-*" "x86_64-*-*"
++gdb_test "print add_structvecs(i2, (struct just_int2)\{2*i2\}, (struct two_int2)\{3*i2, 4*i2\})" \
++    "= \\{i = \\{10, 20\\}\\}" "call add_structvecs"
++gdb_test "print add_singlevecs((char1) \{6\}, (int1) \{12\}, (double1) \{24\})" "= \\{42\\}" \
++    "call add_singlevecs"
++
++# Test vector return value handling with "finish" and "return".
++gdb_breakpoint "add_some_intvecs"
++gdb_continue "add_some_intvecs"
++setup_kfail gdb/18537 "i?86-*-*" "x86_64-*-*"
++gdb_test "finish" "Value returned is .* = \\{10, 20, 48, 72\\}" \
++    "finish shows vector return value"
++gdb_continue "add_some_intvecs"
++gdb_test "return (int4) \{4, 2, 7, 6\}" \
++    "#0 .* main .*" \
++    "set vector return value" \
++    "Make add_some_intvecs return now. .y or n.*" "y"
++setup_kfail gdb/18537 "i?86-*-*" "x86_64-*-*"
++gdb_test "continue" "4 2 7 6\r\n.*" "verify vector return value"

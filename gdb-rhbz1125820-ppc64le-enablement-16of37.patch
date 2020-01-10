@@ -1,0 +1,22 @@
+commit 14b5f73fac0e34c2fca81aa0dfbc9c7eebc922f2
+Author: Alan Modra <amodra@gmail.com>
+Date:   Mon Nov 11 13:46:26 2013 +1030
+
+    PowerPC64 ELFv2, allocate dynreloc space for ifunc
+    
+    	* elf64-ppc.c (allocate_dynrelocs): Revert 2013-11-04 change.
+
+Index: gdb-7.6.1/bfd/elf64-ppc.c
+===================================================================
+--- gdb-7.6.1.orig/bfd/elf64-ppc.c
++++ gdb-7.6.1/bfd/elf64-ppc.c
+@@ -9216,8 +9216,7 @@ allocate_dynrelocs (struct elf_link_hash
+ 
+   if (eh->dyn_relocs == NULL
+       || (!htab->elf.dynamic_sections_created
+-	  && (h->type != STT_GNU_IFUNC
+-	      || !htab->opd_abi)))
++	  && h->type != STT_GNU_IFUNC))
+     return TRUE;
+ 
+   /* In the shared -Bsymbolic case, discard space allocated for

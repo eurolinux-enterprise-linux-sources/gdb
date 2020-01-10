@@ -1,0 +1,219 @@
+http://sourceware.org/ml/gdb-patches/2015-02/msg00733.html
+Subject: [PATCH 4/8] remote+docs: software/hardware breakpoint traps
+
+This adjusts target remote to tell the core whether a trap was caused
+by a breakpoint.
+
+To that end, the patch teaches GDB about new RSP stop reasons "T05
+swbreak" and "T05 hwbreak", that remote targets report back to GDB,
+similarly to how "T05 watch" indicates a stop caused by a watchpoint.
+
+Because targets that can report these events are expected to
+themselves adjust the PC after a software breakpoint, these new stop
+reasons must only be reported if the stub is talking to a GDB that
+understands them.  Because of that, the use of the new stop reasons
+needs to be handshaked on initial connection, using the qSupported
+mechanism.  GDB simply sends "swbreak+" in its qSupports query, and
+the stub reports back "swbreak+" too.
+
+Because these new stop reasons are required to fix a fundamental
+non-stop mode problem, this commit extends the remote non-stop intro
+section in the manual, documenting the events as required.
+
+To be clear, GDB will still cope with remote targets that don't
+support these new stop reasons; it will behave just like today.
+
+Tested on x86-64 Fedora 20, native and gdbserver.
+
+gdb/ChangeLog:
+2015-02-25  Pedro Alves  <palves@redhat.com>
+
+	* NEWS: Mention the new "swbreak" and "hwbreak" stop reasons.
+	* remote.c (struct remote_state) <remote_stopped_by_watchpoint_p>:
+	Delete field.
+	<stop_reason>: New field.
+	(PACKET_swbreak_feature, PACKET_hwbreak_feature): New enum values.
+	(packet_set_cmd_state): New function.
+	(remote_protocol_features): Register the "swbreak" and "hwbreak"
+	features.
+	(remote_query_supported): If not disabled with the corresponding
+	"set remote foo-packet" command, report support for the swbreak
+	and hwbreak features.
+	(struct stop_reply) <remote_stopped_by_watchpoint_p>: Delete
+	field.
+	<stop_reason>: New field.
+	(remote_parse_stop_reply): Handle "swbreak" and "hwbreak".
+	(remote_wait_as): Adjust.
+	(remote_stopped_by_sw_breakpoint)
+	(remote_supports_stopped_by_sw_breakpoint)
+	(remote_stopped_by_hw_breakpoint)
+	(remote_supports_stopped_by_hw_breakpoint): New functions.
+	(remote_stopped_by_watchpoint): New function.
+	(init_remote_ops): Install them.
+	(_initialize_remote): Register new "set/show remote
+	swbreak-feature-packet" and "set/show remote
+	swbreak-feature-packet" commands.
+
+gdb/doc/ChangeLog:
+2015-02-25  Pedro Alves  <palves@redhat.com>
+
+	* gdb.texinfo (Remote Configuration): Document the "set/show
+	remote swbreak-feature-packet" and "set/show remote
+	hwbreak-feature-packet" commands.
+	(Packets) <Z0>: Add cross link to the "swbreak" stop reason's
+	decription.
+	(Stop Reply Packets): Document the swbreak and hwbreak stop
+	reasons.
+	(General Query Packets): Document the swbreak and hwbreak
+	qSupported features.
+	(Remote Non-Stop): Explain that swbreak and hwbreak are required.
+---
+ gdb/NEWS            |  10 +++++
+ gdb/doc/gdb.texinfo |  80 +++++++++++++++++++++++++++++++++++
+ gdb/remote.c        | 119 ++++++++++++++++++++++++++++++++++++++++++++++++----
+ 3 files changed, 200 insertions(+), 9 deletions(-)
+
+Index: gdb-7.6.1/gdb/remote.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/remote.c	2016-03-13 19:41:32.258628611 +0100
++++ gdb-7.6.1/gdb/remote.c	2016-03-13 19:42:35.787094677 +0100
+@@ -728,6 +728,9 @@
+ /* This is non-zero if target stopped for a watchpoint.  */
+ static int remote_stopped_by_watchpoint_p;
+ 
++/* RHEL: TARGET_STOPPED_BY_HW_BREAKPOINT */
++static int stopped_by_hw_breakpoint;
++
+ static struct target_ops remote_ops;
+ 
+ static struct target_ops extended_remote_ops;
+@@ -1289,11 +1292,24 @@
+   PACKET_Qbtrace_off,
+   PACKET_Qbtrace_bts,
+   PACKET_qXfer_btrace,
++
++  /* Support for hwbreak+ feature.  */
++  PACKET_hwbreak_feature,
++
+   PACKET_MAX
+ };
+ 
+ static struct packet_config remote_protocol_packets[PACKET_MAX];
+ 
++/* Returns the packet's corresponding "set remote foo-packet" command
++   state.  See struct packet_config for more details.  */
++
++static enum auto_boolean
++packet_set_cmd_state (int packet)
++{
++  return remote_protocol_packets[packet].detect;
++}
++
+ static void
+ set_remote_protocol_packet_cmd (char *args, int from_tty,
+ 				struct cmd_list_element *c)
+@@ -4017,7 +4033,8 @@
+   { "Qbtrace:off", PACKET_DISABLE, remote_supported_packet, PACKET_Qbtrace_off },
+   { "Qbtrace:bts", PACKET_DISABLE, remote_supported_packet, PACKET_Qbtrace_bts },
+   { "qXfer:btrace:read", PACKET_DISABLE, remote_supported_packet,
+-    PACKET_qXfer_btrace }
++    PACKET_qXfer_btrace },
++  { "hwbreak", PACKET_DISABLE, remote_supported_packet, PACKET_hwbreak_feature }
+ };
+ 
+ static char *remote_support_xml;
+@@ -4086,6 +4103,9 @@
+ 
+       q = remote_query_supported_append (q, "multiprocess+");
+ 
++      if (packet_set_cmd_state (PACKET_hwbreak_feature) != AUTO_BOOLEAN_FALSE)
++	q = remote_query_supported_append (q, "hwbreak+");
++
+       if (remote_support_xml)
+ 	q = remote_query_supported_append (q, remote_support_xml);
+ 
+@@ -5202,6 +5222,9 @@
+   int stopped_by_watchpoint_p;
+   CORE_ADDR watch_data_address;
+ 
++  /* RHEL: TARGET_STOPPED_BY_HW_BREAKPOINT */
++  int stopped_by_hw_breakpoint;
++
+   int solibs_changed;
+   int replay_event;
+ 
+@@ -5467,6 +5490,7 @@
+   event->solibs_changed = 0;
+   event->replay_event = 0;
+   event->stopped_by_watchpoint_p = 0;
++  event->stopped_by_hw_breakpoint = 0;
+   event->regcache = NULL;
+   event->core = -1;
+ 
+@@ -5522,6 +5546,23 @@
+ 		  p = unpack_varlen_hex (++p1, &addr);
+ 		  event->watch_data_address = (CORE_ADDR) addr;
+ 		}
++	      else if (strncmp (p, "hwbreak", p1 - p) == 0)
++		{
++		  event->stopped_by_hw_breakpoint = 1;
++
++		  /* Make sure the stub doesn't forget to indicate support
++		     with qSupported.  */
++		  //if (packet_support (PACKET_hwbreak_feature) != PACKET_ENABLE)
++		  //  error (_("Unexpected hwbreak stop reason"));
++
++		  /* See above.  */
++		  //p = skip_to_semicolon (p1 + 1);
++		  p1++;
++		  p_temp = p1;
++		  while (*p_temp && *p_temp != ';')
++		    p_temp++;
++		  p = p_temp;
++		}
+ 	      else if (strncmp (p, "library", p1 - p) == 0)
+ 		{
+ 		  p1++;
+@@ -5783,6 +5824,7 @@
+ 
+       remote_stopped_by_watchpoint_p = stop_reply->stopped_by_watchpoint_p;
+       remote_watch_data_address = stop_reply->watch_data_address;
++      stopped_by_hw_breakpoint = stop_reply->stopped_by_hw_breakpoint;
+ 
+       remote_notice_new_inferior (ptid, 0);
+       demand_private_info (ptid)->core = stop_reply->core;
+@@ -8310,6 +8352,16 @@
+   return -1;
+ }
+ 
++/* The to_stopped_by_hw_breakpoint method of target remote.  */
++
++static int
++remote_stopped_by_hw_breakpoint (struct target_ops *ops)
++{
++  struct remote_state *rs = get_remote_state ();
++
++  return stopped_by_hw_breakpoint;
++}
++
+ static int
+ remote_stopped_by_watchpoint (void)
+ {
+@@ -11372,6 +11424,7 @@
+   remote_ops.to_files_info = remote_files_info;
+   remote_ops.to_insert_breakpoint = remote_insert_breakpoint;
+   remote_ops.to_remove_breakpoint = remote_remove_breakpoint;
++  remote_ops.to_stopped_by_hw_breakpoint = remote_stopped_by_hw_breakpoint;
+   remote_ops.to_stopped_by_watchpoint = remote_stopped_by_watchpoint;
+   remote_ops.to_stopped_data_address = remote_stopped_data_address;
+   remote_ops.to_watchpoint_addr_within_range =
+@@ -12010,6 +12063,9 @@
+   add_packet_config_cmd (&remote_protocol_packets[PACKET_qXfer_btrace],
+        "qXfer:btrace", "read-btrace", 0);
+ 
++  add_packet_config_cmd (&remote_protocol_packets[PACKET_hwbreak_feature],
++                         "hwbreak-feature", "hwbreak-feature", 0);
++
+   /* Keep the old ``set remote Z-packet ...'' working.  Each individual
+      Z sub-packet has its own set and show commands, but users may
+      have sets to this variable in their .gdbinit files (or in their

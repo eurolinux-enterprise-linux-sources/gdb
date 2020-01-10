@@ -1,0 +1,131 @@
+  Message-ID: <54BB676B.2090101@gmail.com>
+  Date: Sun, 18 Jan 2015 15:57:31 +0800
+  From: Wei-cheng Wang <cole945 at gmail dot com>
+  To: Jan Kratochvil <jan dot kratochvil at redhat dot com>
+  CC: Ulrich Weigand <uweigand at de dot ibm dot com>, gdb-patches at sourceware dot org,  Joel Brobecker <brobecker at adacore dot com>
+  Subject: Re: Broken build: rs6000-tdep.c: 32-bit host --enable-targets=all --enable-64-bit-bfd  [Re: [PATCH 2/3 v4] Process record support for PowerPC]
+
+  On 2015/1/18 下午 02:59, Jan Kratochvil wrote:
+  > GDB has paddress(), core_addr_to_string() and hex_string() instead while the
+  > codebase uses these three interchangeably.  But the codebase uses even the
+  > %lx+long form.
+
+  Using %s+paddress instead of %lx+long in this patch.
+
+  Thanks,
+  Wei-cheng
+
+
+commit 810c102655475827a3174fb64b5e14beaa57ec3f
+Author: Wei-cheng Wang <cole945@gmail.com>
+Date:   Sun Jan 18 15:20:46 2015 +0800
+
+    Fix format warning in rs6000t-dep.c
+
+Index: gdb-7.6.1/gdb/rs6000-tdep.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/rs6000-tdep.c
++++ gdb-7.6.1/gdb/rs6000-tdep.c
+@@ -3405,7 +3405,6 @@ rs6000_epilogue_frame_cache (struct fram
+   struct rs6000_frame_cache *cache;
+   struct gdbarch *gdbarch = get_frame_arch (this_frame);
+   struct gdbarch_tdep *tdep = gdbarch_tdep (gdbarch);
+-  CORE_ADDR sp;
+ 
+   if (*this_cache)
+     return *this_cache;
+@@ -4006,8 +4005,8 @@ ppc_process_record_op4 (struct gdbarch *
+       return 0;
+     }
+ 
+-  fprintf_unfiltered (gdb_stdlog, "Warning: Don't know how to record "
+-		      "%08x at %08lx, 4-%d.\n", insn, addr, ext);
++  fprintf_unfiltered (gdb_stdlog, "Warning: Don't know how to record %08x "
++		      "at %s, 4-%d.\n", insn, paddress (gdbarch, addr), ext);
+   return -1;
+ }
+ 
+@@ -4049,8 +4048,8 @@ ppc_process_record_op19 (struct gdbarch
+       return 0;
+     }
+ 
+-  fprintf_unfiltered (gdb_stdlog, "Warning: Don't know how to record "
+-		      "%08x at %08lx, 19-%d.\n", insn, addr, ext);
++  fprintf_unfiltered (gdb_stdlog, "Warning: Don't know how to record %08x "
++		      "at %s, 19-%d.\n", insn, paddress (gdbarch, addr), ext);
+   return -1;
+ }
+ 
+@@ -4507,7 +4506,8 @@ ppc_process_record_op31 (struct gdbarch
+     case 878:		/* Transaction Abort Doubleword Conditional Immediate */
+     case 910:		/* Transaction Abort */
+       fprintf_unfiltered (gdb_stdlog, "Cannot record Transaction instructions. "
+-			  "%08x at %08lx, 31-%d.\n", insn, addr, ext);
++			  "%08x at %s, 31-%d.\n",
++			  insn, paddress (gdbarch, addr), ext);
+       return -1;
+ 
+     case 1014:		/* Data Cache Block set to Zero */
+@@ -4526,8 +4526,8 @@ ppc_process_record_op31 (struct gdbarch
+     }
+ 
+ UNKNOWN_OP:
+-  fprintf_unfiltered (gdb_stdlog, "Warning: Don't know how to record "
+-		      "%08x at %08lx, 31-%d.\n", insn, addr, ext);
++  fprintf_unfiltered (gdb_stdlog, "Warning: Don't know how to record %08x "
++		      "at %s, 31-%d.\n", insn, paddress (gdbarch, addr), ext);
+   return -1;
+ }
+ 
+@@ -4618,8 +4618,8 @@ ppc_process_record_op59 (struct gdbarch
+       return 0;
+     }
+ 
+-  fprintf_unfiltered (gdb_stdlog, "Warning: Don't know how to record "
+-		      "%08x at %08lx, 59-%d.\n", insn, addr, ext);
++  fprintf_unfiltered (gdb_stdlog, "Warning: Don't know how to record %08x "
++		      "at %s, 59-%d.\n", insn, paddress (gdbarch, addr), ext);
+   return -1;
+ }
+ 
+@@ -4631,7 +4631,6 @@ ppc_process_record_op60 (struct gdbarch
+ {
+   struct gdbarch_tdep *tdep = gdbarch_tdep (gdbarch);
+   int ext = PPC_EXTOP (insn);
+-  int tmp;
+ 
+   switch (ext >> 2)
+     {
+@@ -4901,8 +4900,8 @@ ppc_process_record_op60 (struct gdbarch
+       return 0;
+     }
+ 
+-  fprintf_unfiltered (gdb_stdlog, "Warning: Don't know how to record "
+-		      "%08x at %08lx, 60-%d.\n", insn, addr, ext);
++  fprintf_unfiltered (gdb_stdlog, "Warning: Don't know how to record %08x "
++		      "at %s, 60-%d.\n", insn, paddress (gdbarch, addr), ext);
+   return -1;
+ }
+ 
+@@ -5067,8 +5066,8 @@ ppc_process_record_op63 (struct gdbarch
+ 
+     }
+ 
+-  fprintf_unfiltered (gdb_stdlog, "Warning: Don't know how to record "
+-		      "%08x at %08lx, 59-%d.\n", insn, addr, ext);
++  fprintf_unfiltered (gdb_stdlog, "Warning: Don't know how to record %08x "
++		      "at %s, 59-%d.\n", insn, paddress (gdbarch, addr), ext);
+   return -1;
+ }
+ 
+@@ -5347,8 +5346,8 @@ ppc_process_record (struct gdbarch *gdba
+ 
+     default:
+ UNKNOWN_OP:
+-      fprintf_unfiltered (gdb_stdlog, "Warning: Don't know how to record "
+-			  "%08x at %08lx, %d.\n", insn, addr, op6);
++      fprintf_unfiltered (gdb_stdlog, "Warning: Don't know how to record %08x "
++			  "at %s, %d.\n", insn, paddress (gdbarch, addr), op6);
+       return -1;
+     }
+ 

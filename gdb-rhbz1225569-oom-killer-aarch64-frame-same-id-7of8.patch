@@ -1,0 +1,288 @@
+commit 1b5d0ab34c53d6e896d2c0958b1176e324bb7878
+Author: Pedro Alves <palves@redhat.com>
+Date:   Wed Jul 16 19:25:41 2014 +0100
+
+    gdb.trace/tfile.c: Remove Thumb bit in one more more, general cleanup
+    
+    I noticed that the existing code casts a function's address to 'long',
+    but that doesn't work correctly on some ABIs, like Win64, where long
+    is 32-bit and while pointers are 64-bit:
+    
+      func_addr = (long) &write_basic_trace_file;
+    
+    Fixing that showed there's actually another place in the file that
+    writes a function address to file, and therefore should clear the
+    Thumb bit.  This commit adds a macro+function pair to centralize the
+    Thumb bit handling, and uses it in both places.
+    
+    The rest is just enough changes to make the file build without
+    warnings with "-Wall -Wextra" with x86_64-w64-mingw32-gcc and
+    i686-w64-mingw32-gcc cross compilers, and with -m32/-m64 on x86_64
+    GNU/Linux.  Currently with x86_64-w64-mingw32-gcc we get:
+    
+      $ x86_64-w64-mingw32-gcc tfile.c  -Wall -DTFILE_DIR=\"\"
+      tfile.c: In function 'start_trace_file':
+      tfile.c:51:23: error: 'S_IRGRP' undeclared (first use in this function)
+    	 S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH);
+    			 ^
+      tfile.c:51:23: note: each undeclared identifier is reported only once for each function it appears in
+      tfile.c:51:31: error: 'S_IROTH' undeclared (first use in this function)
+    	 S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH);
+    				 ^
+      tfile.c: In function 'add_memory_block':
+      tfile.c:79:10: warning: cast from pointer to integer of different size [-Wpointer-to-int-cast]
+         ll_x = (unsigned long) addr;
+    	    ^
+      tfile.c: In function 'write_basic_trace_file':
+      tfile.c:113:15: warning: cast from pointer to integer of different size [-Wpointer-to-int-cast]
+         func_addr = (long) &write_basic_trace_file;
+    		 ^
+      tfile.c:137:3: warning: passing argument 1 of 'add_memory_block' from incompatible pointer type [enabled by default]
+         add_memory_block (&testglob, sizeof (testglob));
+         ^
+      tfile.c:72:1: note: expected 'char *' but argument is of type 'int *'
+       add_memory_block (char *addr, int size)
+       ^
+      tfile.c:139:3: warning: passing argument 1 of 'add_memory_block' from incompatible pointer type [enabled by default]
+         add_memory_block (&testglob2, 1);
+         ^
+      tfile.c:72:1: note: expected 'char *' but argument is of type 'int *'
+       add_memory_block (char *addr, int size)
+       ^
+      tfile.c: In function 'write_error_trace_file':
+      tfile.c:185:3: warning: implicit declaration of function 'alloca' [-Wimplicit-function-declaration]
+         char *hex = alloca (len * 2 + 1);
+         ^
+      tfile.c:185:15: warning: incompatible implicit declaration of built-in function 'alloca' [enabled by default]
+         char *hex = alloca (len * 2 + 1);
+    		 ^
+      tfile.c:211:6: warning: cast from pointer to integer of different size [-Wpointer-to-int-cast]
+    	(long) &write_basic_trace_file);
+          ^
+    
+    Tested on x86_64 Fedora 20, -m64 and -m32.
+    Tested by Yao on arm targets.
+    
+    gdb/testsuite/
+    2014-07-16  Pedro Alves  <palves@redhat.com>
+    
+    	* gdb.trace/tfile.c: Include unistd.h and stdint.h.
+    	(start_trace_file): Guard S_IRGRP and S_IROTH uses behind #ifdef.
+    	(tfile_write_64, tfile_write_16, tfile_write_8, tfile_write_addr)
+    	(tfile_write_buf): New functions.
+    	(add_memory_block): Rewrite using the above.
+    	(adjust_function_address): New function.
+    	(FUNCTION_ADDRESS): New macro.
+    	(write_basic_trace_file): Remove short_x local, and use
+    	tfile_write_16. Change type of func_addr local to unsigned long
+    	long.  Use FUNCTION_ADDRESS instead of handling the Thumb bit
+    	here.  Cast argument of add_memory_block to char pointer.
+    	(write_error_trace_file): Avoid alloca.  Use FUNCTION_ADDRESS.
+    	(main): Remove parameters.
+    	* gdb.trace/tfile.exp: Remove nowarnings.
+
+Index: gdb-7.6.1/gdb/testsuite/gdb.trace/tfile.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/testsuite/gdb.trace/tfile.c
++++ gdb-7.6.1/gdb/testsuite/gdb.trace/tfile.c
+@@ -3,9 +3,11 @@
+    GDB.  */
+ 
+ #include <stdio.h>
++#include <unistd.h>
+ #include <string.h>
+ #include <fcntl.h>
+ #include <sys/stat.h>
++#include <stdint.h>
+ 
+ char spbuf[200];
+ 
+@@ -23,9 +25,17 @@ int
+ start_trace_file (char *filename)
+ {
+   int fd;
++  mode_t mode = S_IRUSR | S_IWUSR;
+ 
+-  fd = open (filename, O_WRONLY|O_CREAT|O_APPEND,
+-	     S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH);
++#ifdef S_IRGRP
++  mode |= S_IRGRP;
++#endif
++
++#ifdef S_IROTH
++  mode |= S_IROTH;
++#endif
++
++  fd = open (filename, O_WRONLY|O_CREAT|O_APPEND, mode);
+ 
+   if (fd < 0)
+     return fd;
+@@ -44,31 +54,73 @@ finish_trace_file (int fd)
+   close (fd);
+ }
+ 
++static void
++tfile_write_64 (uint64_t value)
++{
++  memcpy (trptr, &value, sizeof (uint64_t));
++  trptr += sizeof (uint64_t);
++}
+ 
+-void
+-add_memory_block (char *addr, int size)
++static void
++tfile_write_16 (uint16_t value)
++{
++  memcpy (trptr, &value, sizeof (uint16_t));
++  trptr += sizeof (uint16_t);
++}
++
++static void
++tfile_write_8 (uint8_t value)
+ {
+-  short short_x;
+-  unsigned long long ll_x;
++  memcpy (trptr, &value, sizeof (uint8_t));
++  trptr += sizeof (uint8_t);
++}
+ 
+-  *((char *) trptr) = 'M';
+-  trptr += 1;
+-  ll_x = (unsigned long) addr;
+-  memcpy (trptr, &ll_x, sizeof (unsigned long long));
+-  trptr += sizeof (unsigned long long);
+-  short_x = size;
+-  memcpy (trptr, &short_x, 2);
+-  trptr += 2;
++static void
++tfile_write_addr (char *addr)
++{
++  tfile_write_64 ((uint64_t) (uintptr_t) addr);
++}
++
++static void
++tfile_write_buf (const void *addr, size_t size)
++{
+   memcpy (trptr, addr, size);
+   trptr += size;
+ }
+ 
+ void
++add_memory_block (char *addr, int size)
++{
++  tfile_write_8 ('M');
++  tfile_write_addr (addr);
++  tfile_write_16 (size);
++  tfile_write_buf (addr, size);
++}
++
++/* Adjust a function's address to account for architectural
++   particularities.  */
++
++static uintptr_t
++adjust_function_address (uintptr_t func_addr)
++{
++#if defined(__thumb__) || defined(__thumb2__)
++  /* Although Thumb functions are two-byte aligned, function
++     pointers have the Thumb bit set.  Clear it.  */
++  return func_addr & ~1;
++#else
++  return func_addr;
++#endif
++}
++
++/* Get a function's address as an integer.  */
++
++#define FUNCTION_ADDRESS(FUN) adjust_function_address ((uintptr_t) &FUN)
++
++void
+ write_basic_trace_file (void)
+ {
+   int fd, int_x;
+-  short short_x;
+-  long func_addr;
++  unsigned long long func_addr;
+ 
+   fd = start_trace_file ("basic.tf");
+ 
+@@ -86,15 +138,9 @@ write_basic_trace_file (void)
+ 
+   /* Dump tracepoint definitions, in syntax similar to that used
+      for reconnection uploads.  */
+-  /* FIXME need a portable way to print function address in hex */
+-  func_addr = (long) &write_basic_trace_file;
+-#if defined(__thumb__) || defined(__thumb2__)
+-  /* Although Thumb functions are two-byte aligned, function
+-     pointers have the Thumb bit set.  Clear it.  */
+-  func_addr &= ~1;
+-#endif
++  func_addr = FUNCTION_ADDRESS (write_basic_trace_file);
+ 
+-  snprintf (spbuf, sizeof spbuf, "tp T1:%lx:E:0:0\n", func_addr);
++  snprintf (spbuf, sizeof spbuf, "tp T1:%llx:E:0:0\n", func_addr);
+   write (fd, spbuf, strlen (spbuf));
+   /* (Note that we would only need actions defined if we wanted to
+      test tdump.) */
+@@ -106,14 +152,13 @@ write_basic_trace_file (void)
+   /* (Encapsulate better if we're going to do lots of this; note that
+      buffer endianness is the target program's enddianness.) */
+   trptr = trbuf;
+-  short_x = 1;
+-  memcpy (trptr, &short_x, 2);
+-  trptr += 2;
++  tfile_write_16 (1);
++
+   tfsizeptr = trptr;
+   trptr += 4;
+-  add_memory_block (&testglob, sizeof (testglob));
++  add_memory_block ((char *) &testglob, sizeof (testglob));
+   /* Divide a variable between two separate memory blocks.  */
+-  add_memory_block (&testglob2, 1);
++  add_memory_block ((char *) &testglob2, 1);
+   add_memory_block (((char*) &testglob2) + 1, sizeof (testglob2) - 1);
+   /* Go back and patch in the frame size.  */
+   int_x = trptr - tfsizeptr - sizeof (int);
+@@ -158,8 +203,8 @@ write_error_trace_file (void)
+ {
+   int fd;
+   const char made_up[] = "made-up error";
++  char hex[(sizeof (made_up) - 1) * 2 + 1];
+   int len = sizeof (made_up) - 1;
+-  char *hex = alloca (len * 2 + 1);
+ 
+   fd = start_trace_file ("error.tf");
+ 
+@@ -183,9 +228,8 @@ write_error_trace_file (void)
+ 
+   /* Dump tracepoint definitions, in syntax similar to that used
+      for reconnection uploads.  */
+-  /* FIXME need a portable way to print function address in hex */
+-  snprintf (spbuf, sizeof spbuf, "tp T1:%lx:E:0:0\n",
+-	    (long) &write_basic_trace_file);
++  snprintf (spbuf, sizeof spbuf, "tp T1:%llx:E:0:0\n",
++	    (unsigned long long) FUNCTION_ADDRESS (write_basic_trace_file));
+   write (fd, spbuf, strlen (spbuf));
+   /* (Note that we would only need actions defined if we wanted to
+      test tdump.) */
+@@ -210,7 +254,7 @@ done_making_trace_files (void)
+ }
+ 
+ int
+-main (int argc, char **argv, char **envp)
++main (void)
+ {
+   write_basic_trace_file ();
+ 
+Index: gdb-7.6.1/gdb/testsuite/gdb.trace/tfile.exp
+===================================================================
+--- gdb-7.6.1.orig/gdb/testsuite/gdb.trace/tfile.exp
++++ gdb-7.6.1/gdb/testsuite/gdb.trace/tfile.exp
+@@ -26,7 +26,7 @@ gdb_exit
+ gdb_start
+ standard_testfile
+ if { [gdb_compile "$srcdir/$subdir/$srcfile" $binfile \
+-	  executable {debug nowarnings}] != "" } {
++	  executable {debug}] != "" } {
+     untested ${testfile}.exp
+     return -1
+ }

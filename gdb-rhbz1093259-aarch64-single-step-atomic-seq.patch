@@ -1,0 +1,258 @@
+All attempts:
+
+ - <https://sourceware.org/ml/gdb-patches/2014-03/msg00576.html>
+   Message-ID: <20140324161056.GB23291@redacted.bos.redhat.com>
+
+ - <https://sourceware.org/ml/gdb-patches/2014-03/msg00624.html>
+   Message-ID: <20140327015125.GE3075@redacted.bos.redhat.com>
+   (see below)
+
+ - <https://sourceware.org/ml/gdb-patches/2014-04/msg00433.html>
+   Message-ID: <20140422165542.GA748@redacted.bos.redhat.com>
+
+ - <https://sourceware.org/ml/gdb-patches/2014-04/msg00505.html>
+   Message-ID: <20140424183510.GI7588@redacted.bos.redhat.com>
+
+ - <https://sourceware.org/ml/gdb-patches/2014-04/msg00642.html>
+   Message-ID: <20140430160450.GE2148@redacted.bos.redhat.com>
+   (last version, applied)
+
+
+Second message from Kyle, which seems complete enough.
+
+  Date: Wed, 26 Mar 2014 21:51:26 -0400
+  From: Kyle McMartin <kmcmarti at redhat dot com>
+  To: gdb-patches at sourceware dot org
+  Subject: [PATCHv2] aarch64: detect atomic sequences like other ll/sc architectures
+  Message-ID: <20140327015125.GE3075@redacted.bos.redhat.com>
+
+  Add similar single-stepping over atomic sequences support like other
+  load-locked/store-conditional architectures (alpha, powerpc, arm, etc.)
+  do. Verified the decode_masked_match, and decode_bcond works against the
+  atomic sequences used in the Linux kernel atomic.h, and also gcc
+  libatomic. Thanks to Richard Henderson for feedback on my initial
+  attempt at this patch, and for the feedback from gdb-patches, which I
+  hope I've addressed...
+
+
+
+commit 9404b58f46328b3b171b0d5eeb0691bd685bc4f5
+Author: Kyle McMartin <kmcmarti@redhat.com>
+Date:   Wed Apr 30 12:04:50 2014 -0400
+
+    aarch64: detect atomic sequences like other ll/sc architectures
+    
+    gdb/Changelog:
+    
+            * aarch64-tdep.c (aarch64_software_single_step): New function.
+            (aarch64_gdbarch_init): Handle single stepping of atomic sequences
+            with aarch64_software_single_step.
+    
+    gdb/testsuite/ChangeLog:
+    
+            * gdb.arch/aarch64-atomic-inst.c: New file.
+            * gdb.arch/aarch64-atomic-inst.exp: New file.
+
+Index: gdb-7.6.1/gdb/aarch64-tdep.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/aarch64-tdep.c
++++ gdb-7.6.1/gdb/aarch64-tdep.c
+@@ -2518,6 +2518,84 @@ value_of_aarch64_user_reg (struct frame_
+ }
+ 
+ 
++/* Implement the "software_single_step" gdbarch method, needed to
++   single step through atomic sequences on AArch64.  */
++
++static int
++aarch64_software_single_step (struct frame_info *frame)
++{
++  struct gdbarch *gdbarch = get_frame_arch (frame);
++  struct address_space *aspace = get_frame_address_space (frame);
++  enum bfd_endian byte_order_for_code = gdbarch_byte_order_for_code (gdbarch);
++  const int insn_size = 4;
++  const int atomic_sequence_length = 16; /* Instruction sequence length.  */
++  CORE_ADDR pc = get_frame_pc (frame);
++  CORE_ADDR breaks[2] = { -1, -1 };
++  CORE_ADDR loc = pc;
++  CORE_ADDR closing_insn = 0;
++  uint32_t insn = read_memory_unsigned_integer (loc, insn_size,
++						byte_order_for_code);
++  int index;
++  int insn_count;
++  int bc_insn_count = 0; /* Conditional branch instruction count.  */
++  int last_breakpoint = 0; /* Defaults to 0 (no breakpoints placed).  */
++
++  /* Look for a Load Exclusive instruction which begins the sequence.  */
++  if (!decode_masked_match (insn, 0x3fc00000, 0x08400000))
++    return 0;
++
++  for (insn_count = 0; insn_count < atomic_sequence_length; ++insn_count)
++    {
++      int32_t offset;
++      unsigned cond;
++
++      loc += insn_size;
++      insn = read_memory_unsigned_integer (loc, insn_size,
++					   byte_order_for_code);
++
++      /* Check if the instruction is a conditional branch.  */
++      if (decode_bcond (loc, insn, &cond, &offset))
++	{
++	  if (bc_insn_count >= 1)
++	    return 0;
++
++	  /* It is, so we'll try to set a breakpoint at the destination.  */
++	  breaks[1] = loc + offset;
++
++	  bc_insn_count++;
++	  last_breakpoint++;
++	}
++
++      /* Look for the Store Exclusive which closes the atomic sequence.  */
++      if (decode_masked_match (insn, 0x3fc00000, 0x08000000))
++	{
++	  closing_insn = loc;
++	  break;
++	}
++    }
++
++  /* We didn't find a closing Store Exclusive instruction, fall back.  */
++  if (!closing_insn)
++    return 0;
++
++  /* Insert breakpoint after the end of the atomic sequence.  */
++  breaks[0] = loc + insn_size;
++
++  /* Check for duplicated breakpoints, and also check that the second
++     breakpoint is not within the atomic sequence.  */
++  if (last_breakpoint
++      && (breaks[1] == breaks[0]
++	  || (breaks[1] >= pc && breaks[1] <= closing_insn)))
++    last_breakpoint = 0;
++
++  /* Insert the breakpoint at the end of the sequence, and one at the
++     destination of the conditional branch, if it exists.  */
++  for (index = 0; index <= last_breakpoint; index++)
++    insert_single_step_breakpoint (gdbarch, aspace, breaks[index]);
++
++  return 1;
++}
++
+ /* Initialize the current architecture based on INFO.  If possible,
+    re-use an architecture from ARCHES, which is a list of
+    architectures already created during this debugging session.
+@@ -2635,6 +2713,7 @@ aarch64_gdbarch_init (struct gdbarch_inf
+   set_gdbarch_breakpoint_from_pc (gdbarch, aarch64_breakpoint_from_pc);
+   set_gdbarch_cannot_step_breakpoint (gdbarch, 1);
+   set_gdbarch_have_nonsteppable_watchpoint (gdbarch, 1);
++  set_gdbarch_software_single_step (gdbarch, aarch64_software_single_step);
+ 
+   /* Information about registers, etc.  */
+   set_gdbarch_sp_regnum (gdbarch, AARCH64_SP_REGNUM);
+Index: gdb-7.6.1/gdb/testsuite/gdb.arch/aarch64-atomic-inst.c
+===================================================================
+--- /dev/null
++++ gdb-7.6.1/gdb/testsuite/gdb.arch/aarch64-atomic-inst.c
+@@ -0,0 +1,48 @@
++/* This file is part of GDB, the GNU debugger.
++
++   Copyright 2008-2014 Free Software Foundation, Inc.
++
++   This program is free software; you can redistribute it and/or modify
++   it under the terms of the GNU General Public License as published by
++   the Free Software Foundation; either version 3 of the License, or
++   (at your option) any later version.
++
++   This program is distributed in the hope that it will be useful,
++   but WITHOUT ANY WARRANTY; without even the implied warranty of
++   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++   GNU General Public License for more details.
++
++   You should have received a copy of the GNU General Public License
++   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
++
++int main(void)
++{
++  unsigned long tmp, cond;
++  unsigned long dword = 0;
++
++  /* Test that we can step over ldxr/stxr. This sequence should step from
++     ldxr to the following __asm __volatile.  */
++  __asm __volatile ("1:     ldxr    %0,%2\n"                             \
++                    "       cmp     %0,#1\n"                             \
++                    "       b.eq    out\n"                               \
++                    "       add     %0,%0,1\n"                           \
++                    "       stxr    %w1,%0,%2\n"                         \
++                    "       cbnz    %w1,1b"                              \
++                    : "=&r" (tmp), "=&r" (cond), "+Q" (dword)            \
++                    : : "memory");
++
++  /* This sequence should take the conditional branch and step from ldxr
++     to the return dword line.  */
++  __asm __volatile ("1:     ldxr    %0,%2\n"                             \
++                    "       cmp     %0,#1\n"                             \
++                    "       b.eq    out\n"                               \
++                    "       add     %0,%0,1\n"                           \
++                    "       stxr    %w1,%0,%2\n"                         \
++                    "       cbnz    %w1,1b\n"                            \
++                    : "=&r" (tmp), "=&r" (cond), "+Q" (dword)            \
++                    : : "memory");
++
++  dword = -1;
++__asm __volatile ("out:\n");
++  return dword;
++}
+Index: gdb-7.6.1/gdb/testsuite/gdb.arch/aarch64-atomic-inst.exp
+===================================================================
+--- /dev/null
++++ gdb-7.6.1/gdb/testsuite/gdb.arch/aarch64-atomic-inst.exp
+@@ -0,0 +1,48 @@
++# Copyright 2008-2014 Free Software Foundation, Inc.
++#
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 3 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License
++# along with this program; if not, write to the Free Software
++# Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
++#
++# This file is part of the gdb testsuite.
++
++# Test single stepping through atomic sequences beginning with
++# a ldxr instruction and ending with a stxr instruction.
++
++if {![istarget "aarch64*"]} {
++    verbose "Skipping ${gdb_test_file_name}."
++    return
++}
++
++standard_testfile
++if { [prepare_for_testing ${testfile}.exp ${testfile} ${srcfile}] } {
++    return -1
++}
++
++if ![runto_main] {
++    untested "could not run to main"
++    return -1
++}
++
++gdb_breakpoint "[gdb_get_line_number "ldxr"]" \
++  "Breakpoint $decimal at $hex" \
++  "Set the breakpoint at the start of the sequence"
++
++gdb_test "continue" "Continuing.*Breakpoint $decimal.*" \
++  "Continue until breakpoint"
++
++gdb_test "next" ".*__asm __volatile.*" \
++  "Step through the ldxr/stxr sequence"
++
++gdb_test "next" ".*return dword.*" \
++  "Stepped through sequence through conditional branch"

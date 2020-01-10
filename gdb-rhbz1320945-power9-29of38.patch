@@ -1,0 +1,67 @@
+commit 19dfcc89e8d94526f011242041b700ede8834996
+Author: Peter Bergner <bergner@vnet.ibm.com>
+Date:   Thu May 26 19:06:51 2016 -0500
+
+    Add support for new POWER ISA 3.0 instructions.
+    
+    opcodes/
+    
+            * ppc-opc.c (CY): New define.  Document it.
+            (powerpc_opcodes) <addex[.], lwzmx, vmsumudm>: New mnemonics.
+    
+    gas/
+            * testsuite/gas/ppc/altivec3.d <vmsumudm>: Add test.
+            * testsuite/gas/ppc/altivec3.s: Likewise.
+            * testsuite/gas/ppc/power9.d <addex[.], lwzmx, vmsumudm>: Add tests.
+            * testsuite/gas/ppc/power9.s: Likewise.
+
+### a/opcodes/ChangeLog
+### b/opcodes/ChangeLog
+## -1,3 +1,8 @@
++2016-05-26  Peter Bergner <bergner@vnet.ibm.com>
++
++	* ppc-opc.c (CY): New define.  Document it.
++	(powerpc_opcodes) <addex[.], lwzmx, vmsumudm>: New mnemonics.
++
+ 2016-05-25  H.J. Lu  <hongjiu.lu@intel.com>
+ 
+ 	* i386-gen.c (cpu_flag_init): Add CpuVREX to CPU_AVX512DQ_FLAGS,
+--- a/opcodes/ppc-opc.c
++++ b/opcodes/ppc-opc.c
+@@ -815,7 +815,9 @@ const struct powerpc_operand powerpc_operands[] =
+ #define X_R A_L
+   { 0x1, 16, NULL, NULL, PPC_OPERAND_OPTIONAL },
+ 
++  /* The RMC or CY field in a Z23 form instruction.  */
+ #define RMC A_L + 1
++#define CY RMC
+   { 0x3, 9, NULL, NULL, 0 },
+ 
+ #define R RMC + 1
+@@ -3145,6 +3147,7 @@ const struct powerpc_opcode powerpc_opcodes[] = {
+ {"vmhaddshs",	VXA(4,	32),	VXA_MASK,    PPCVEC|PPCVLE, PPCNONE,	{VD, VA, VB, VC}},
+ {"vmhraddshs",	VXA(4,	33),	VXA_MASK,    PPCVEC|PPCVLE, PPCNONE,	{VD, VA, VB, VC}},
+ {"vmladduhm",	VXA(4,	34),	VXA_MASK,    PPCVEC|PPCVLE, PPCNONE,	{VD, VA, VB, VC}},
++{"vmsumudm",	VXA(4,	35),	VXA_MASK,    PPCVEC3,	PPCNONE,	{VD, VA, VB, VC}},
+ {"ps_div",	A  (4,	18,0),	AFRC_MASK,   PPCPS,	PPCNONE,	{FRT, FRA, FRB}},
+ {"vmsumubm",	VXA(4,	36),	VXA_MASK,    PPCVEC|PPCVLE, PPCNONE,	{VD, VA, VB, VC}},
+ {"ps_div.",	A  (4,	18,1),	AFRC_MASK,   PPCPS,	PPCNONE,	{FRT, FRA, FRB}},
+@@ -4977,6 +4980,9 @@ const struct powerpc_opcode powerpc_opcodes[] = {
+ {"stvehx",	X(31,167),	X_MASK,      PPCVEC,	PPCNONE,	{VS, RA0, RB}},
+ {"sthfcmx",	APU(31,167,0), 	APU_MASK,    PPC405,	PPCNONE,	{FCRT, RA, RB}},
+ 
++{"addex",	ZRC(31,170,0),	Z2_MASK,     POWER9,	PPCNONE,	{RT, RA, RB, CY}},
++{"addex.",	ZRC(31,170,1),	Z2_MASK,     POWER9,	PPCNONE,	{RT, RA, RB, CY}},
++
+ {"msgclrp",	XRTRA(31,174,0,0), XRTRA_MASK, POWER8,	PPCNONE,	{RB}},
+ {"dcbtlse",	X(31,174),	X_MASK,      PPCCHLK,	E500MC,		{CT, RA0, RB}},
+ 
+@@ -5504,6 +5510,8 @@ const struct powerpc_opcode powerpc_opcodes[] = {
+ 
+ {"mtvsrdd",	X(31,435),	XX1_MASK,    PPCVSX3,	PPCNONE,	{XT6, RA0, RB}},
+ 
++{"lwzmx",	X(31,437),	X_MASK,      POWER9,	PPCNONE,  	{RT, RA0, RB}},
++
+ {"ecowx",	X(31,438),	X_MASK,      PPC,	E500|TITAN,  	{RT, RA0, RB}},
+ 
+ {"sthux",	X(31,439),	X_MASK,      COM|PPCVLE, PPCNONE,	{RS, RAS, RB}},

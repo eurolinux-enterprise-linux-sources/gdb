@@ -1,0 +1,418 @@
+  Date: Mon, 15 Apr 2013 11:04:10 -0700
+  Message-ID: <CADPb22TTQCsFsuNtjTiUUQU_FN8R6cxfPeCRvNp_Ad2XS6XUag@mail.gmail.com>
+  Subject: Re: [RFA] Fix solib-precsave.exp,solib-reverse.exp
+  From: Doug Evans <dje at google dot com>
+  To: Pedro Alves <palves at redhat dot com>
+  Cc: gdb-patches <gdb-patches at sourceware dot org>
+
+  On Mon, Apr 15, 2013 at 10:33 AM, Pedro Alves <palves@redhat.com> wrote:
+  > On 04/13/2013 12:13 AM, Doug Evans wrote:
+  >> Hi.
+  >>
+  >> These two tests are failing for me.
+  >> They make the assumption that debug info for libc isn't installed.
+  >>
+  >> To fix this I've created a library of wrappers for the affected libc
+  >> functions and compiled it without debug info.
+  >>
+  >> Ok to check in?
+  >
+  > This the certainly the right idea for fixing the problem, but it took me a
+  > while to realize that the fact that the functions currently called are
+  > printf and sleep, and that the new library has wrappers for those has no
+  > importance.  They really are just used as proxy for "functions in library
+  > with no debug info".  Not even the output of printf is used.  I think that
+  > calling the library a syscall wrapper makes it prone to causing such doubt
+  > and confusion in other readers (of either the patch or the resulting code
+  > in the tree), as it has caused me.
+  >
+  > How about we just call it "shr1", and have it export some non-libc related
+  > functions like e.g., "shr1_foo" and "shr1_bar"?
+
+  Blech.  That's how I originally had it.
+  The original code used printf and sleep and I figured someone would
+  want to keep them.
+  I don't have a preference for either way.  Anyone else?
+  In any case we need to document that one cannot call libc functions
+  (or similar) as is.
+
+  >>  int main ()
+  >> @@ -27,16 +31,25 @@ int main ()
+  >>    char* cptr = "String 1";
+  >>    int b[2] = {5,8};
+  >>
+  >> +  /* Call these functions once before we start testing so that they get
+  >> +     resolved by the dynamic loader.  If the system has debug info for
+  >> +     the dynamic loader installed, reverse-stepping for the first call
+  >> +     will otherwise record being in the dynamic loader, which is not what
+  >
+  > reverse-stepping doesn't record.  Did you mean "report", or even
+  > "reverse-stepping the first call will otherwise stop in the
+  > dynamic loader", perhaps?
+
+  Yeah.
+
+commit c2a96e8cafeeda6132399e9ea94dafad6366ccc5
+Author: Doug Evans <dje@google.com>
+Date:   Mon May 6 22:07:13 2013 +0000
+
+    	* gdb.reverse/shr.h: New file.
+    	* gdb.reverse/shr1.c: New file.
+    	* gdb.reverse/shr2.c: #include "shr.h".
+    	* gdb.reverse/solib-reverse.c: Remove #include <stdio.h>.
+    	#include "shr.h".  Replace calls to printf,sleep to call shr1 instead.
+    	* gdb.reverse/solib-precsave.exp: Build shr2.sl.
+    	Update tests using sleep/printf to use shr2.sl instead.
+    	* gdb.reverse/solib-reverse.exp: Ditt.o
+
+Index: gdb-7.6.1/gdb/testsuite/gdb.reverse/shr1.c
+===================================================================
+--- /dev/null
++++ gdb-7.6.1/gdb/testsuite/gdb.reverse/shr1.c
+@@ -0,0 +1,24 @@
++/* This testcase is part of GDB, the GNU debugger.
++
++   Copyright 2013 Free Software Foundation, Inc.
++
++   This program is free software; you can redistribute it and/or modify
++   it under the terms of the GNU General Public License as published by
++   the Free Software Foundation; either version 3 of the License, or
++   (at your option) any later version.
++
++   This program is distributed in the hope that it will be useful,
++   but WITHOUT ANY WARRANTY; without even the implied warranty of
++   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++   GNU General Public License for more details.
++
++   You should have received a copy of the GNU General Public License
++   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
++
++#include "shr.h"
++
++void
++shr1 (const char *s)
++{
++  /* nothing to do */
++}
+Index: gdb-7.6.1/gdb/testsuite/gdb.reverse/shr2.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/testsuite/gdb.reverse/shr2.c
++++ gdb-7.6.1/gdb/testsuite/gdb.reverse/shr2.c
+@@ -15,6 +15,8 @@
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
+ 
++#include "shr.h"
++
+ #ifdef PROTOTYPES
+ int shr2(int x)
+ #else
+Index: gdb-7.6.1/gdb/testsuite/gdb.reverse/shr.h
+===================================================================
+--- /dev/null
++++ gdb-7.6.1/gdb/testsuite/gdb.reverse/shr.h
+@@ -0,0 +1,24 @@
++/* This testcase is part of GDB, the GNU debugger.
++
++   Copyright 2013 Free Software Foundation, Inc.
++
++   This program is free software; you can redistribute it and/or modify
++   it under the terms of the GNU General Public License as published by
++   the Free Software Foundation; either version 3 of the License, or
++   (at your option) any later version.
++
++   This program is distributed in the hope that it will be useful,
++   but WITHOUT ANY WARRANTY; without even the implied warranty of
++   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++   GNU General Public License for more details.
++
++   You should have received a copy of the GNU General Public License
++   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
++
++#ifndef GDB_REVERSE_SHR_H
++#define GDB_REVERSE_SHR_H
++
++extern void shr1 (const char *);
++extern int shr2 (int);
++
++#endif /* GDB_REVERSE_SHR_H */
+Index: gdb-7.6.1/gdb/testsuite/gdb.reverse/solib-precsave.exp
+===================================================================
+--- gdb-7.6.1.orig/gdb/testsuite/gdb.reverse/solib-precsave.exp
++++ gdb-7.6.1/gdb/testsuite/gdb.reverse/solib-precsave.exp
+@@ -26,20 +26,30 @@ if {[skip_shlib_tests]} {
+ 
+ standard_testfile solib-reverse.c
+ set precsave [standard_output_file solib.precsave]
+-set libfile  "shr2"
+-set libsrc   ${libfile}.c
+-set library  [standard_output_file ${libfile}.sl]
++set lib1file "shr1"
++set lib1src  ${lib1file}.c
++set library1 [standard_output_file ${lib1file}.sl]
++set lib2file "shr2"
++set lib2src  ${lib2file}.c
++set library2 [standard_output_file ${lib2file}.sl]
+ 
+ if [get_compiler_info] {
+     return -1
+ }
+ 
+-if { [gdb_compile_shlib ${srcdir}/${subdir}/${libsrc} ${library} "debug"] != "" } {
+-    untested "Could not compile shared library."
++# Compile the first without debug info so that
++# stepping and reverse stepping doesn't end up inside them.
++if { [gdb_compile_shlib ${srcdir}/${subdir}/${lib1src} ${library1} ""] != "" } {
++    untested "Could not compile shared library1."
+     return -1
+ }
+ 
+-set exec_opts [list debug shlib=${library}]
++if { [gdb_compile_shlib ${srcdir}/${subdir}/${lib2src} ${library2} "debug"] != "" } {
++    untested "Could not compile shared library2."
++    return -1
++}
++
++set exec_opts [list debug shlib=${library1} shlib=${library2}]
+ 
+ # Attempt to prevent -Wl,-z,relro which may happen by default with some
+ # toolchain configurations.  Due to PR corefiles/11804 GDB will then produce
+@@ -57,12 +67,17 @@ if { [gdb_compile ${srcdir}/${subdir}/${
+ gdb_exit
+ gdb_start
+ 
+-# Clear it to never find any separate system debug infos.
+-gdb_test_no_output "set debug-file-directory"
++# Note: The test previously did "set debug-file-directory" to (try to)
++# ensure the debug info for the dynamic loader and libc weren't found.
++# This doesn't work if the debug info is in the .debug subdirectory.
++# Avoiding debug info for system libraries is not germaine to this test
++# and is no longer attempted.  Instead, the test does not make assumptions
++# about whether the debug info is present or not.
+ 
+ gdb_reinitialize_dir $srcdir/$subdir
+ gdb_load ${binfile}
+-gdb_load_shlibs $library
++gdb_load_shlibs $library1
++gdb_load_shlibs $library2
+ 
+ runto main
+ 
+@@ -99,15 +114,10 @@ set end_part_one [gdb_get_line_number "
+ set end_part_two [gdb_get_line_number " end part two" "$srcfile"]
+ gdb_test "until $end_part_one" " end part one.*" "run until end part one"
+ 
+-gdb_test "reverse-step" " sleep three .*" "reverse-step third sleep"
+-gdb_test "reverse-step" " sleep two .*"   "reverse-step second sleep"
+-gdb_test "reverse-step" " sleep one .*"   \
+-		    "reverse-step first sleep, dynsym resolve"
+-
+-gdb_test "reverse-step" " printf three .*" "reverse-step third printf"
+-gdb_test "reverse-step" " printf two .*"   "reverse-step second printf"
+-gdb_test "reverse-step" " printf one .*"   \
+-		    "reverse-step first printf, dynsym resolve"
++gdb_test "reverse-step" " shr1 three .*" "reverse-step third shr1"
++gdb_test "reverse-step" " shr1 two .*"   "reverse-step second shr1"
++gdb_test "reverse-step" " shr1 one .*"   "reverse-step first shr1"
++
+ gdb_test "reverse-step" " generic statement.*" "reverse-step generic"
+ 
+ 
+@@ -119,15 +129,10 @@ gdb_test "reverse-step" " generic statem
+ 
+ gdb_test "until $end_part_one" " end part one.*" "forward to end part one"
+ 
+-gdb_test "reverse-next" " sleep three .*" "reverse-next third sleep"
+-gdb_test "reverse-next" " sleep two .*"   "reverse-next second sleep"
+-gdb_test "reverse-next" " sleep one .*"   \
+-		    "reverse-next first sleep, dynsym resolve"
+-
+-gdb_test "reverse-next" " printf three .*" "reverse-next third printf"
+-gdb_test "reverse-next" " printf two .*"   "reverse-next second printf"
+-gdb_test "reverse-next" " printf one .*"   \
+-		    "reverse-next first printf, dynsym resolve"
++gdb_test "reverse-next" " shr1 three .*" "reverse-next third shr1"
++gdb_test "reverse-next" " shr1 two .*"   "reverse-next second shr1"
++gdb_test "reverse-next" " shr1 one .*"   "reverse-next first shr1"
++
+ gdb_test "reverse-next" " generic statement.*" "reverse-next generic"
+ 
+ 
+@@ -135,11 +140,11 @@ gdb_test "reverse-next" " generic statem
+ # Test reverse-step into debuggable solib function
+ #
+ 
+-gdb_test "reverse-step" "${libsrc}.*" "reverse-step into solib function one"
++gdb_test "reverse-step" "${lib2src}.*" "reverse-step into solib function one"
+ gdb_test "reverse-step" "return 2.x.*" "reverse-step within solib function one"
+ gdb_test "reverse-step" " middle part two.*" "reverse-step back to main one"
+ 
+-gdb_test "reverse-step" "${libsrc}.*" "reverse-step into solib function two"
++gdb_test "reverse-step" "${lib2src}.*" "reverse-step into solib function two"
+ gdb_test "reverse-step" "return 2.x.*" "reverse-step within solib function two"
+ gdb_test "reverse-step" " begin part two.*" "reverse-step back to main two"
+ 
+Index: gdb-7.6.1/gdb/testsuite/gdb.reverse/solib-reverse.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/testsuite/gdb.reverse/solib-reverse.c
++++ gdb-7.6.1/gdb/testsuite/gdb.reverse/solib-reverse.c
+@@ -15,28 +15,33 @@
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
+ 
+-/* Test reverse debugging of shared libraries.  */
++/* Test reverse debugging of shared libraries.
+ 
+-#include <stdio.h>
++   N.B. Do not call system routines here, we don't want to have to deal with
++   whether or not there is debug info present for them.  */
+ 
+-/* Shared library function */
+-extern int shr2(int);
++#include "shr.h"
+ 
+ int main ()
+ {
+   char* cptr = "String 1";
+   int b[2] = {5,8};
+ 
++  /* Call these functions once before we start testing so that they get
++     resolved by the dynamic loader.  If the system has debug info for
++     the dynamic loader installed, reverse-stepping for the first call
++     will otherwise stop in the dynamic loader, which is not what we want.  */
++  shr1 ("");
++  shr2 (0);
++
+   b[0] = shr2(12);		/* begin part two */
+   b[1] = shr2(17);		/* middle part two */
+ 
+   b[0] = 6;   b[1] = 9;		/* generic statement, end part two */
+-  printf ("message 1\n");	/* printf one */
+-  printf ("message 2\n");	/* printf two */
+-  printf ("message 3\n");	/* printf three */
+-  sleep (0);			/* sleep one */
+-  sleep (0);			/* sleep two */
+-  sleep (0);			/* sleep three */
++
++  shr1 ("message 1\n");		/* shr1 one */
++  shr1 ("message 2\n");		/* shr1 two */
++  shr1 ("message 3\n");		/* shr1 three */
+ 
+   return 0;			/* end part one */
+ } /* end of main */
+Index: gdb-7.6.1/gdb/testsuite/gdb.reverse/solib-reverse.exp
+===================================================================
+--- gdb-7.6.1.orig/gdb/testsuite/gdb.reverse/solib-reverse.exp
++++ gdb-7.6.1/gdb/testsuite/gdb.reverse/solib-reverse.exp
+@@ -24,20 +24,30 @@ if {[skip_shlib_tests]} {
+ }
+ 
+ standard_testfile
+-set libfile  "shr2"
+-set libsrc   ${libfile}.c
+-set library  [standard_output_file ${libfile}.sl]
++set lib1file "shr1"
++set lib1src  ${lib1file}.c
++set library1 [standard_output_file ${lib1file}.sl]
++set lib2file "shr2"
++set lib2src  ${lib2file}.c
++set library2 [standard_output_file ${lib2file}.sl]
+ 
+ if [get_compiler_info] {
+     return -1
+ }
+ 
+-if { [gdb_compile_shlib ${srcdir}/${subdir}/${libsrc} ${library} "debug"] != "" } {
+-    untested "Could not compile shared library."
++# Compile the first without debug info so that
++# stepping and reverse stepping doesn't end up inside them.
++if { [gdb_compile_shlib ${srcdir}/${subdir}/${lib1src} ${library1} ""] != "" } {
++    untested "Could not compile shared library1."
+     return -1
+ }
+ 
+-set exec_opts [list debug shlib=${library}]
++if { [gdb_compile_shlib ${srcdir}/${subdir}/${lib2src} ${library2} "debug"] != "" } {
++    untested "Could not compile shared library2."
++    return -1
++}
++
++set exec_opts [list debug shlib=${library1} shlib=${library2}]
+ 
+ if { [gdb_compile ${srcdir}/${subdir}/${srcfile} ${binfile} executable $exec_opts] != "" } {
+     untested "Could not compile $binfile."
+@@ -49,12 +59,17 @@ if { [gdb_compile ${srcdir}/${subdir}/${
+ gdb_exit
+ gdb_start
+ 
+-# Clear it to never find any separate system debug infos.
+-gdb_test_no_output "set debug-file-directory"
++# Note: The test previously did "set debug-file-directory" to (try to)
++# ensure the debug info for the dynamic loader and libc weren't found.
++# This doesn't work if the debug info is in the .debug subdirectory.
++# Avoiding debug info for system libraries is not germaine to this test
++# and is no longer attempted.  Instead, the test does not make assumptions
++# about whether the debug info is present or not.
+ 
+ gdb_reinitialize_dir $srcdir/$subdir
+ gdb_load ${binfile}
+-gdb_load_shlibs $library
++gdb_load_shlibs $library1
++gdb_load_shlibs $library2
+ 
+ runto main
+ 
+@@ -73,15 +88,10 @@ set end_part_one [gdb_get_line_number "
+ set end_part_two [gdb_get_line_number " end part two" "$srcfile"]
+ gdb_test "until $end_part_one" " end part one.*" "run until end part one"
+ 
+-gdb_test "reverse-step" " sleep three .*" "reverse-step third sleep"
+-gdb_test "reverse-step" " sleep two .*"   "reverse-step second sleep"
+-gdb_test "reverse-step" " sleep one .*"   \
+-		    "reverse-step first sleep, dynsym resolve"
+-
+-gdb_test "reverse-step" " printf three .*" "reverse-step third printf"
+-gdb_test "reverse-step" " printf two .*"   "reverse-step second printf"
+-gdb_test "reverse-step" " printf one .*"   \
+-		    "reverse-step first printf, dynsym resolve"
++gdb_test "reverse-step" " shr1 three .*" "reverse-step third shr1"
++gdb_test "reverse-step" " shr1 two .*"   "reverse-step second shr1"
++gdb_test "reverse-step" " shr1 one .*"   "reverse-step first shr1"
++
+ gdb_test "reverse-step" " generic statement.*" "reverse-step generic"
+ 
+ 
+@@ -93,15 +103,10 @@ gdb_test "reverse-step" " generic statem
+ 
+ gdb_test "until $end_part_one" " end part one.*" "forward to end part one"
+ 
+-gdb_test "reverse-next" " sleep three .*" "reverse-next third sleep"
+-gdb_test "reverse-next" " sleep two .*"   "reverse-next second sleep"
+-gdb_test "reverse-next" " sleep one .*"   \
+-		    "reverse-next first sleep, dynsym resolve"
+-
+-gdb_test "reverse-next" " printf three .*" "reverse-next third printf"
+-gdb_test "reverse-next" " printf two .*"   "reverse-next second printf"
+-gdb_test "reverse-next" " printf one .*"   \
+-		    "reverse-next first printf, dynsym resolve"
++gdb_test "reverse-next" " shr1 three .*" "reverse-next third shr1"
++gdb_test "reverse-next" " shr1 two .*"   "reverse-next second shr1"
++gdb_test "reverse-next" " shr1 one .*"   "reverse-next first shr1"
++
+ gdb_test "reverse-next" " generic statement.*" "reverse-next generic"
+ 
+ 
+@@ -109,11 +114,11 @@ gdb_test "reverse-next" " generic statem
+ # Test reverse-step into debuggable solib function
+ #
+ 
+-gdb_test "reverse-step" "${libsrc}.*" "reverse-step into solib function one"
++gdb_test "reverse-step" "${lib2src}.*" "reverse-step into solib function one"
+ gdb_test "reverse-step" "return 2.x.*" "reverse-step within solib function one"
+ gdb_test "reverse-step" " middle part two.*" "reverse-step back to main one"
+ 
+-gdb_test "reverse-step" "${libsrc}.*" "reverse-step into solib function two"
++gdb_test "reverse-step" "${lib2src}.*" "reverse-step into solib function two"
+ gdb_test "reverse-step" "return 2.x.*" "reverse-step within solib function two"
+ gdb_test "reverse-step" " begin part two.*" "reverse-step back to main two"
+ 

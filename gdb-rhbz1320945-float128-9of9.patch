@@ -1,0 +1,439 @@
+commit 00d5215ecec4fa0a78dcc37fec9425593753eb66
+Author: Ulrich Weigand <ulrich.weigand@de.ibm.com>
+Date:   Tue Sep 6 17:33:15 2016 +0200
+
+    Support 128-bit IEEE floating-point types on Intel and Power
+    
+    Now that all the prerequisites are in place, this commit finally adds support
+    for handling the __float128 type on Intel and Power, by providing appropriate
+    platform-specific versions of the floatformat_for_type callback.
+    
+    Since at this point we do not yet have any indication in the debug info to
+    distinguish different floating-point formats of the same length, we simply
+    use the type name as hint.  Types named "__float128" get the IEEE format.
+    In addition to handling "__float128" itself, we also recognize "_Float128"
+    and (on Power) "_Float64x", as well as the complex versions of those.
+    (As pointed out by Joseph Myers, starting with GCC 7, __float128 is just
+    a typedef for _Float128 -- but it's good to handle this anyway.)
+    
+    A new test case does some simple verification that the format is decoded
+    correctly, using both __float128 and "long double" to make sure using both
+    in the same file still works.  Another new test verifies handling of the
+    _FloatN and _FloatNx types supported by GCC 7, as well as the complex
+    versions of those types.
+    
+    Note that this still only supports basic format decoding and encoding.
+    We do not yet support the GNU extension 'g' suffix for __float128 constants.
+    In addition, since all *arithmetic* on floating-point values is still
+    performed in native host "long double" arithmetic, if that format is not
+    able to encode all target __float128 values, we may get incorrect results.
+    (To fix this would require implementing fully synthetic target floating-
+    point arithmetic along the lines of GCC's real.c, presumably using MPFR.)
+    
+    gdb/ChangeLog:
+    
+            * i386-tdep.c (i386_floatformat_for_type): New function.
+            (i386_gdbarch_init): Install it.
+            * ppc-linux-tdep.c (ppc_floatformat_for_type): New function.
+            (ppc_linux_init_abi): Install it.
+    
+    gdb/testsuite/ChangeLog:
+    
+            * gdb.base/float128.c: New file.
+            * gdb.base/float128.exp: Likewise.
+            * gdb.base/floatn.c: Likewise.
+            * gdb.base/floatn.exp: Likewise.
+    
+    Signed-off-by: Ulrich Weigand <ulrich.weigand@de.ibm.com>
+
+### a/gdb/ChangeLog
+### b/gdb/ChangeLog
+## -1,5 +1,12 @@
+ 2016-09-05  Ulrich Weigand  <uweigand@de.ibm.com>
+ 
++	* i386-tdep.c (i386_floatformat_for_type): New function.
++	(i386_gdbarch_init): Install it.
++	* ppc-linux-tdep.c (ppc_floatformat_for_type): New function.
++	(ppc_linux_init_abi): Install it.
++
++2016-09-05  Ulrich Weigand  <uweigand@de.ibm.com>
++
+ 	* gdbarch.sh (floatformat_for_type): New gdbarch callback.
+ 	* gdbarch.h, gdbarch.c: Re-generate.
+ 	* arch-utils.h (default_floatformat_for_type): New prototype.
+Index: gdb-7.6.1/gdb/i386-tdep.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/i386-tdep.c	2017-03-11 22:05:54.267721188 +0100
++++ gdb-7.6.1/gdb/i386-tdep.c	2017-03-11 22:07:59.209585676 +0100
+@@ -7495,6 +7495,23 @@
+     }
+ }
+ 
++/* Return a floating-point format for a floating-point variable of
++   length LEN in bits.  If non-NULL, NAME is the name of its type.
++   If no suitable type is found, return NULL.  */
++
++static const struct floatformat **
++i386_floatformat_for_type (struct gdbarch *gdbarch,
++			   const char *name, int len)
++{
++  if (len == 128 && name)
++    if (strcmp (name, "__float128") == 0
++	|| strcmp (name, "_Float128") == 0
++	|| strcmp (name, "complex _Float128") == 0)
++      return floatformats_ia64_quad;
++
++  return default_floatformat_for_type (gdbarch, name, len);
++}
++
+ static int
+ i386_validate_tdesc_p (struct gdbarch_tdep *tdep,
+ 		       struct tdesc_arch_data *tdesc_data)
+@@ -7640,6 +7657,9 @@
+      alignment.  */
+   set_gdbarch_long_double_bit (gdbarch, 96);
+ 
++  /* Support for floating-point data type variants.  */
++  set_gdbarch_floatformat_for_type (gdbarch, i386_floatformat_for_type);
++
+   /* Register numbers of various important registers.  */
+   set_gdbarch_sp_regnum (gdbarch, I386_ESP_REGNUM); /* %esp */
+   set_gdbarch_pc_regnum (gdbarch, I386_EIP_REGNUM); /* %eip */
+Index: gdb-7.6.1/gdb/ppc-linux-tdep.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/ppc-linux-tdep.c	2017-03-11 22:05:54.267721188 +0100
++++ gdb-7.6.1/gdb/ppc-linux-tdep.c	2017-03-11 22:08:14.080688571 +0100
+@@ -1691,6 +1691,25 @@
+   record_tdep->ioctl_FIOQSIZE = 0x40086680;
+ }
+ 
++/* Return a floating-point format for a floating-point variable of
++   length LEN in bits.  If non-NULL, NAME is the name of its type.
++   If no suitable type is found, return NULL.  */
++
++static const struct floatformat **
++ppc_floatformat_for_type (struct gdbarch *gdbarch,
++                          const char *name, int len)
++{
++  if (len == 128 && name)
++    if (strcmp (name, "__float128") == 0
++        || strcmp (name, "_Float128") == 0
++        || strcmp (name, "_Float64x") == 0
++        || strcmp (name, "complex _Float128") == 0
++        || strcmp (name, "complex _Float64x") == 0)
++      return floatformats_ia64_quad;
++
++  return default_floatformat_for_type (gdbarch, name, len);
++}
++
+ static void
+ ppc_linux_init_abi (struct gdbarch_info info,
+                     struct gdbarch *gdbarch)
+@@ -1713,6 +1732,9 @@
+   set_gdbarch_long_double_bit (gdbarch, 16 * TARGET_CHAR_BIT);
+   set_gdbarch_long_double_format (gdbarch, floatformats_ibm_long_double);
+ 
++  /* Support for floating-point data type variants.  */
++  set_gdbarch_floatformat_for_type (gdbarch, ppc_floatformat_for_type);
++
+   /* Handle inferior calls during interrupted system calls.  */
+   set_gdbarch_write_pc (gdbarch, ppc_linux_write_pc);
+ 
+Index: gdb-7.6.1/gdb/testsuite/gdb.base/float128.c
+===================================================================
+--- /dev/null	1970-01-01 00:00:00.000000000 +0000
++++ gdb-7.6.1/gdb/testsuite/gdb.base/float128.c	2017-03-11 22:07:59.210585683 +0100
+@@ -0,0 +1,30 @@
++/* This testcase is part of GDB, the GNU debugger.
++
++   Copyright 2016 Free Software Foundation, Inc.
++
++   This program is free software; you can redistribute it and/or modify
++   it under the terms of the GNU General Public License as published by
++   the Free Software Foundation; either version 3 of the License, or
++   (at your option) any later version.
++
++   This program is distributed in the hope that it will be useful,
++   but WITHOUT ANY WARRANTY; without even the implied warranty of
++   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++   GNU General Public License for more details.
++
++   You should have received a copy of the GNU General Public License
++   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
++
++#include <stdio.h>
++#include <stdlib.h>
++
++long double ld;
++__float128 f128;
++
++int main()
++{
++  ld = 1.375l;
++  f128 = 2.375q;
++
++  return 0;
++}
+Index: gdb-7.6.1/gdb/testsuite/gdb.base/float128.exp
+===================================================================
+--- /dev/null	1970-01-01 00:00:00.000000000 +0000
++++ gdb-7.6.1/gdb/testsuite/gdb.base/float128.exp	2017-03-11 22:07:59.211585690 +0100
+@@ -0,0 +1,76 @@
++# Copyright 2016 Free Software Foundation, Inc.
++
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 3 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License
++# along with this program.  If not, see <http://www.gnu.org/licenses/>.
++
++# This file is part of the gdb testsuite.  It is intended to test that
++# gdb could correctly handle floating point constant with a suffix.
++
++standard_testfile .c
++
++proc do_compile { {opts {}} } {
++    global srcdir subdir srcfile binfile
++    set ccopts {debug quiet}
++    foreach opt $opts {lappend ccopts "additional_flags=$opt"}
++    gdb_compile "${srcdir}/${subdir}/${srcfile}" "$binfile" executable $ccopts
++}
++
++if { [do_compile] != "" && [do_compile {-mfloat128}] != "" } {
++    untested "compiler can't handle __float128 type?"
++    return -1
++}
++
++clean_restart ${binfile}
++
++if ![runto_main] then {
++    perror "couldn't run to breakpoint"
++    continue
++}
++
++# Run to the breakpoint at return.
++gdb_breakpoint [gdb_get_line_number "return"]
++gdb_continue_to_breakpoint "return"
++
++# Print the original value of ld and f128
++gdb_test "print ld" ".* = 1\\.375.*" "The original value of ld is 1.375"
++gdb_test "print f128" ".* = 2\\.375.*" "The original value of f128 is 2.375"
++
++# Test that gdb could correctly recognize float constant expression with a suffix.
++# FIXME: gdb does not yet recognize the GNU extension 'q' suffix for __float128 constants.
++gdb_test "print ld=-1.375l" ".* = -1\\.375.*" "Try to change ld to -1.375 with 'print ld=-1.375l'"
++gdb_test "print f128=-2.375l" ".* = -2\\.375.*" "Try to change f128 to -2.375 with 'print f128=-2.375l'"
++
++# Test that gdb could handle the above correctly with "set var" command.
++set test "set variable ld=10.375l"
++gdb_test_multiple "set var ld=10.375l" "$test" {
++    -re "$gdb_prompt $" {
++	pass "$test"
++    }
++    -re "Invalid number.*$gdb_prompt $" {
++	fail "$test (do not recognize 10.375l)"
++    }
++}
++
++set test "set variable f128=20.375l"
++gdb_test_multiple "set var f128=20.375l" "$test" {
++    -re "$gdb_prompt $" {
++	pass "$test"
++    }
++    -re "Invalid number.*$gdb_prompt $" {
++	fail "$test (do not recognize 20.375l)"
++    }
++}
++
++gdb_test "print ld" ".* = 10\\.375.*" "The value of ld is changed to 10.375"
++gdb_test "print f128" ".* = 20\\.375.*" "The value of f128 is changed to 20.375"
++
+Index: gdb-7.6.1/gdb/testsuite/gdb.base/floatn.c
+===================================================================
+--- /dev/null	1970-01-01 00:00:00.000000000 +0000
++++ gdb-7.6.1/gdb/testsuite/gdb.base/floatn.c	2017-03-11 22:07:59.211585690 +0100
+@@ -0,0 +1,48 @@
++/* This testcase is part of GDB, the GNU debugger.
++
++   Copyright 2016 Free Software Foundation, Inc.
++
++   This program is free software; you can redistribute it and/or modify
++   it under the terms of the GNU General Public License as published by
++   the Free Software Foundation; either version 3 of the License, or
++   (at your option) any later version.
++
++   This program is distributed in the hope that it will be useful,
++   but WITHOUT ANY WARRANTY; without even the implied warranty of
++   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++   GNU General Public License for more details.
++
++   You should have received a copy of the GNU General Public License
++   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
++
++#include <stdio.h>
++#include <stdlib.h>
++
++_Float32 f32;
++_Float64 f64;
++_Float128 f128;
++_Float32x f32x;
++_Float64x f64x;
++
++_Complex _Float32 c32;
++_Complex _Float64 c64;
++_Complex _Float128 c128;
++_Complex _Float32x c32x;
++_Complex _Float64x c64x;
++
++int main()
++{
++  f32 = 1.5f32;
++  f64 = 2.25f64;
++  f128 = 3.375f128;
++  f32x = 10.5f32x;
++  f64x = 20.25f64x;
++
++  c32 = 1.5f32 + 1.0if;
++  c64 = 2.25f64 + 1.0if;
++  c128 = 3.375f128 + 1.0if;
++  c32x = 10.5f32x + 1.0if;
++  c64x = 20.25f64x + 1.0if;
++
++  return 0;
++}
+Index: gdb-7.6.1/gdb/testsuite/gdb.base/floatn.exp
+===================================================================
+--- /dev/null	1970-01-01 00:00:00.000000000 +0000
++++ gdb-7.6.1/gdb/testsuite/gdb.base/floatn.exp	2017-03-11 22:07:59.211585690 +0100
+@@ -0,0 +1,124 @@
++# Copyright 2016 Free Software Foundation, Inc.
++
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 3 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License
++# along with this program.  If not, see <http://www.gnu.org/licenses/>.
++
++# This file is part of the gdb testsuite.  It is intended to test that
++# gdb could correctly handle floating point constant with a suffix.
++
++standard_testfile .c
++
++proc do_compile { {opts {}} } {
++    global srcdir subdir srcfile binfile
++    set ccopts {debug quiet}
++    foreach opt $opts {lappend ccopts "additional_flags=$opt"}
++    gdb_compile "${srcdir}/${subdir}/${srcfile}" "$binfile" executable $ccopts
++}
++
++if { [do_compile] != "" && [do_compile {-mfloat128}] != "" } {
++    untested "compiler can't handle _FloatN/_FloatNx types?"
++    return -1
++}
++
++clean_restart ${binfile}
++
++if ![runto_main] then {
++    perror "couldn't run to breakpoint"
++    continue
++}
++
++# Run to the breakpoint at return.
++gdb_breakpoint [gdb_get_line_number "return"]
++gdb_continue_to_breakpoint "return"
++
++# Print the original values of f32, f64, f128, f32x, f64x.
++gdb_test "print f32" ".* = 1\\.5.*" "The original value of f32 is 1.5"
++gdb_test "print f64" ".* = 2\\.25.*" "The original value of f64 is 2.25"
++gdb_test "print f128" ".* = 3\\.375.*" "The original value of f128 is 3.375"
++gdb_test "print f32x" ".* = 10\\.5.*" "The original value of f32x is 10.5"
++gdb_test "print f64x" ".* = 20\\.25.*" "The original value of f64x is 20.25"
++
++# Test that gdb could correctly recognize float constant expression with a suffix.
++# FIXME: gdb does not yet recognize the suffix for _FloatN/_FloatNx types.
++gdb_test "print f32=-1.5" ".* = -1\\.5.*" "Try to change f32 to -1.5 with 'print f32=-1.5'"
++gdb_test "print f64=-2.25" ".* = -2\\.25.*" "Try to change f64 to -2.25 with 'print f64=-2.25'"
++gdb_test "print f128=-3.375" ".* = -3\\.375.*" "Try to change f128 to -3.375 with 'print f128=-3.375'"
++gdb_test "print f32x=-10.5" ".* = -10\\.5.*" "Try to change f32x to -10.5 with 'print f32=-1.5x'"
++gdb_test "print f64x=-20.25" ".* = -20\\.25.*" "Try to change f64x to -20.25 with 'print f64=-2.25x'"
++
++# Test that gdb could handle the above correctly with "set var" command.
++set test "set variable f32 = 10.5"
++gdb_test_multiple "set var f32=10.5" "$test" {
++    -re "$gdb_prompt $" {
++	pass "$test"
++    }
++    -re "Invalid number.*$gdb_prompt $" {
++	fail "$test (do not recognize 10.5)"
++    }
++}
++
++set test "set variable f64 = 20.25"
++gdb_test_multiple "set var f64=20.25" "$test" {
++    -re "$gdb_prompt $" {
++	pass "$test"
++    }
++    -re "Invalid number.*$gdb_prompt $" {
++	fail "$test (do not recognize 20.25)"
++    }
++}
++
++set test "set variable f128 = 30.375"
++gdb_test_multiple "set var f128=30.375" "$test" {
++    -re "$gdb_prompt $" {
++	pass "$test"
++    }
++    -re "Invalid number.*$gdb_prompt $" {
++	fail "$test (do not recognize 30.375)"
++    }
++}
++
++set test "set variable f32x = 100.5"
++gdb_test_multiple "set var f32x=100.5" "$test" {
++    -re "$gdb_prompt $" {
++	pass "$test"
++    }
++    -re "Invalid number.*$gdb_prompt $" {
++	fail "$test (do not recognize 100.5)"
++    }
++}
++
++set test "set variable f64x = 200.25"
++gdb_test_multiple "set var f64x=200.25" "$test" {
++    -re "$gdb_prompt $" {
++	pass "$test"
++    }
++    -re "Invalid number.*$gdb_prompt $" {
++	fail "$test (do not recognize 200.25)"
++    }
++}
++
++gdb_test "print f32" ".* = 10\\.5.*" "The value of f32 is changed to 10.5"
++gdb_test "print f64" ".* = 20\\.25.*" "The value of f64 is changed to 20.25"
++gdb_test "print f128" ".* = 30\\.375.*" "The value of f128 is changed to 30.375"
++gdb_test "print f32x" ".* = 100\\.5.*" "The value of f32x is changed to 100.5"
++gdb_test "print f64x" ".* = 200\\.25.*" "The value of f64x is changed to 200.25"
++
++# Print the original values of c32, c64, c128, c32x, c64x.
++gdb_test "print c32" ".* = 1\\.5 \\+ 1 \\* I.*" "The original value of c32 is 1.5 + 1 * I"
++gdb_test "print c64" ".* = 2\\.25 \\+ 1 \\* I.*" "The original value of c64 is 2.25 + 1 * I"
++gdb_test "print c128" ".* = 3\\.375 \\+ 1 \\* I.*" "The original value of c128 is 3.375 + 1 * I"
++gdb_test "print c32x" ".* = 10\\.5 \\+ 1 \\* I.*" "The original value of c32x is 10.5 + 1 * I"
++gdb_test "print c64x" ".* = 20\\.25 \\+ 1 \\* I.*" "The original value of c64x is 20.25 + 1 * I"
++
++# FIXME: GDB cannot parse non-trivial complex constants yet.
++

@@ -1,0 +1,184 @@
+commit 643f7afb0d7f63dcff873d3cbfd7ed3eaf94197f
+Author: Andreas Krebbel <krebbel@linux.vnet.ibm.com>
+Date:   Mon Apr 27 10:32:23 2015 +0200
+
+    S/390: z13 use GNU attribute to indicate vector ABI
+    
+    bfd/
+    	* elf-s390-common.c (elf_s390_merge_obj_attributes): New function.
+    	* elf32-s390.c (elf32_s390_merge_private_bfd_data): Call
+    	elf_s390_merge_obj_attributes.
+    	* elf64-s390.c (elf64_s390_merge_private_bfd_data): New function.
+    
+    binutils/
+    	* readelf.c (display_s390_gnu_attribute): New function.
+    	(process_s390_specific): New function.
+    	(process_arch_specific): Call process_s390_specific.
+    
+    gas/
+    	* doc/as.texinfo: Document Tag_GNU_S390_ABI_Vector.
+    
+    include/elf/
+    	* s390.h: Define Tag_GNU_S390_ABI_Vector.
+
+### a/bfd/ChangeLog
+### b/bfd/ChangeLog
+## -1,3 +1,10 @@
++2015-04-27  Andreas Krebbel  <krebbel@linux.vnet.ibm.com>
++
++	* elf-s390-common.c (elf_s390_merge_obj_attributes): New function.
++	* elf32-s390.c (elf32_s390_merge_private_bfd_data): Call
++	elf_s390_merge_obj_attributes.
++	* elf64-s390.c (elf64_s390_merge_private_bfd_data): New function.
++
+ 2015-04-24  Jiong Wang  <jiong.wang@arm.com>
+ 
+ 	PR ld/18270
+Index: gdb-7.6.1/bfd/elf-s390-common.c
+===================================================================
+--- gdb-7.6.1.orig/bfd/elf-s390-common.c	2016-02-21 22:12:48.164552653 +0100
++++ gdb-7.6.1/bfd/elf-s390-common.c	2016-02-21 22:12:55.355638653 +0100
+@@ -241,3 +241,61 @@
+ 
+   return TRUE;
+ }
++
++/* Merge object attributes from IBFD into OBFD.  Raise an error if
++   there are conflicting attributes.  */
++static bfd_boolean
++elf_s390_merge_obj_attributes (bfd *ibfd, bfd *obfd)
++{
++  obj_attribute *in_attr, *in_attrs;
++  obj_attribute *out_attr, *out_attrs;
++
++  if (!elf_known_obj_attributes_proc (obfd)[0].i)
++    {
++      /* This is the first object.  Copy the attributes.  */
++      _bfd_elf_copy_obj_attributes (ibfd, obfd);
++
++      /* Use the Tag_null value to indicate the attributes have been
++	 initialized.  */
++      elf_known_obj_attributes_proc (obfd)[0].i = 1;
++
++      return TRUE;
++    }
++
++  in_attrs = elf_known_obj_attributes (ibfd)[OBJ_ATTR_GNU];
++  out_attrs = elf_known_obj_attributes (obfd)[OBJ_ATTR_GNU];
++
++  /* Check for conflicting Tag_GNU_S390_ABI_Vector attributes and
++     merge non-conflicting ones.  */
++  in_attr = &in_attrs[Tag_GNU_S390_ABI_Vector];
++  out_attr = &out_attrs[Tag_GNU_S390_ABI_Vector];
++
++  if (in_attr->i > 2)
++    _bfd_error_handler
++      (_("Warning: %B uses unknown vector ABI %d"), ibfd,
++       in_attr->i);
++  else if (out_attr->i > 2)
++    _bfd_error_handler
++      (_("Warning: %B uses unknown vector ABI %d"), obfd,
++       out_attr->i);
++  else if (in_attr->i != out_attr->i)
++    {
++      out_attr->type = ATTR_TYPE_FLAG_INT_VAL;
++
++      if (in_attr->i && out_attr->i)
++	{
++	  const char abi_str[3][9] = { "none", "software", "hardware" };
++
++	  _bfd_error_handler
++	    (_("Warning: %B uses vector %s ABI, %B uses %s ABI"),
++	     ibfd, obfd, abi_str[in_attr->i], abi_str[out_attr->i]);
++	}
++      if (in_attr->i > out_attr->i)
++	out_attr->i = in_attr->i;
++    }
++
++  /* Merge Tag_compatibility attributes and any common GNU ones.  */
++  _bfd_elf_merge_object_attributes (ibfd, obfd);
++
++  return TRUE;
++}
+Index: gdb-7.6.1/bfd/elf32-s390.c
+===================================================================
+--- gdb-7.6.1.orig/bfd/elf32-s390.c	2016-02-21 22:12:48.165552665 +0100
++++ gdb-7.6.1/bfd/elf32-s390.c	2016-02-21 22:12:55.356638665 +0100
+@@ -3938,9 +3938,18 @@
+   return plt->vma + PLT_FIRST_ENTRY_SIZE + i * PLT_ENTRY_SIZE;
+ }
+ 
++/* Merge backend specific data from an object file to the output
++   object file when linking.  */
++
+ static bfd_boolean
+ elf32_s390_merge_private_bfd_data (bfd *ibfd, bfd *obfd)
+ {
++  if (!is_s390_elf (ibfd) || !is_s390_elf (obfd))
++    return TRUE;
++
++  if (!elf_s390_merge_obj_attributes (ibfd, obfd))
++    return FALSE;
++
+   elf_elfheader (obfd)->e_flags |= elf_elfheader (ibfd)->e_flags;
+   return TRUE;
+ }
+Index: gdb-7.6.1/bfd/elf64-s390.c
+===================================================================
+--- gdb-7.6.1.orig/bfd/elf64-s390.c	2016-02-21 22:12:48.166552677 +0100
++++ gdb-7.6.1/bfd/elf64-s390.c	2016-02-21 22:12:55.356638665 +0100
+@@ -3722,6 +3722,21 @@
+   return plt->vma + PLT_FIRST_ENTRY_SIZE + i * PLT_ENTRY_SIZE;
+ }
+ 
++/* Merge backend specific data from an object file to the output
++   object file when linking.  */
++
++static bfd_boolean
++elf64_s390_merge_private_bfd_data (bfd *ibfd, bfd *obfd)
++{
++  if (!is_s390_elf (ibfd) || !is_s390_elf (obfd))
++    return TRUE;
++
++  if (!elf_s390_merge_obj_attributes (ibfd, obfd))
++    return FALSE;
++
++  return TRUE;
++}
++
+ /* Why was the hash table entry size definition changed from
+    ARCH_SIZE/8 to 4? This breaks the 64 bit dynamic linker and
+    this is the only reason for the s390_elf64_size_info structure.  */
+@@ -3780,7 +3795,8 @@
+ #define bfd_elf64_bfd_is_local_label_name     elf_s390_is_local_label_name
+ #define bfd_elf64_bfd_link_hash_table_create  elf_s390_link_hash_table_create
+ #define bfd_elf64_bfd_reloc_type_lookup	      elf_s390_reloc_type_lookup
+-#define bfd_elf64_bfd_reloc_name_lookup elf_s390_reloc_name_lookup
++#define bfd_elf64_bfd_reloc_name_lookup       elf_s390_reloc_name_lookup
++#define bfd_elf64_bfd_merge_private_bfd_data  elf64_s390_merge_private_bfd_data
+ 
+ #define elf_backend_adjust_dynamic_symbol     elf_s390_adjust_dynamic_symbol
+ #define elf_backend_check_relocs	      elf_s390_check_relocs
+Index: gdb-7.6.1/include/elf/s390.h
+===================================================================
+--- gdb-7.6.1.orig/include/elf/s390.h	2016-02-21 22:12:48.166552677 +0100
++++ gdb-7.6.1/include/elf/s390.h	2016-02-21 22:12:55.356638665 +0100
+@@ -129,6 +129,17 @@
+     RELOC_NUMBER (R_390_GNU_VTENTRY, 251)
+ END_RELOC_NUMBERS (R_390_max)
+ 
+-#endif /* _ELF_390_H */
++/* Object attribute tags.  */
++enum
++{
++  /* 0-3 are generic. */
++  /* 4 is reserved for the FP ABI. */
+ 
++  /* Vector ABI:
++     0 = not affected by the vector ABI, or not tagged.
++     1 = software vector ABI being used
++     2 = hardware vector ABI being used.  */
++  Tag_GNU_S390_ABI_Vector = 8,
++};
+ 
++#endif /* _ELF_390_H */

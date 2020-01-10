@@ -1,0 +1,60 @@
+commit b8b91e982ec3235a24ce052cbd8bb0e4fe1464e0
+Author: Yao Qi <yao@codesourcery.com>
+Date:   Thu Jun 5 15:07:47 2014 +0800
+
+    Fix the race in gdb.threads/staticthreads.exp
+    
+    The code in gdb.threads/staticthreads.exp about checking the value of
+    tlsvar in main thread is racy, because when child thread hits
+    breakpoint, the main thread may not go into pthread_join yet, and
+    may not be unwind to main.
+    
+    This patch is to move the line setting breakpoint on after sem_wait,
+    so that the child thread will hit breakpoint after main thread calls
+    sem_post.  IOW, when child thread hits breakpoint, the main thread is
+    in either sem_post or pthread_join.  "up 10" can unwind main thread to
+    main.
+    
+    gdb/testsuite:
+    
+    2014-06-06  Yao Qi  <yao@codesourcery.com>
+    
+    	* gdb.threads/staticthreads.c (thread_function): Move the line
+    	setting breakpoint on forward.
+    	* gdb.threads/staticthreads.exp: Update comments.
+
+    Message-ID: <5390387C.7050308@codesourcery.com>
+
+Index: gdb-7.6.1/gdb/testsuite/gdb.threads/staticthreads.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/testsuite/gdb.threads/staticthreads.c
++++ gdb-7.6.1/gdb/testsuite/gdb.threads/staticthreads.c
+@@ -38,7 +38,6 @@ thread_function (void *arg)
+ #ifdef HAVE_TLS
+   tlsvar = 2;
+ #endif
+-  printf ("Thread executing\n"); /* tlsvar-is-set */
+   while (sem_wait (&semaphore) != 0)
+     {
+       if (errno != EINTR)
+@@ -47,6 +46,7 @@ thread_function (void *arg)
+ 	  return;
+ 	}
+     }
++  printf ("Thread executing\n"); /* tlsvar-is-set */
+   return NULL;
+ }
+ 
+Index: gdb-7.6.1/gdb/testsuite/gdb.threads/staticthreads.exp
+===================================================================
+--- gdb-7.6.1.orig/gdb/testsuite/gdb.threads/staticthreads.exp
++++ gdb-7.6.1/gdb/testsuite/gdb.threads/staticthreads.exp
+@@ -112,7 +112,7 @@ if { "$have_tls" != "" } {
+     gdb_continue_to_breakpoint "tlsvar-is-set" ".* tlsvar-is-set .*"
+     gdb_test "p tlsvar" " = 2" "tlsvar in thread"
+     gdb_test "thread 1" ".*"
+-    # Unwind from pthread_join.
++    # Unwind to main.
+     gdb_test "up 10" " in main .*"
+     gdb_test "p tlsvar" " = 1" "tlsvar in main"
+ }

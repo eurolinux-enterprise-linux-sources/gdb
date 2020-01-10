@@ -1,0 +1,43 @@
+commit 99a2c56121247207d4846fe7e28b5e7e18e0bfa0
+Author: Peter Bergner <bergner@vnet.ibm.com>
+Date:   Fri Jun 12 15:06:07 2015 -0500
+
+    Remove unused MTMSRD_L macro and re-add accidentally deleted comment.
+    
+    In the commit that added PowerPC Pair Singles, Ben accidentally removed
+    a comment and re-added an unused MTMSRD_L macro Alan had recently deleted.
+    This was probably just an oversite when he was refreshing his patch to
+    trunk.
+    
+    opcodes/
+            * ppc-opc.c: Add comment accidentally removed by old commit.
+            (MTMSRD_L): Delete.
+
+### a/opcodes/ChangeLog
+### b/opcodes/ChangeLog
+## -1,3 +1,8 @@
++2015-06-12  Peter Bergner  <bergner@vnet.ibm.com>
++
++	* ppc-opc.c: Add comment accidentally removed by old commit.
++	(MTMSRD_L): Delete.
++
+ 2015-06-04  Nick Clifton  <nickc@redhat.com>
+ 
+ 	PR 18474
+--- a/opcodes/ppc-opc.c
++++ b/opcodes/ppc-opc.c
+@@ -747,12 +747,12 @@ const struct powerpc_operand powerpc_operands[] =
+ #define PSD PSQM + 1
+   {  0xfff, 0, 0, 0,  PPC_OPERAND_PARENS | PPC_OPERAND_SIGNED },
+ 
++  /* The L field in an mtmsrd or A form instruction or W in an X form.  */
+ #define A_L PSD + 1
+ #define W A_L
+-#define MTMSRD_L W
+   { 0x1, 16, NULL, NULL, PPC_OPERAND_OPTIONAL },
+ 
+-#define RMC MTMSRD_L + 1
++#define RMC A_L + 1
+   { 0x3, 9, NULL, NULL, 0 },
+ 
+ #define R RMC + 1

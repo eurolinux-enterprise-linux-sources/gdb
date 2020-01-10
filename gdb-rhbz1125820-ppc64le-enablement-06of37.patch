@@ -1,0 +1,45 @@
+commit bcbec14ee2e2d060dec534fe9a608f64d1bfa632
+Author: Alan Modra <amodra@gmail.com>
+Date:   Thu Aug 22 01:01:32 2013 +0000
+
+    	* configure.host: Support powerpc64le-linux and powerpcle-linux hosts.
+    	* configure.tgt: Likewise as targets.
+
+Index: gdb-7.6.1/gdb/configure.host
+===================================================================
+--- gdb-7.6.1.orig/gdb/configure.host
++++ gdb-7.6.1/gdb/configure.host
+@@ -129,18 +129,18 @@ mips64*-*-openbsd*)	gdb_host=obsd64 ;;
+ powerpc-*-aix* | rs6000-*-*)
+ 			gdb_host=aix ;;
+ powerpc*-*-freebsd*)	gdb_host=fbsd ;;
+-powerpc-*-linux*)	gdb_host=linux ;;
+ powerpc-*-netbsd* | powerpc-*-knetbsd*-gnu)
+ 			gdb_host=nbsd ;;
+ powerpc-*-openbsd*)	gdb_host=obsd ;;
+ 
+-powerpc64-*-linux*)     gdb_host=ppc64-linux
++powerpc64*-*-linux*)	gdb_host=ppc64-linux
+                         # Support 'pseudo-native' debugging on the Cell BE
+                         if test "${target_cpu}" = "spu"; then
+ 				gdb_host=spu-linux
+ 				gdb_native=yes
+                         fi
+ 			;;
++powerpc*-*-linux*)	gdb_host=linux ;;
+ 
+ s390*-*-*)		gdb_host=s390 ;;
+ 
+Index: gdb-7.6.1/gdb/configure.tgt
+===================================================================
+--- gdb-7.6.1.orig/gdb/configure.tgt
++++ gdb-7.6.1/gdb/configure.tgt
+@@ -422,7 +422,7 @@ powerpc-*-aix* | rs6000-*-*)
+ 			ppc-sysv-tdep.o solib-svr4.o \
+ 			ravenscar-thread.o ppc-ravenscar-thread.o"
+ 	;;
+-powerpc-*-linux* | powerpc64-*-linux*)
++powerpc*-*-linux*)
+ 	# Target: PowerPC running Linux
+ 	gdb_target_obs="rs6000-tdep.o ppc-linux-tdep.o ppc-sysv-tdep.o \
+ 			ppc64-tdep.o solib-svr4.o solib-spu.o \

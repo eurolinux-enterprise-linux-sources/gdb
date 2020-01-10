@@ -1,0 +1,37 @@
+commit 52f548e41f085550d7740c350c1c8a239532af77
+Author: Ulrich Weigand <ulrich.weigand@de.ibm.com>
+Date:   Tue Feb 4 18:41:36 2014 +0100
+
+    PowerPC64 ELFv2 ABI: stack frame layout changes
+    
+    This implementes another change in ELFv2: the stack frame no longer
+    contains the reserved double words for linker and compiler use
+    (which weren't really used for much of anything anyway).  This
+    affects placement of on-stack parameters in inferior calls.
+    
+    gdb/ChangeLog:
+    
+    	* ppc-sysv-tdep.c (ppc64_sysv_abi_push_dummy_call): Use correct
+    	offset to the stack parameter list for the ELFv2 ABI.
+
+Index: gdb-7.6.1/gdb/ppc-sysv-tdep.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/ppc-sysv-tdep.c
++++ gdb-7.6.1/gdb/ppc-sysv-tdep.c
+@@ -1473,9 +1473,13 @@ ppc64_sysv_abi_push_dummy_call (struct g
+ 	  argpos.regcache = regcache;
+ 	  argpos.refparam = align_down (sp - refparam_size, 16);
+ 	  argpos.gparam = align_down (argpos.refparam - gparam_size, 16);
+-	  /* Add in space for the TOC, link editor double word,
+-	     compiler double word, LR save area, CR save area.  */
+-	  sp = align_down (argpos.gparam - 48, 16);
++	  /* Add in space for the TOC, link editor double word (v1 only),
++	     compiler double word (v1 only), LR save area, CR save area,
++	     and backchain.  */
++	  if (tdep->elf_abi == POWERPC_ELF_V1)
++	    sp = align_down (argpos.gparam - 48, 16);
++	  else
++	    sp = align_down (argpos.gparam - 32, 16);
+ 	}
+ 
+       /* If the function is returning a `struct', then there is an

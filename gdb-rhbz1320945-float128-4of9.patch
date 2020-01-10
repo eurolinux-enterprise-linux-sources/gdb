@@ -1,0 +1,1295 @@
+commit 19f392bc2a93d9e64d063b884cd6eca547c8dad0
+Author: Ulrich Weigand <ulrich.weigand@de.ibm.com>
+Date:   Tue Sep 6 17:27:55 2016 +0200
+
+    Unify init_type and arch_type interface and helpers
+    
+    This adds a number of helper routines for creating objfile-owned types;
+    these correspond 1:1 to the already existing helper routines for creating
+    gdbarch-owned types, and are intended to be used instead of init_type.
+    A shared fragment of init_float_type and arch_float_type is extracted into
+    a separate subroutine verify_subroutine.
+    
+    The commit also brings the interface of init_type in line with the one for
+    arch_type.  In particular, this means removing the FLAGS argument; callers
+    now set the required flags directly.  (Since most callers use the new
+    helper routines, very few callers actually need to set any additional
+    flags directly any more.)
+    
+    Note that this means all the TYPE_FLAGS_... defined are no longer needed
+    anywhere; they will be removed by a follow-on commit.
+    
+    All users of init_type are changed to use on of the new helpers where
+    possible.  No functional change intended.
+    
+    gdb/ChangeLog:
+    
+            * gdbtypes.h (init_type): Remove FLAGS argument.  Move OBJFILE
+            argument to first position.
+            (init_integer_type): New prototype.
+            (init_character_type): Likewise.
+            (init_boolean_type): Likewise.
+            (init_float_type): Likewise.
+            (init_decfloat_type): Likewise.
+            (init_complex_type): Likewise.
+            (init_pointer_type): Likewise.
+            * gdbtypes.c (verify_floatflormat): New function.
+            (init_type): Remove FLAGS argument and processing.  Move OBJFILE
+            argument to first position.
+            (init_integer_type): New function.
+            (init_character_type): Likewise.
+            (init_boolean_type): Likewise.
+            (init_float_type): Likewise.
+            (init_decfloat_type): Likewise.
+            (init_complex_type): Likewise.
+            (init_pointer_type): Likewise.
+            (arch_float_type): Use verify_floatflormat.
+            (objfile_type): Use init_..._type helpers instead of calling
+            init_type directly.
+            * dwarf2read.c (fixup_go_packaging): Update to changed init_type
+            prototype.
+            (read_namespace_type): Likewise.
+            (read_module_type): Likewise.
+            (read_typedef): Likewise.
+            (read_unspecified_type): Likewise.
+            (build_error_marker_type): Likewise.
+            (read_base_type): Use init_..._type helpers.
+            * mdebugread.c (basic_type): Use init_..._type helpers.
+            (parse_type): Update to changed init_type prototype.
+            (cross_ref): Likewise.
+            * stabsread.c (rs6000_builtin_type): Use init_..._type helpers.
+            (read_sun_builtin_type): Likewise.
+            (read_sun_floating_type): Likewise.
+            (read_range_type): Likewise.  Also update to changed init_type
+            prototype.
+    
+    Signed-off-by: Ulrich Weigand <ulrich.weigand@de.ibm.com>
+
+### a/gdb/ChangeLog
+### b/gdb/ChangeLog
+## -1,5 +1,46 @@
+ 2016-09-05  Ulrich Weigand  <uweigand@de.ibm.com>
+ 
++	* gdbtypes.h (init_type): Remove FLAGS argument.  Move OBJFILE
++	argument to first position.
++	(init_integer_type): New prototype.
++	(init_character_type): Likewise.
++	(init_boolean_type): Likewise.
++	(init_float_type): Likewise.
++	(init_decfloat_type): Likewise.
++	(init_complex_type): Likewise.
++	(init_pointer_type): Likewise.
++	* gdbtypes.c (verify_floatflormat): New function.
++	(init_type): Remove FLAGS argument and processing.  Move OBJFILE
++	argument to first position.
++	(init_integer_type): New function.
++	(init_character_type): Likewise.
++	(init_boolean_type): Likewise.
++	(init_float_type): Likewise.
++	(init_decfloat_type): Likewise.
++	(init_complex_type): Likewise.
++	(init_pointer_type): Likewise.
++	(arch_float_type): Use verify_floatflormat.
++	(objfile_type): Use init_..._type helpers instead of calling
++	init_type directly.
++	* dwarf2read.c (fixup_go_packaging): Update to changed init_type
++	prototype.
++	(read_namespace_type): Likewise.
++	(read_module_type): Likewise.
++	(read_typedef): Likewise.
++	(read_unspecified_type): Likewise.
++	(build_error_marker_type): Likewise.
++	(read_base_type): Use init_..._type helpers.
++	* mdebugread.c (basic_type): Use init_..._type helpers.
++	(parse_type): Update to changed init_type prototype.
++	(cross_ref): Likewise.
++	* stabsread.c (rs6000_builtin_type): Use init_..._type helpers.
++	(read_sun_builtin_type): Likewise.
++	(read_sun_floating_type): Likewise.
++	(read_range_type): Likewise.  Also update to changed init_type
++	prototype.
++
++2016-09-05  Ulrich Weigand  <uweigand@de.ibm.com>
++
+ 	* gdbtypes.h (arch_decfloat_type): New prototype.
+ 	(arch_pointer_type): Likewise.
+ 	* gdbtypes.c (arch_decfloat_type): New function.
+Index: gdb-7.6.1/gdb/dwarf2read.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/dwarf2read.c	2017-03-11 21:42:28.099262777 +0100
++++ gdb-7.6.1/gdb/dwarf2read.c	2017-03-11 21:45:39.098565504 +0100
+@@ -6901,8 +6901,8 @@
+       const char *saved_package_name = obstack_copy0 (&objfile->objfile_obstack,
+ 						      package_name,
+ 						      strlen (package_name));
+-      struct type *type = init_type (TYPE_CODE_MODULE, 0, 0,
+-				     saved_package_name, objfile);
++      struct type *type = init_type (objfile, TYPE_CODE_MODULE, 0,
++				     saved_package_name);
+       struct symbol *sym;
+ 
+       TYPE_TAG_NAME (type) = TYPE_NAME (type);
+@@ -12266,9 +12266,7 @@
+ 			    previous_prefix, name, 0, cu);
+ 
+   /* Create the type.  */
+-  type = init_type (TYPE_CODE_NAMESPACE, 0, 0, NULL,
+-		    objfile);
+-  TYPE_NAME (type) = name;
++  type = init_type (objfile, TYPE_CODE_NAMESPACE, 0, name);
+   TYPE_TAG_NAME (type) = TYPE_NAME (type);
+ 
+   return set_die_type (die, type, cu);
+@@ -12331,7 +12329,7 @@
+     complaint (&symfile_complaints,
+ 	       _("DW_TAG_module has no name, offset 0x%x"),
+                die->offset.sect_off);
+-  type = init_type (TYPE_CODE_MODULE, 0, 0, module_name, objfile);
++  type = init_type (objfile, TYPE_CODE_MODULE, 0, module_name);
+ 
+   /* determine_prefix uses TYPE_TAG_NAME.  */
+   TYPE_TAG_NAME (type) = TYPE_NAME (type);
+@@ -12884,9 +12882,8 @@
+   struct type *this_type, *target_type;
+ 
+   name = dwarf2_full_name (NULL, die, cu);
+-  this_type = init_type (TYPE_CODE_TYPEDEF, 0,
+-			 TYPE_FLAG_TARGET_STUB, NULL, objfile);
+-  TYPE_NAME (this_type) = name;
++  this_type = init_type (objfile, TYPE_CODE_TYPEDEF, 0, name);
++  TYPE_TARGET_STUB (this_type) = 1;
+   set_die_type (die, this_type, cu);
+   target_type = die_type (die, cu);
+   if (target_type != this_type)
+@@ -12913,11 +12910,8 @@
+   struct objfile *objfile = cu->objfile;
+   struct type *type;
+   struct attribute *attr;
+-  int encoding = 0, size = 0;
++  int encoding = 0, bits = 0;
+   const char *name;
+-  enum type_code code = TYPE_CODE_INT;
+-  int type_flags = 0;
+-  struct type *target_type = NULL;
+ 
+   attr = dwarf2_attr (die, DW_AT_encoding, cu);
+   if (attr)
+@@ -12927,7 +12921,7 @@
+   attr = dwarf2_attr (die, DW_AT_byte_size, cu);
+   if (attr)
+     {
+-      size = DW_UNSND (attr);
++      bits = DW_UNSND (attr) * TARGET_CHAR_BIT;
+     }
+   name = dwarf2_name (die, cu);
+   if (!name)
+@@ -12940,61 +12934,63 @@
+     {
+       case DW_ATE_address:
+ 	/* Turn DW_ATE_address into a void * pointer.  */
+-	code = TYPE_CODE_PTR;
+-	type_flags |= TYPE_FLAG_UNSIGNED;
+-	target_type = init_type (TYPE_CODE_VOID, 1, 0, NULL, objfile);
++	type = init_type (objfile, TYPE_CODE_VOID, 1, NULL);
++	type = init_pointer_type (objfile, bits, name, type);
+ 	break;
+       case DW_ATE_boolean:
+-	code = TYPE_CODE_BOOL;
+-	type_flags |= TYPE_FLAG_UNSIGNED;
++	type = init_boolean_type (objfile, bits, 1, name);
+ 	break;
+       case DW_ATE_complex_float:
+-	code = TYPE_CODE_COMPLEX;
+-	target_type = init_type (TYPE_CODE_FLT, size / 2, 0, NULL, objfile);
++	type = init_float_type (objfile, bits / 2, NULL, NULL);
++	type = init_complex_type (objfile, name, type);
+ 	break;
+       case DW_ATE_decimal_float:
+-	code = TYPE_CODE_DECFLOAT;
++	type = init_decfloat_type (objfile, bits, name);
+ 	break;
+       case DW_ATE_float:
+-	code = TYPE_CODE_FLT;
++	type = init_float_type (objfile, bits, name, NULL);
+ 	break;
+       case DW_ATE_signed:
++	type = init_integer_type (objfile, bits, 0, name);
+ 	break;
+       case DW_ATE_unsigned:
+-	type_flags |= TYPE_FLAG_UNSIGNED;
+ 	if (cu->language == language_fortran
+ 	    && name
+ 	    && strncmp (name, "character(", sizeof ("character(") - 1) == 0)
+-	  code = TYPE_CODE_CHAR;
++	  type = init_character_type (objfile, bits, 1, name);
++	else
++	  type = init_integer_type (objfile, bits, 1, name);
+ 	break;
+       case DW_ATE_signed_char:
+ 	if (cu->language == language_ada || cu->language == language_m2
+ 	    || cu->language == language_pascal
+ 	    || cu->language == language_fortran)
+-	  code = TYPE_CODE_CHAR;
++	  type = init_character_type (objfile, bits, 0, name);
++	else
++	  type = init_integer_type (objfile, bits, 0, name);
+ 	break;
+       case DW_ATE_unsigned_char:
+ 	if (cu->language == language_ada || cu->language == language_m2
+ 	    || cu->language == language_pascal
+ 	    || cu->language == language_fortran)
+-	  code = TYPE_CODE_CHAR;
+-	type_flags |= TYPE_FLAG_UNSIGNED;
++	  type = init_character_type (objfile, bits, 1, name);
++	else
++	  type = init_integer_type (objfile, bits, 1, name);
+ 	break;
+       case DW_ATE_UTF:
+ 	/* We just treat this as an integer and then recognize the
+ 	   type by name elsewhere.  */
++	type = init_integer_type (objfile, bits, 0, name);
+ 	break;
+ 
+       default:
+ 	complaint (&symfile_complaints, _("unsupported DW_AT_encoding: '%s'"),
+ 		   dwarf_type_encoding_name (encoding));
++	type = init_type (objfile, TYPE_CODE_ERROR,
++			  bits / TARGET_CHAR_BIT, name);
+ 	break;
+     }
+ 
+-  type = init_type (code, size, type_flags, NULL, objfile);
+-  TYPE_NAME (type) = name;
+-  TYPE_TARGET_TYPE (type) = target_type;
+-
+   if (name && strcmp (name, "char") == 0)
+     TYPE_NOSIGN (type) = 1;
+ 
+@@ -13287,7 +13283,7 @@
+ 
+   /* For now, we only support the C meaning of an unspecified type: void.  */
+ 
+-  type = init_type (TYPE_CODE_VOID, 0, 0, NULL, cu->objfile);
++  type = init_type (cu->objfile, TYPE_CODE_VOID, 0, NULL);
+   TYPE_NAME (type) = dwarf2_name (die, cu);
+ 
+   return set_die_type (die, type, cu);
+@@ -16913,7 +16909,7 @@
+ 			     message, strlen (message));
+       xfree (message);
+ 
+-      this_type = init_type (TYPE_CODE_ERROR, 0, 0, saved, objfile);
++      this_type = init_type (objfile, TYPE_CODE_ERROR, 0, saved);
+     }
+ 
+   return this_type;
+Index: gdb-7.6.1/gdb/gdbtypes.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/gdbtypes.c	2017-03-11 21:45:27.194484312 +0100
++++ gdb-7.6.1/gdb/gdbtypes.c	2017-03-11 21:48:13.551598067 +0100
+@@ -2107,6 +2107,41 @@
+     }
+ }
+ 
++// RH
++#define FLOATFORMAT_CHAR_BIT 8 // doublest.c
++static size_t
++floatformat_totalsize_bytes (const struct floatformat *fmt)
++{
++  return ((fmt->totalsize + FLOATFORMAT_CHAR_BIT - 1)
++          / FLOATFORMAT_CHAR_BIT);
++}
++
++/* Helper function to verify floating-point format and size.
++   BIT is the type size in bits; if BIT equals -1, the size is
++   determined by the floatformat.  Returns size to be used.  */
++
++static int
++verify_floatformat (int bit, const struct floatformat **floatformats)
++{
++  if (bit == -1)
++    {
++      gdb_assert (floatformats != NULL);
++      gdb_assert (floatformats[0] != NULL && floatformats[1] != NULL);
++      bit = floatformats[0]->totalsize;
++    }
++  gdb_assert (bit >= 0);
++
++  if (floatformats != NULL)
++    {
++      size_t len = bit / TARGET_CHAR_BIT;
++
++      gdb_assert (len >= floatformat_totalsize_bytes (floatformats[0]));
++      gdb_assert (len >= floatformat_totalsize_bytes (floatformats[1]));
++    }
++
++  return bit;
++}
++
+ /* Helper function to initialize the standard scalar types.
+ 
+    If NAME is non-NULL, then it is used to initialize the type name.
+@@ -2114,8 +2149,8 @@
+    least as long as OBJFILE.  */
+ 
+ struct type *
+-init_type (enum type_code code, LONGEST length, int flags,
+-	   const char *name, struct objfile *objfile)
++init_type (struct objfile *objfile, enum type_code code, LONGEST length,
++	   const char *name)
+ {
+   struct type *type;
+ 
+@@ -2123,32 +2158,6 @@
+   set_type_code (type, code);
+   TYPE_LENGTH (type) = length;
+ 
+-  gdb_assert (!(flags & (TYPE_FLAG_MIN - 1)));
+-  if (flags & TYPE_FLAG_UNSIGNED)
+-    TYPE_UNSIGNED (type) = 1;
+-  if (flags & TYPE_FLAG_NOSIGN)
+-    TYPE_NOSIGN (type) = 1;
+-  if (flags & TYPE_FLAG_STUB)
+-    TYPE_STUB (type) = 1;
+-  if (flags & TYPE_FLAG_TARGET_STUB)
+-    TYPE_TARGET_STUB (type) = 1;
+-  if (flags & TYPE_FLAG_STATIC)
+-    TYPE_STATIC (type) = 1;
+-  if (flags & TYPE_FLAG_PROTOTYPED)
+-    TYPE_PROTOTYPED (type) = 1;
+-  if (flags & TYPE_FLAG_INCOMPLETE)
+-    TYPE_INCOMPLETE (type) = 1;
+-  if (flags & TYPE_FLAG_VARARGS)
+-    TYPE_VARARGS (type) = 1;
+-  if (flags & TYPE_FLAG_VECTOR)
+-    TYPE_VECTOR (type) = 1;
+-  if (flags & TYPE_FLAG_STUB_SUPPORTED)
+-    TYPE_STUB_SUPPORTED (type) = 1;
+-  if (flags & TYPE_FLAG_FIXED_INSTANCE)
+-    TYPE_FIXED_INSTANCE (type) = 1;
+-  if (flags & TYPE_FLAG_GNU_IFUNC)
+-    TYPE_GNU_IFUNC (type) = 1;
+-
+   TYPE_NAME (type) = name;
+ 
+   /* C++ fancies.  */
+@@ -2158,6 +2167,121 @@
+ 
+   return type;
+ }
++
++/* Allocate a TYPE_CODE_INT type structure associated with OBJFILE.
++   BIT is the type size in bits.  If UNSIGNED_P is non-zero, set
++   the type's TYPE_UNSIGNED flag.  NAME is the type name.  */
++
++struct type *
++init_integer_type (struct objfile *objfile,
++		   int bit, int unsigned_p, const char *name)
++{
++  struct type *t;
++
++  t = init_type (objfile, TYPE_CODE_INT, bit / TARGET_CHAR_BIT, name);
++  if (unsigned_p)
++    TYPE_UNSIGNED (t) = 1;
++
++  return t;
++}
++
++/* Allocate a TYPE_CODE_CHAR type structure associated with OBJFILE.
++   BIT is the type size in bits.  If UNSIGNED_P is non-zero, set
++   the type's TYPE_UNSIGNED flag.  NAME is the type name.  */
++
++struct type *
++init_character_type (struct objfile *objfile,
++		     int bit, int unsigned_p, const char *name)
++{
++  struct type *t;
++
++  t = init_type (objfile, TYPE_CODE_CHAR, bit / TARGET_CHAR_BIT, name);
++  if (unsigned_p)
++    TYPE_UNSIGNED (t) = 1;
++
++  return t;
++}
++
++/* Allocate a TYPE_CODE_BOOL type structure associated with OBJFILE.
++   BIT is the type size in bits.  If UNSIGNED_P is non-zero, set
++   the type's TYPE_UNSIGNED flag.  NAME is the type name.  */
++
++struct type *
++init_boolean_type (struct objfile *objfile,
++		   int bit, int unsigned_p, const char *name)
++{
++  struct type *t;
++
++  t = init_type (objfile, TYPE_CODE_BOOL, bit / TARGET_CHAR_BIT, name);
++  if (unsigned_p)
++    TYPE_UNSIGNED (t) = 1;
++
++  return t;
++}
++
++/* Allocate a TYPE_CODE_FLT type structure associated with OBJFILE.
++   BIT is the type size in bits; if BIT equals -1, the size is
++   determined by the floatformat.  NAME is the type name.  Set the
++   TYPE_FLOATFORMAT from FLOATFORMATS.  */
++
++struct type *
++init_float_type (struct objfile *objfile,
++		 int bit, const char *name,
++		 const struct floatformat **floatformats)
++{
++  struct type *t;
++
++  bit = verify_floatformat (bit, floatformats);
++  t = init_type (objfile, TYPE_CODE_FLT, bit / TARGET_CHAR_BIT, name);
++  TYPE_FLOATFORMAT (t) = floatformats;
++
++  return t;
++}
++
++/* Allocate a TYPE_CODE_DECFLOAT type structure associated with OBJFILE.
++   BIT is the type size in bits.  NAME is the type name.  */
++
++struct type *
++init_decfloat_type (struct objfile *objfile, int bit, const char *name)
++{
++  struct type *t;
++
++  t = init_type (objfile, TYPE_CODE_DECFLOAT, bit / TARGET_CHAR_BIT, name);
++  return t;
++}
++
++/* Allocate a TYPE_CODE_COMPLEX type structure associated with OBJFILE.
++   NAME is the type name.  TARGET_TYPE is the component float type.  */
++
++struct type *
++init_complex_type (struct objfile *objfile,
++		   const char *name, struct type *target_type)
++{
++  struct type *t;
++
++  t = init_type (objfile, TYPE_CODE_COMPLEX,
++		 2 * TYPE_LENGTH (target_type), name);
++  TYPE_TARGET_TYPE (t) = target_type;
++  return t;
++}
++
++/* Allocate a TYPE_CODE_PTR type structure associated with OBJFILE.
++   BIT is the pointer type size in bits.  NAME is the type name.
++   TARGET_TYPE is the pointer target type.  Always sets the pointer type's
++   TYPE_UNSIGNED flag.  */
++
++struct type *
++init_pointer_type (struct objfile *objfile,
++		   int bit, const char *name, struct type *target_type)
++{
++  struct type *t;
++
++  t = init_type (objfile, TYPE_CODE_PTR, bit / TARGET_CHAR_BIT, name);
++  TYPE_TARGET_TYPE (t) = target_type;
++  TYPE_UNSIGNED (t) = 1;
++  return t;
++}
++
+ 
+ /* Queries on types.  */
+ 
+@@ -4010,14 +4134,7 @@
+ {
+   struct type *t;
+ 
+-  if (bit == -1)
+-    {
+-      gdb_assert (floatformats != NULL);
+-      gdb_assert (floatformats[0] != NULL && floatformats[1] != NULL);
+-      bit = floatformats[0]->totalsize;
+-    }
+-  gdb_assert (bit >= 0);
+-
++  bit = verify_floatformat (bit, floatformats);
+   t = arch_type (gdbarch, TYPE_CODE_FLT, bit / TARGET_CHAR_BIT, name);
+   TYPE_FLOATFORMAT (t) = floatformats;
+   return t;
+@@ -4350,109 +4467,80 @@
+ 
+   /* Basic types.  */
+   objfile_type->builtin_void
+-    = init_type (TYPE_CODE_VOID, 1,
+-		 0,
+-		 "void", objfile);
+-
++    = init_type (objfile, TYPE_CODE_VOID, 1, "void");
+   objfile_type->builtin_char
+-    = init_type (TYPE_CODE_INT, TARGET_CHAR_BIT / TARGET_CHAR_BIT,
+-		 (TYPE_FLAG_NOSIGN
+-		  | (gdbarch_char_signed (gdbarch) ? 0 : TYPE_FLAG_UNSIGNED)),
+-		 "char", objfile);
++    = init_integer_type (objfile, TARGET_CHAR_BIT,
++			 !gdbarch_char_signed (gdbarch), "char");
+   objfile_type->builtin_signed_char
+-    = init_type (TYPE_CODE_INT, TARGET_CHAR_BIT / TARGET_CHAR_BIT,
+-		 0,
+-		 "signed char", objfile);
++    = init_integer_type (objfile, TARGET_CHAR_BIT,
++			 0, "signed char");
+   objfile_type->builtin_unsigned_char
+-    = init_type (TYPE_CODE_INT, TARGET_CHAR_BIT / TARGET_CHAR_BIT,
+-		 TYPE_FLAG_UNSIGNED,
+-		 "unsigned char", objfile);
++    = init_integer_type (objfile, TARGET_CHAR_BIT,
++			 1, "unsigned char");
+   objfile_type->builtin_short
+-    = init_type (TYPE_CODE_INT,
+-		 gdbarch_short_bit (gdbarch) / TARGET_CHAR_BIT,
+-		 0, "short", objfile);
++    = init_integer_type (objfile, gdbarch_short_bit (gdbarch),
++			 0, "short");
+   objfile_type->builtin_unsigned_short
+-    = init_type (TYPE_CODE_INT,
+-		 gdbarch_short_bit (gdbarch) / TARGET_CHAR_BIT,
+-		 TYPE_FLAG_UNSIGNED, "unsigned short", objfile);
++    = init_integer_type (objfile, gdbarch_short_bit (gdbarch),
++			 1, "unsigned short");
+   objfile_type->builtin_int
+-    = init_type (TYPE_CODE_INT,
+-		 gdbarch_int_bit (gdbarch) / TARGET_CHAR_BIT,
+-		 0, "int", objfile);
++    = init_integer_type (objfile, gdbarch_int_bit (gdbarch),
++			 0, "int");
+   objfile_type->builtin_unsigned_int
+-    = init_type (TYPE_CODE_INT,
+-		 gdbarch_int_bit (gdbarch) / TARGET_CHAR_BIT,
+-		 TYPE_FLAG_UNSIGNED, "unsigned int", objfile);
++    = init_integer_type (objfile, gdbarch_int_bit (gdbarch),
++			 1, "unsigned int");
+   objfile_type->builtin_long
+-    = init_type (TYPE_CODE_INT,
+-		 gdbarch_long_bit (gdbarch) / TARGET_CHAR_BIT,
+-		 0, "long", objfile);
++    = init_integer_type (objfile, gdbarch_long_bit (gdbarch),
++			 0, "long");
+   objfile_type->builtin_unsigned_long
+-    = init_type (TYPE_CODE_INT,
+-		 gdbarch_long_bit (gdbarch) / TARGET_CHAR_BIT,
+-		 TYPE_FLAG_UNSIGNED, "unsigned long", objfile);
++    = init_integer_type (objfile, gdbarch_long_bit (gdbarch),
++			 1, "unsigned long");
+   objfile_type->builtin_long_long
+-    = init_type (TYPE_CODE_INT,
+-		 gdbarch_long_long_bit (gdbarch) / TARGET_CHAR_BIT,
+-		 0, "long long", objfile);
++    = init_integer_type (objfile, gdbarch_long_long_bit (gdbarch),
++			 0, "long long");
+   objfile_type->builtin_unsigned_long_long
+-    = init_type (TYPE_CODE_INT,
+-		 gdbarch_long_long_bit (gdbarch) / TARGET_CHAR_BIT,
+-		 TYPE_FLAG_UNSIGNED, "unsigned long long", objfile);
+-
++    = init_integer_type (objfile, gdbarch_long_long_bit (gdbarch),
++			 1, "unsigned long long");
+   objfile_type->builtin_float
+-    = init_type (TYPE_CODE_FLT,
+-		 gdbarch_float_bit (gdbarch) / TARGET_CHAR_BIT,
+-		 0, "float", objfile);
+-  TYPE_FLOATFORMAT (objfile_type->builtin_float)
+-    = gdbarch_float_format (gdbarch);
++    = init_float_type (objfile, gdbarch_float_bit (gdbarch),
++		       "float", gdbarch_float_format (gdbarch));
+   objfile_type->builtin_double
+-    = init_type (TYPE_CODE_FLT,
+-		 gdbarch_double_bit (gdbarch) / TARGET_CHAR_BIT,
+-		 0, "double", objfile);
+-  TYPE_FLOATFORMAT (objfile_type->builtin_double)
+-    = gdbarch_double_format (gdbarch);
++    = init_float_type (objfile, gdbarch_double_bit (gdbarch),
++		       "double", gdbarch_double_format (gdbarch));
+   objfile_type->builtin_long_double
+-    = init_type (TYPE_CODE_FLT,
+-		 gdbarch_long_double_bit (gdbarch) / TARGET_CHAR_BIT,
+-		 0, "long double", objfile);
+-  TYPE_FLOATFORMAT (objfile_type->builtin_long_double)
+-    = gdbarch_long_double_format (gdbarch);
++    = init_float_type (objfile, gdbarch_long_double_bit (gdbarch),
++		       "long double", gdbarch_long_double_format (gdbarch));
+ 
+   /* This type represents a type that was unrecognized in symbol read-in.  */
+   objfile_type->builtin_error
+-    = init_type (TYPE_CODE_ERROR, 0, 0, "<unknown type>", objfile);
++    = init_type (objfile, TYPE_CODE_ERROR, 0, "<unknown type>");
+ 
+   /* The following set of types is used for symbols with no
+      debug information.  */
+   objfile_type->nodebug_text_symbol
+-    = init_type (TYPE_CODE_FUNC, 1, 0,
+-		 "<text variable, no debug info>", objfile);
++    = init_type (objfile, TYPE_CODE_FUNC, 1,
++		 "<text variable, no debug info>");
+   TYPE_TARGET_TYPE (objfile_type->nodebug_text_symbol)
+     = objfile_type->builtin_int;
+   objfile_type->nodebug_text_gnu_ifunc_symbol
+-    = init_type (TYPE_CODE_FUNC, 1, TYPE_FLAG_GNU_IFUNC,
+-		 "<text gnu-indirect-function variable, no debug info>",
+-		 objfile);
++    = init_type (objfile, TYPE_CODE_FUNC, 1,
++		 "<text gnu-indirect-function variable, no debug info>");
+   TYPE_TARGET_TYPE (objfile_type->nodebug_text_gnu_ifunc_symbol)
+     = objfile_type->nodebug_text_symbol;
++  TYPE_GNU_IFUNC (objfile_type->nodebug_text_gnu_ifunc_symbol) = 1;
+   objfile_type->nodebug_got_plt_symbol
+-    = init_type (TYPE_CODE_PTR, gdbarch_addr_bit (gdbarch) / 8, 0,
+-		 "<text from jump slot in .got.plt, no debug info>",
+-		 objfile);
+-  TYPE_TARGET_TYPE (objfile_type->nodebug_got_plt_symbol)
+-    = objfile_type->nodebug_text_symbol;
++    = init_pointer_type (objfile, gdbarch_addr_bit (gdbarch),
++			 "<text from jump slot in .got.plt, no debug info>",
++			 objfile_type->nodebug_text_symbol);
+   objfile_type->nodebug_data_symbol
+-    = init_type (TYPE_CODE_INT,
+-		 gdbarch_int_bit (gdbarch) / HOST_CHAR_BIT, 0,
+-		 "<data variable, no debug info>", objfile);
++    = init_integer_type (objfile, gdbarch_int_bit (gdbarch), 0,
++			 "<data variable, no debug info>");
+   objfile_type->nodebug_unknown_symbol
+-    = init_type (TYPE_CODE_INT, 1, 0,
+-		 "<variable (not text or data), no debug info>", objfile);
++    = init_integer_type (objfile, TARGET_CHAR_BIT, 0,
++			 "<variable (not text or data), no debug info>");
+   objfile_type->nodebug_tls_symbol
+-    = init_type (TYPE_CODE_INT,
+-		 gdbarch_int_bit (gdbarch) / HOST_CHAR_BIT, 0,
+-		 "<thread local variable, no debug info>", objfile);
++    = init_integer_type (objfile, gdbarch_int_bit (gdbarch), 0,
++			 "<thread local variable, no debug info>");
+ 
+   /* NOTE: on some targets, addresses and pointers are not necessarily
+      the same --- for example, on the D10V, pointers are 16 bits long,
+@@ -4482,9 +4570,8 @@
+      are indeed in the unified virtual address space.  */
+ 
+   objfile_type->builtin_core_addr
+-    = init_type (TYPE_CODE_INT,
+-		 gdbarch_addr_bit (gdbarch) / 8,
+-		 TYPE_FLAG_UNSIGNED, "__CORE_ADDR", objfile);
++    = init_integer_type (objfile, gdbarch_addr_bit (gdbarch), 1,
++			 "__CORE_ADDR");
+ 
+   set_objfile_data (objfile, objfile_type_data, objfile_type);
+   return objfile_type;
+Index: gdb-7.6.1/gdb/gdbtypes.h
+===================================================================
+--- gdb-7.6.1.orig/gdb/gdbtypes.h	2017-03-11 21:45:27.194484312 +0100
++++ gdb-7.6.1/gdb/gdbtypes.h	2017-03-11 21:45:39.100565518 +0100
+@@ -1542,8 +1542,21 @@
+ extern struct gdbarch *get_type_arch (const struct type *);
+ 
+ /* Helper function to construct objfile-owned types.  */
+-extern struct type *init_type (enum type_code, LONGEST, int, const char *,
+-			       struct objfile *);
++extern struct type *init_type (struct objfile *, enum type_code, LONGEST,
++			       const char *);
++extern struct type *init_integer_type (struct objfile *, int, int,
++				       const char *);
++extern struct type *init_character_type (struct objfile *, int, int,
++					 const char *);
++extern struct type *init_boolean_type (struct objfile *, int, int,
++				       const char *);
++extern struct type *init_float_type (struct objfile *, int, const char *,
++				     const struct floatformat **);
++extern struct type *init_decfloat_type (struct objfile *, int, const char *);
++extern struct type *init_complex_type (struct objfile *, const char *,
++				       struct type *);
++extern struct type *init_pointer_type (struct objfile *, int, const char *,
++				       struct type *);
+ 
+ /* Helper functions to construct architecture-owned types.  */
+ extern struct type *arch_type (struct gdbarch *, enum type_code, LONGEST,
+Index: gdb-7.6.1/gdb/mdebugread.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/mdebugread.c	2017-03-11 21:42:28.099262777 +0100
++++ gdb-7.6.1/gdb/mdebugread.c	2017-03-11 21:45:39.101565525 +0100
+@@ -1374,97 +1374,80 @@
+       break;
+ 
+     case btAdr:
+-      tp = init_type (TYPE_CODE_PTR, 4, TYPE_FLAG_UNSIGNED,
+-		      "adr_32", objfile);
+-      TYPE_TARGET_TYPE (tp) = objfile_type (objfile)->builtin_void;
++      tp = init_pointer_type (objfile, 32, "adr_32",
++			      objfile_type (objfile)->builtin_void);
+       break;
+ 
+     case btChar:
+-      tp = init_type (TYPE_CODE_INT, 1, 0,
+-		      "char", objfile);
++      tp = init_integer_type (objfile, 8, 0, "char");
+       break;
+ 
+     case btUChar:
+-      tp = init_type (TYPE_CODE_INT, 1, TYPE_FLAG_UNSIGNED,
+-		      "unsigned char", objfile);
++      tp = init_integer_type (objfile, 8, 1, "unsigned char");
+       break;
+ 
+     case btShort:
+-      tp = init_type (TYPE_CODE_INT, 2, 0,
+-		      "short", objfile);
++      tp = init_integer_type (objfile, 16, 0, "short");
+       break;
+ 
+     case btUShort:
+-      tp = init_type (TYPE_CODE_INT, 2, TYPE_FLAG_UNSIGNED,
+-		      "unsigned short", objfile);
++      tp = init_integer_type (objfile, 16, 1, "unsigned short");
+       break;
+ 
+     case btInt:
+-      tp = init_type (TYPE_CODE_INT, 4, 0,
+-		      "int", objfile);
++      tp = init_integer_type (objfile, 32, 0, "int");
+       break;
+ 
+    case btUInt:
+-      tp = init_type (TYPE_CODE_INT, 4, TYPE_FLAG_UNSIGNED,
+-		      "unsigned int", objfile);
++      tp = init_integer_type (objfile, 32, 1, "unsigned int");
+       break;
+ 
+     case btLong:
+-      tp = init_type (TYPE_CODE_INT, 4, 0,
+-		      "long", objfile);
++      tp = init_integer_type (objfile, 32, 0, "long");
+       break;
+ 
+     case btULong:
+-      tp = init_type (TYPE_CODE_INT, 4, TYPE_FLAG_UNSIGNED,
+-		      "unsigned long", objfile);
++      tp = init_integer_type (objfile, 32, 1, "unsigned long");
+       break;
+ 
+     case btFloat:
+-      tp = init_type (TYPE_CODE_FLT,
+-		      gdbarch_float_bit (gdbarch) / TARGET_CHAR_BIT, 0,
+-		      "float", objfile);
++      tp = init_float_type (objfile, gdbarch_float_bit (gdbarch),
++			    "float", NULL);
+       break;
+ 
+     case btDouble:
+-      tp = init_type (TYPE_CODE_FLT,
+-		      gdbarch_double_bit (gdbarch) / TARGET_CHAR_BIT, 0,
+-		      "double", objfile);
++      tp = init_float_type (objfile, gdbarch_double_bit (gdbarch),
++			    "double", NULL);
+       break;
+ 
+     case btComplex:
+-      tp = init_type (TYPE_CODE_COMPLEX,
+-		      2 * gdbarch_float_bit (gdbarch) / TARGET_CHAR_BIT, 0,
+-		      "complex", objfile);
+-      TYPE_TARGET_TYPE (tp) = basic_type (btFloat, objfile);
++      tp = init_complex_type (objfile, "complex",
++			      basic_type (btFloat, objfile));
+       break;
+ 
+     case btDComplex:
+-      tp = init_type (TYPE_CODE_COMPLEX,
+-		      2 * gdbarch_double_bit (gdbarch) / TARGET_CHAR_BIT, 0,
+-		      "double complex", objfile);
+-      TYPE_TARGET_TYPE (tp) = basic_type (btDouble, objfile);
++      tp = init_complex_type (objfile, "double complex",
++			      basic_type (btFloat, objfile));
+       break;
+ 
+     case btFixedDec:
+       /* We use TYPE_CODE_INT to print these as integers.  Does this do any
+ 	 good?  Would we be better off with TYPE_CODE_ERROR?  Should
+ 	 TYPE_CODE_ERROR print things in hex if it knows the size?  */
+-      tp = init_type (TYPE_CODE_INT,
+-		      gdbarch_int_bit (gdbarch) / TARGET_CHAR_BIT, 0,
+-		      "fixed decimal", objfile);
++      tp = init_integer_type (objfile, gdbarch_int_bit (gdbarch), 0,
++			      "fixed decimal");
+       break;
+ 
+     case btFloatDec:
+-      tp = init_type (TYPE_CODE_ERROR,
+-		      gdbarch_double_bit (gdbarch) / TARGET_CHAR_BIT, 0,
+-		      "floating decimal", objfile);
++      tp = init_type (objfile, TYPE_CODE_ERROR,
++		      gdbarch_double_bit (gdbarch) / TARGET_CHAR_BIT,
++		      "floating decimal");
+       break;
+ 
+     case btString:
+       /* Is a "string" the way btString means it the same as TYPE_CODE_STRING?
+ 	 FIXME.  */
+-      tp = init_type (TYPE_CODE_STRING, 1, 0,
+-		      "string", objfile);
++      tp = init_type (objfile, TYPE_CODE_STRING, 1, "string");
+       break;
+ 
+     case btVoid:
+@@ -1472,39 +1455,32 @@
+       break;
+ 
+     case btLong64:
+-      tp = init_type (TYPE_CODE_INT, 8, 0,
+-		      "long", objfile);
++      tp = init_integer_type (objfile, 64, 0, "long");
+       break;
+ 
+     case btULong64:
+-      tp = init_type (TYPE_CODE_INT, 8, TYPE_FLAG_UNSIGNED,
+-		      "unsigned long", objfile);
++      tp = init_integer_type (objfile, 64, 1, "unsigned long");
+       break;
+ 
+     case btLongLong64:
+-      tp = init_type (TYPE_CODE_INT, 8, 0,
+-		      "long long", objfile);
++      tp = init_integer_type (objfile, 64, 0, "long long");
+       break;
+ 
+     case btULongLong64:
+-      tp = init_type (TYPE_CODE_INT, 8, TYPE_FLAG_UNSIGNED,
+-		      "unsigned long long", objfile);
++      tp = init_integer_type (objfile, 64, 1, "unsigned long long");
+       break;
+ 
+     case btAdr64:
+-      tp = init_type (TYPE_CODE_PTR, 8, TYPE_FLAG_UNSIGNED,
+-		      "adr_64", objfile);
+-      TYPE_TARGET_TYPE (tp) = objfile_type (objfile)->builtin_void;
++      tp = init_pointer_type (objfile, 64, "adr_64",
++			      objfile_type (objfile)->builtin_void);
+       break;
+ 
+     case btInt64:
+-      tp = init_type (TYPE_CODE_INT, 8, 0,
+-		      "int", objfile);
++      tp = init_integer_type (objfile, 64, 0, "int");
+       break;
+ 
+     case btUInt64:
+-      tp = init_type (TYPE_CODE_INT, 8, TYPE_FLAG_UNSIGNED,
+-		      "unsigned int", objfile);
++      tp = init_integer_type (objfile, 64, 1, "unsigned int");
+       break;
+ 
+     default:
+@@ -1656,7 +1632,7 @@
+       /* Try to cross reference this type, build new type on failure.  */
+       ax += cross_ref (fd, ax, &tp, type_code, &name, bigend, sym_name);
+       if (tp == (struct type *) NULL)
+-	tp = init_type (type_code, 0, 0, (char *) NULL, mdebugread_objfile);
++	tp = init_type (mdebugread_objfile, type_code, 0, NULL);
+ 
+       /* DEC c89 produces cross references to qualified aggregate types,
+          dereference them.  */
+@@ -1715,7 +1691,7 @@
+       /* Try to cross reference this type, build new type on failure.  */
+       ax += cross_ref (fd, ax, &tp, type_code, &name, bigend, sym_name);
+       if (tp == (struct type *) NULL)
+-	tp = init_type (type_code, 0, 0, (char *) NULL, mdebugread_objfile);
++	tp = init_type (mdebugread_objfile, type_code, 0, NULL);
+ 
+       /* Make sure that TYPE_CODE(tp) has an expected type code.
+          Any type may be returned from cross_ref if file indirect entries
+@@ -4433,13 +4409,13 @@
+     }
+ 
+   /* mips cc uses a rf of -1 for opaque struct definitions.
+-     Set TYPE_FLAG_STUB for these types so that check_typedef will
++     Set TYPE_STUB for these types so that check_typedef will
+      resolve them if the struct gets defined in another compilation unit.  */
+   if (rf == -1)
+     {
+       *pname = "<undefined>";
+-      *tpp = init_type (type_code, 0, TYPE_FLAG_STUB,
+-			(char *) NULL, mdebugread_objfile);
++      *tpp = init_type (mdebugread_objfile, type_code, 0, NULL);
++      TYPE_STUB (*tpp) = 1;
+       return result;
+     }
+ 
+@@ -4525,8 +4501,7 @@
+ 	  switch (tir.bt)
+ 	    {
+ 	    case btVoid:
+-	      *tpp = init_type (type_code, 0, 0, (char *) NULL,
+-				mdebugread_objfile);
++	      *tpp = init_type (mdebugread_objfile, type_code, 0, NULL);
+ 	      *pname = "<undefined>";
+ 	      break;
+ 
+@@ -4561,8 +4536,7 @@
+ 	      complaint (&symfile_complaints,
+ 			 _("illegal bt %d in forward typedef for %s"), tir.bt,
+ 			 sym_name);
+-	      *tpp = init_type (type_code, 0, 0, (char *) NULL,
+-				mdebugread_objfile);
++	      *tpp = init_type (mdebugread_objfile, type_code, 0, NULL);
+ 	      break;
+ 	    }
+ 	  return result;
+@@ -4590,7 +4564,7 @@
+ 	     has not been parsed yet.
+ 	     Initialize the type only, it will be filled in when
+ 	     it's definition is parsed.  */
+-	  *tpp = init_type (type_code, 0, 0, (char *) NULL, mdebugread_objfile);
++	  *tpp = init_type (mdebugread_objfile, type_code, 0, NULL);
+ 	}
+       add_pending (fh, esh, *tpp);
+     }
+Index: gdb-7.6.1/gdb/stabsread.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/stabsread.c	2017-03-11 21:42:28.099262777 +0100
++++ gdb-7.6.1/gdb/stabsread.c	2017-03-11 21:45:39.102565532 +0100
+@@ -2098,130 +2098,115 @@
+          is other than 32 bits, then it should use a new negative type
+          number (or avoid negative type numbers for that case).
+          See stabs.texinfo.  */
+-      rettype = init_type (TYPE_CODE_INT, 4, 0, "int", objfile);
++      rettype = init_integer_type (objfile, 32, 0, "int");
+       break;
+     case 2:
+-      rettype = init_type (TYPE_CODE_INT, 1, 0, "char", objfile);
++      rettype = init_integer_type (objfile, 8, 0, "char");
+       break;
+     case 3:
+-      rettype = init_type (TYPE_CODE_INT, 2, 0, "short", objfile);
++      rettype = init_integer_type (objfile, 16, 0, "short");
+       break;
+     case 4:
+-      rettype = init_type (TYPE_CODE_INT, 4, 0, "long", objfile);
++      rettype = init_integer_type (objfile, 32, 0, "long");
+       break;
+     case 5:
+-      rettype = init_type (TYPE_CODE_INT, 1, TYPE_FLAG_UNSIGNED,
+-			   "unsigned char", objfile);
++      rettype = init_integer_type (objfile, 8, 1, "unsigned char");
+       break;
+     case 6:
+-      rettype = init_type (TYPE_CODE_INT, 1, 0, "signed char", objfile);
++      rettype = init_integer_type (objfile, 8, 0, "signed char");
+       break;
+     case 7:
+-      rettype = init_type (TYPE_CODE_INT, 2, TYPE_FLAG_UNSIGNED,
+-			   "unsigned short", objfile);
++      rettype = init_integer_type (objfile, 16, 1, "unsigned short");
+       break;
+     case 8:
+-      rettype = init_type (TYPE_CODE_INT, 4, TYPE_FLAG_UNSIGNED,
+-			   "unsigned int", objfile);
++      rettype = init_integer_type (objfile, 32, 1, "unsigned int");
+       break;
+     case 9:
+-      rettype = init_type (TYPE_CODE_INT, 4, TYPE_FLAG_UNSIGNED,
+-			   "unsigned", objfile);
++      rettype = init_integer_type (objfile, 32, 1, "unsigned");
+       break;
+     case 10:
+-      rettype = init_type (TYPE_CODE_INT, 4, TYPE_FLAG_UNSIGNED,
+-			   "unsigned long", objfile);
++      rettype = init_integer_type (objfile, 32, 1, "unsigned long");
+       break;
+     case 11:
+-      rettype = init_type (TYPE_CODE_VOID, 1, 0, "void", objfile);
++      rettype = init_type (objfile, TYPE_CODE_VOID, 1, "void");
+       break;
+     case 12:
+       /* IEEE single precision (32 bit).  */
+-      rettype = init_type (TYPE_CODE_FLT, 4, 0, "float", objfile);
++      rettype = init_float_type (objfile, 32, "float", NULL);
+       break;
+     case 13:
+       /* IEEE double precision (64 bit).  */
+-      rettype = init_type (TYPE_CODE_FLT, 8, 0, "double", objfile);
++      rettype = init_float_type (objfile, 64, "double", NULL);
+       break;
+     case 14:
+       /* This is an IEEE double on the RS/6000, and different machines with
+          different sizes for "long double" should use different negative
+          type numbers.  See stabs.texinfo.  */
+-      rettype = init_type (TYPE_CODE_FLT, 8, 0, "long double", objfile);
++      rettype = init_float_type (objfile, 64, "long double", NULL);
+       break;
+     case 15:
+-      rettype = init_type (TYPE_CODE_INT, 4, 0, "integer", objfile);
++      rettype = init_integer_type (objfile, 32, 0, "integer");
+       break;
+     case 16:
+-      rettype = init_type (TYPE_CODE_BOOL, 4, TYPE_FLAG_UNSIGNED,
+-			   "boolean", objfile);
++      rettype = init_boolean_type (objfile, 32, 1, "boolean");
+       break;
+     case 17:
+-      rettype = init_type (TYPE_CODE_FLT, 4, 0, "short real", objfile);
++      rettype = init_float_type (objfile, 32, "short real", NULL);
+       break;
+     case 18:
+-      rettype = init_type (TYPE_CODE_FLT, 8, 0, "real", objfile);
++      rettype = init_float_type (objfile, 64, "real", NULL);
+       break;
+     case 19:
+-      rettype = init_type (TYPE_CODE_ERROR, 0, 0, "stringptr", objfile);
++      rettype = init_type (objfile, TYPE_CODE_ERROR, 0, "stringptr");
+       break;
+     case 20:
+-      rettype = init_type (TYPE_CODE_CHAR, 1, TYPE_FLAG_UNSIGNED,
+-			   "character", objfile);
++      rettype = init_character_type (objfile, 8, 1, "character");
+       break;
+     case 21:
+-      rettype = init_type (TYPE_CODE_BOOL, 1, TYPE_FLAG_UNSIGNED,
+-			   "logical*1", objfile);
++      rettype = init_boolean_type (objfile, 8, 1, "logical*1");
+       break;
+     case 22:
+-      rettype = init_type (TYPE_CODE_BOOL, 2, TYPE_FLAG_UNSIGNED,
+-			   "logical*2", objfile);
++      rettype = init_boolean_type (objfile, 16, 1, "logical*2");
+       break;
+     case 23:
+-      rettype = init_type (TYPE_CODE_BOOL, 4, TYPE_FLAG_UNSIGNED,
+-			   "logical*4", objfile);
++      rettype = init_boolean_type (objfile, 32, 1, "logical*4");
+       break;
+     case 24:
+-      rettype = init_type (TYPE_CODE_BOOL, 4, TYPE_FLAG_UNSIGNED,
+-			   "logical", objfile);
++      rettype = init_boolean_type (objfile, 32, 1, "logical");
+       break;
+     case 25:
+       /* Complex type consisting of two IEEE single precision values.  */
+-      rettype = init_type (TYPE_CODE_COMPLEX, 8, 0, "complex", objfile);
+-      TYPE_TARGET_TYPE (rettype) = init_type (TYPE_CODE_FLT, 4, 0, "float",
+-					      objfile);
++      rettype = init_complex_type (objfile, "complex",
++				   rs6000_builtin_type (12, objfile));
+       break;
+     case 26:
+       /* Complex type consisting of two IEEE double precision values.  */
+-      rettype = init_type (TYPE_CODE_COMPLEX, 16, 0, "double complex", NULL);
+-      TYPE_TARGET_TYPE (rettype) = init_type (TYPE_CODE_FLT, 8, 0, "double",
+-					      objfile);
++      rettype = init_complex_type (objfile, "double complex",
++				   rs6000_builtin_type (13, objfile));
+       break;
+     case 27:
+-      rettype = init_type (TYPE_CODE_INT, 1, 0, "integer*1", objfile);
++      rettype = init_integer_type (objfile, 8, 0, "integer*1");
+       break;
+     case 28:
+-      rettype = init_type (TYPE_CODE_INT, 2, 0, "integer*2", objfile);
++      rettype = init_integer_type (objfile, 16, 0, "integer*2");
+       break;
+     case 29:
+-      rettype = init_type (TYPE_CODE_INT, 4, 0, "integer*4", objfile);
++      rettype = init_integer_type (objfile, 32, 0, "integer*4");
+       break;
+     case 30:
+-      rettype = init_type (TYPE_CODE_CHAR, 2, 0, "wchar", objfile);
++      rettype = init_character_type (objfile, 16, 0, "wchar");
+       break;
+     case 31:
+-      rettype = init_type (TYPE_CODE_INT, 8, 0, "long long", objfile);
++      rettype = init_integer_type (objfile, 64, 0, "long long");
+       break;
+     case 32:
+-      rettype = init_type (TYPE_CODE_INT, 8, TYPE_FLAG_UNSIGNED,
+-			   "unsigned long long", objfile);
++      rettype = init_integer_type (objfile, 64, 1, "unsigned long long");
+       break;
+     case 33:
+-      rettype = init_type (TYPE_CODE_INT, 8, TYPE_FLAG_UNSIGNED,
+-			   "logical*8", objfile);
++      rettype = init_integer_type (objfile, 64, 1, "logical*8");
+       break;
+     case 34:
+-      rettype = init_type (TYPE_CODE_INT, 8, 0, "integer*8", objfile);
++      rettype = init_integer_type (objfile, 64, 0, "integer*8");
+       break;
+     }
+   negative_types[-typenum] = rettype;
+@@ -3757,16 +3742,16 @@
+ {
+   int type_bits;
+   int nbits;
+-  int signed_type;
+-  enum type_code code = TYPE_CODE_INT;
++  int unsigned_type;
++  int boolean_type = 0;
+ 
+   switch (**pp)
+     {
+     case 's':
+-      signed_type = 1;
++      unsigned_type = 0;
+       break;
+     case 'u':
+-      signed_type = 0;
++      unsigned_type = 1;
+       break;
+     default:
+       return error_type (pp, objfile);
+@@ -3783,7 +3768,7 @@
+     (*pp)++;
+   else if (**pp == 'b')
+     {
+-      code = TYPE_CODE_BOOL;
++      boolean_type = 1;
+       (*pp)++;
+     }
+ 
+@@ -3814,14 +3799,17 @@
+     ++(*pp);
+ 
+   if (type_bits == 0)
+-    return init_type (TYPE_CODE_VOID, 1,
+-		      signed_type ? 0 : TYPE_FLAG_UNSIGNED, (char *) NULL,
+-		      objfile);
++    {
++      struct type *type = init_type (objfile, TYPE_CODE_VOID, 1, NULL);
++      if (unsigned_type)
++        TYPE_UNSIGNED (type) = 1;
++      return type;
++    }
++
++  if (boolean_type)
++    return init_boolean_type (objfile, type_bits, unsigned_type, NULL);
+   else
+-    return init_type (code,
+-		      type_bits / TARGET_CHAR_BIT,
+-		      signed_type ? 0 : TYPE_FLAG_UNSIGNED, (char *) NULL,
+-		      objfile);
++    return init_integer_type (objfile, type_bits, unsigned_type, NULL);
+ }
+ 
+ static struct type *
+@@ -3843,16 +3831,16 @@
+   if (nbits != 0)
+     return error_type (pp, objfile);
+ 
++  nbits = nbytes * TARGET_CHAR_BIT;
++
+   if (details == NF_COMPLEX || details == NF_COMPLEX16
+       || details == NF_COMPLEX32)
+     {
+-      rettype = init_type (TYPE_CODE_COMPLEX, nbytes, 0, NULL, objfile);
+-      TYPE_TARGET_TYPE (rettype)
+-	= init_type (TYPE_CODE_FLT, nbytes / 2, 0, NULL, objfile);
+-      return rettype;
++      rettype = init_float_type (objfile, nbits / 2, NULL, NULL);
++      return init_complex_type (objfile, NULL, rettype);
+     }
+ 
+-  return init_type (TYPE_CODE_FLT, nbytes, 0, NULL, objfile);
++  return init_float_type (objfile, nbits, NULL, NULL);
+ }
+ 
+ /* Read a number from the string pointed to by *PP.
+@@ -4115,18 +4103,14 @@
+ 	}
+ 
+       if (got_signed || got_unsigned)
+-	{
+-	  return init_type (TYPE_CODE_INT, nbits / TARGET_CHAR_BIT,
+-			    got_unsigned ? TYPE_FLAG_UNSIGNED : 0, NULL,
+-			    objfile);
+-	}
++	return init_integer_type (objfile, nbits, got_unsigned, NULL);
+       else
+ 	return error_type (pp, objfile);
+     }
+ 
+   /* A type defined as a subrange of itself, with bounds both 0, is void.  */
+   if (self_subrange && n2 == 0 && n3 == 0)
+-    return init_type (TYPE_CODE_VOID, 1, 0, NULL, objfile);
++    return init_type (objfile, TYPE_CODE_VOID, 1, NULL);
+ 
+   /* If n3 is zero and n2 is positive, we want a floating type, and n2
+      is the width in bytes.
+@@ -4143,16 +4127,10 @@
+   if (n3 == 0 && n2 > 0)
+     {
+       struct type *float_type
+-	= init_type (TYPE_CODE_FLT, n2, 0, NULL, objfile);
++	= init_float_type (objfile, n2 * TARGET_CHAR_BIT, NULL, NULL);
+ 
+       if (self_subrange)
+-	{
+-	  struct type *complex_type = 
+-	    init_type (TYPE_CODE_COMPLEX, 2 * n2, 0, NULL, objfile);
+-
+-	  TYPE_TARGET_TYPE (complex_type) = float_type;
+-	  return complex_type;
+-	}
++	return init_complex_type (objfile, NULL, float_type);
+       else
+ 	return float_type;
+     }
+@@ -4171,15 +4149,17 @@
+ 	  bits = gdbarch_int_bit (gdbarch);
+ 	}
+ 
+-      return init_type (TYPE_CODE_INT, bits / TARGET_CHAR_BIT,
+-			TYPE_FLAG_UNSIGNED, NULL, objfile);
++      return init_integer_type (objfile, bits, 1, NULL);
+     }
+ 
+   /* Special case: char is defined (Who knows why) as a subrange of
+      itself with range 0-127.  */
+   else if (self_subrange && n2 == 0 && n3 == 127)
+-    return init_type (TYPE_CODE_INT, 1, TYPE_FLAG_NOSIGN, NULL, objfile);
+-
++    {
++      struct type *type = init_integer_type (objfile, 1, 0, NULL);
++      TYPE_NOSIGN (type) = 1;
++      return type;
++    }
+   /* We used to do this only for subrange of self or subrange of int.  */
+   else if (n2 == 0)
+     {
+@@ -4189,8 +4169,7 @@
+ 
+       if (n3 < 0)
+ 	/* n3 actually gives the size.  */
+-	return init_type (TYPE_CODE_INT, -n3, TYPE_FLAG_UNSIGNED,
+-			  NULL, objfile);
++	return init_integer_type (objfile, -n3 * TARGET_CHAR_BIT, 1, NULL);
+ 
+       /* Is n3 == 2**(8n)-1 for some integer n?  Then it's an
+          unsigned n-byte integer.  But do require n to be a power of
+@@ -4204,8 +4183,7 @@
+ 	  bits >>= 8;
+ 	if (bits == 0
+ 	    && ((bytes - 1) & bytes) == 0) /* "bytes is a power of two" */
+-	  return init_type (TYPE_CODE_INT, bytes, TYPE_FLAG_UNSIGNED, NULL,
+-			    objfile);
++	  return init_integer_type (objfile, bytes * TARGET_CHAR_BIT, 1, NULL);
+       }
+     }
+   /* I think this is for Convex "long long".  Since I don't know whether
+@@ -4215,15 +4193,15 @@
+ 	   && (self_subrange
+ 	       || n2 == -gdbarch_long_long_bit
+ 			  (gdbarch) / TARGET_CHAR_BIT))
+-    return init_type (TYPE_CODE_INT, -n2, 0, NULL, objfile);
++    return init_integer_type (objfile, -n2 * TARGET_CHAR_BIT, 0, NULL);
+   else if (n2 == -n3 - 1)
+     {
+       if (n3 == 0x7f)
+-	return init_type (TYPE_CODE_INT, 1, 0, NULL, objfile);
++	return init_integer_type (objfile, 8, 0, NULL);
+       if (n3 == 0x7fff)
+-	return init_type (TYPE_CODE_INT, 2, 0, NULL, objfile);
++	return init_integer_type (objfile, 16, 0, NULL);
+       if (n3 == 0x7fffffff)
+-	return init_type (TYPE_CODE_INT, 4, 0, NULL, objfile);
++	return init_integer_type (objfile, 32, 0, NULL);
+     }
+ 
+   /* We have a real range type on our hands.  Allocate space and

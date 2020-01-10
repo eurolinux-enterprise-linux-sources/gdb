@@ -1,0 +1,106 @@
+commit ef5a96d564a22a25d31533c7377eede42c12b25c
+Author: Alan Modra <amodra@gmail.com>
+Date:   Fri Jul 3 10:56:26 2015 +0930
+
+    Remove ppc860, ppc750cl, ppc7450 insns from common ppc.
+    
+    Back in the day support for these processors was added, we probably
+    didn't want to waste PPC_OPCODE bits on minor variations.  I've had a
+    complaint that disassembly of mfspr/mtspr was wrong for power8.  This
+    patch fixes that problem.
+    
+    Note that since -m860/-m850/-m821 are new gas options enabling the
+    mpc8xx specific mfspr/mtspr variants it is possible that this change
+    will break some mpc8xx assembly code.  ie. you might need to modify
+    makefiles to pass -m860 to gas.
+    
+    include/opcode/
+            * ppc.h (PPC_OPCODE_750, PPC_OPCODE_7450, PPC_OPCODE_860): Define.
+    opcodes/
+            * ppc-opc.c (PPC750, PPC7450, PPC860): Define using PPC_OPCODE_*.
+            * ppc-dis.c (ppc_opts): Add 821, 850 and 860 entries.  Add
+            PPC_OPCODE_7450 to 7450 entry.  Add PPC_OPCODE_750 to 750cl entry.
+    gas/
+            * config/tc-ppc.c (md_show_usage): Add -m821, -m850, -m860.
+            * doc/c-ppc.texi (PowerPC-Opts): Likewise.
+    gas/testsuite/
+            * gas/ppc/titan.d: Correct mfmcsrr0 disassembly.
+
+### a/include/opcode/ChangeLog
+### b/include/opcode/ChangeLog
+## -1,3 +1,7 @@
++2015-07-03  Alan Modra  <amodra@gmail.com>
++
++	* ppc.h (PPC_OPCODE_750, PPC_OPCODE_7450, PPC_OPCODE_860): Define.
++
+ 2015-07-01  Sandra Loosemore  <sandra@codesourcery.com>
+ 	    Cesar Philippidis  <cesar@codesourcery.com>
+ 
+--- a/include/opcode/ppc.h
++++ b/include/opcode/ppc.h
+@@ -195,6 +195,15 @@ extern const int vle_num_opcodes;
+    that isn't a superset of POWER8, we can define this to its own mask.  */
+ #define PPC_OPCODE_HTM        PPC_OPCODE_POWER8
+ 
++/* Opcode is supported by ppc750cl.  */
++#define PPC_OPCODE_750	      0x4000000000ull
++
++/* Opcode is supported by ppc7450.  */
++#define PPC_OPCODE_7450	      0x8000000000ull
++
++/* Opcode is supported by ppc821/850/860.  */
++#define PPC_OPCODE_860	      0x10000000000ull
++
+ /* A macro to extract the major opcode from an instruction.  */
+ #define PPC_OP(i) (((i) >> 26) & 0x3f)
+ 
+### a/opcodes/ChangeLog
+### b/opcodes/ChangeLog
+## -1,3 +1,9 @@
++2015-07-03  Alan Modra  <amodra@gmail.com>
++
++	* ppc-opc.c (PPC750, PPC7450, PPC860): Define using PPC_OPCODE_*.
++	* ppc-dis.c (ppc_opts): Add 821, 850 and 860 entries.  Add
++	PPC_OPCODE_7450 to 7450 entry.  Add PPC_OPCODE_750 to 750cl entry.
++
+ 2015-07-01  Sandra Loosemore  <sandra@codesourcery.com>
+ 	    Cesar Philippidis  <cesar@codesourcery.com>
+ 
+--- a/opcodes/ppc-dis.c
++++ b/opcodes/ppc-dis.c
+@@ -76,12 +76,18 @@ struct ppc_mopt ppc_opts[] = {
+     0 },
+   { "7410",    (PPC_OPCODE_PPC | PPC_OPCODE_ALTIVEC),
+     0 },
+-  { "7450",    (PPC_OPCODE_PPC | PPC_OPCODE_ALTIVEC),
++  { "7450",    (PPC_OPCODE_PPC | PPC_OPCODE_7450 | PPC_OPCODE_ALTIVEC),
+     0 },
+   { "7455",    (PPC_OPCODE_PPC | PPC_OPCODE_ALTIVEC),
+     0 },
+-  { "750cl",   (PPC_OPCODE_PPC | PPC_OPCODE_PPCPS)
++  { "750cl",   (PPC_OPCODE_PPC | PPC_OPCODE_750 | PPC_OPCODE_PPCPS)
+     , 0 },
++  { "821",     (PPC_OPCODE_PPC | PPC_OPCODE_860),
++    0 },
++  { "850",     (PPC_OPCODE_PPC | PPC_OPCODE_860),
++    0 },
++  { "860",     (PPC_OPCODE_PPC | PPC_OPCODE_860),
++    0 },
+   { "a2",      (PPC_OPCODE_PPC | PPC_OPCODE_ISEL | PPC_OPCODE_POWER4
+ 		| PPC_OPCODE_POWER5 | PPC_OPCODE_CACHELCK | PPC_OPCODE_64
+ 		| PPC_OPCODE_A2),
+--- a/opcodes/ppc-opc.c
++++ b/opcodes/ppc-opc.c
+@@ -2747,9 +2747,9 @@ extract_vleil (unsigned long insn,
+ #define PPC440	PPC_OPCODE_440
+ #define PPC464	PPC440
+ #define PPC476	PPC_OPCODE_476
+-#define PPC750	PPC
+-#define PPC7450 PPC
+-#define PPC860	PPC
++#define PPC750	PPC_OPCODE_750
++#define PPC7450 PPC_OPCODE_7450
++#define PPC860	PPC_OPCODE_860
+ #define PPCPS	PPC_OPCODE_PPCPS
+ #define PPCVEC	PPC_OPCODE_ALTIVEC
+ #define PPCVEC2	PPC_OPCODE_ALTIVEC2

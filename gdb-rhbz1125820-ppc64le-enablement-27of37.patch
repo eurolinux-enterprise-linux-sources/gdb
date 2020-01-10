@@ -1,0 +1,45 @@
+commit 5b757e5ddbd9ad252d9c51103f1aa52b41c2e947
+Author: Ulrich Weigand <ulrich.weigand@de.ibm.com>
+Date:   Tue Feb 4 18:33:04 2014 +0100
+
+    PowerPC64 little-endian fixes: 32-bit DFP parameters
+    
+    Passing a 32-bit DFP in register needs to use the least-significant part
+    of the register.  Like with a previous patch that addressed the same
+    issue for small structs, this patch makes sure the appropriate offset
+    is used on little-endian systems.
+    
+    gdb/ChangeLog:
+    
+    	* ppc-sysv-tdep.c (ppc64_sysv_abi_push_freg): Use correct
+    	offset on little-endian when passing _Decimal32.
+    	(ppc64_sysv_abi_return_value_base): Likewise for return values.
+
+Index: gdb-7.6.1/gdb/ppc-sysv-tdep.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/ppc-sysv-tdep.c
++++ gdb-7.6.1/gdb/ppc-sysv-tdep.c
+@@ -1231,7 +1231,10 @@ ppc64_sysv_abi_push_freg (struct gdbarch
+       if (argpos->regcache && argpos->freg <= 13)
+ 	{
+ 	  int regnum = tdep->ppc_fp0_regnum + argpos->freg;
+-	  int offset = 8 - TYPE_LENGTH (type);
++	  int offset = 0;
++
++	  if (gdbarch_byte_order (gdbarch) == BFD_ENDIAN_BIG)
++	    offset = 8 - TYPE_LENGTH (type);
+ 
+ 	  regcache_cooked_write_part (argpos->regcache, regnum,
+ 				      offset, TYPE_LENGTH (type), val);
+@@ -1640,7 +1643,10 @@ ppc64_sysv_abi_return_value_base (struct
+       && TYPE_CODE (valtype) == TYPE_CODE_DECFLOAT)
+     {
+       int regnum = tdep->ppc_fp0_regnum + 1 + index;
+-      int offset = 8 - TYPE_LENGTH (valtype);
++      int offset = 0;
++
++      if (gdbarch_byte_order (gdbarch) == BFD_ENDIAN_BIG)
++	offset = 8 - TYPE_LENGTH (valtype);
+ 
+       if (writebuf != NULL)
+ 	regcache_cooked_write_part (regcache, regnum,

@@ -1,0 +1,68 @@
+From 098dbe61246fd65ea5e3825d77afb31d52c43153 Mon Sep 17 00:00:00 2001
+From: Andreas Arnez <arnez@linux.vnet.ibm.com>
+Date: Fri, 12 Dec 2014 14:14:20 +0100
+Subject: [PATCH 7/9] gdbserver: Prevent stale/random values in register cache
+
+When fetch_inferior_registers does not update all registers, this
+patch assures that no stale register values remain in the register
+cache.  On Linux platforms using the regsets interface, when one of
+the ptrace calls used for fetching the register values returns an
+error, this patch also avoids copying the random data returned from
+ptrace into the register cache.  All unfetched registers are marked
+"unavailable" instead.
+
+gdb/gdbserver/ChangeLog:
+
+	* linux-low.c (regsets_fetch_inferior_registers): Do not invoke
+	the regset's store function when ptrace returned an error.
+	* regcache.c (get_thread_regcache): Invalidate register cache
+	before fetching inferior's registers.
+---
+ gdb/gdbserver/ChangeLog   |  7 +++++++
+ gdb/gdbserver/linux-low.c | 11 ++++++-----
+ gdb/gdbserver/regcache.c  |  3 +++
+ 3 files changed, 16 insertions(+), 5 deletions(-)
+
+Index: gdb-7.6.1/gdb/gdbserver/linux-low.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/gdbserver/linux-low.c
++++ gdb-7.6.1/gdb/gdbserver/linux-low.c
+@@ -4080,8 +4080,6 @@ regsets_fetch_inferior_registers (struct
+ 	      /* If we get EIO on a regset, do not try it again for
+ 		 this process.  */
+ 	      disabled_regsets[regset - target_regsets] = 1;
+-	      free (buf);
+-	      continue;
+ 	    }
+ 	  else
+ 	    {
+@@ -4091,9 +4089,12 @@ regsets_fetch_inferior_registers (struct
+ 	      perror (s);
+ 	    }
+ 	}
+-      else if (regset->type == GENERAL_REGS)
+-	saw_general_regs = 1;
+-      regset->store_function (regcache, buf);
++      else
++	{
++	  if (regset->type == GENERAL_REGS)
++	    saw_general_regs = 1;
++	  regset->store_function (regcache, buf);
++	}
+       regset ++;
+       free (buf);
+     }
+Index: gdb-7.6.1/gdb/gdbserver/regcache.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/gdbserver/regcache.c
++++ gdb-7.6.1/gdb/gdbserver/regcache.c
+@@ -47,6 +47,9 @@ get_thread_regcache (struct thread_info
+       struct thread_info *saved_inferior = current_inferior;
+ 
+       current_inferior = thread;
++      /* Invalidate all registers, to prevent stale left-overs.  */
++      memset (regcache->register_status, REG_UNAVAILABLE,
++	      num_registers);
+       fetch_inferior_registers (regcache, -1);
+       current_inferior = saved_inferior;
+       regcache->registers_valid = 1;

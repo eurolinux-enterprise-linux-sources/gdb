@@ -1,0 +1,134 @@
+commit 397998fc32a34d3c8993ef46da45c3957a4dd402
+Author: Alan Modra <amodra@gmail.com>
+Date:   Tue Jun 3 10:55:29 2014 +0930
+
+    Support fusion for ELFv2 stubs
+    
+    Power8 fuses addis,addi and addis,ld sequences when the target of the
+    addis is the same as the addi/ld.  Thus
+        addis r12,r2,xxx@ha
+        addi r12,r12,xxx@l / ld r12,xxx@l(r12)
+    is faster than
+        addis r11,r2,xxx@ha
+        addi r12,r11,xxx@l / ld r12,xxx@l(r11)
+    So use the form that allows fusion in plt call and branch stubs.
+    
+    bfd/
+    	* elf64-ppc.c (ADDIS_R12_R2): Define.
+    	(build_plt_stub): Support fusion on ELFv2 stub.
+    	(ppc_build_one_stub): Likewise for plt branch stubs.
+    gold/
+    	* powerpc.cc (addis_12_2): Define.
+    	(Stub_table::do_write): Support fusion on ELFv2 stubs.
+    ld/testsuite/
+    	* ld-powerpc/elfv2exe.d: Update for changed plt call stubs.
+    gdb/
+    	* ppc64-tdep.c (ppc64_standard_linkage8): New.
+    	(ppc64_skip_trampoline_code): Recognise ELFv2 stub supporting fusion.
+
+Index: gdb-7.6.1/bfd/elf64-ppc.c
+===================================================================
+--- gdb-7.6.1.orig/bfd/elf64-ppc.c
++++ gdb-7.6.1/bfd/elf64-ppc.c
+@@ -175,6 +175,7 @@ static bfd_vma opd_entry_value
+ 
+ #define LD_R2_0R1	0xe8410000	/* ld    %r2,0(%r1)      */
+ 
++#define ADDIS_R12_R2	0x3d820000	/* addis %r12,%r2,xxx@ha     */
+ #define ADDIS_R12_R12	0x3d8c0000	/* addis %r12,%r12,xxx@ha */
+ #define LD_R12_0R12	0xe98c0000	/* ld    %r12,xxx@l(%r12) */
+ 
+@@ -9990,8 +9991,16 @@ build_plt_stub (struct ppc_link_hash_tab
+       if (ALWAYS_EMIT_R2SAVE
+ 	  || stub_entry->stub_type == ppc_stub_plt_call_r2save)
+ 	bfd_put_32 (obfd, STD_R2_0R1 + STK_TOC (htab), p),	p += 4;
+-      bfd_put_32 (obfd, ADDIS_R11_R2 | PPC_HA (offset), p),	p += 4;
+-      bfd_put_32 (obfd, LD_R12_0R11 | PPC_LO (offset), p),	p += 4;
++      if (plt_load_toc)
++	{
++	  bfd_put_32 (obfd, ADDIS_R11_R2 | PPC_HA (offset), p),	p += 4;
++	  bfd_put_32 (obfd, LD_R12_0R11 | PPC_LO (offset), p),	p += 4;
++	}
++      else
++	{
++	  bfd_put_32 (obfd, ADDIS_R12_R2 | PPC_HA (offset), p),	p += 4;
++	  bfd_put_32 (obfd, LD_R12_0R12 | PPC_LO (offset), p),	p += 4;
++	}
+       if (plt_load_toc
+ 	  && PPC_HA (offset + 8 + 8 * plt_static_chain) != PPC_HA (offset))
+ 	{
+@@ -10410,9 +10419,9 @@ ppc_build_one_stub (struct bfd_hash_entr
+ 	  if (PPC_HA (off) != 0)
+ 	    {
+ 	      size = 16;
+-	      bfd_put_32 (htab->stub_bfd, ADDIS_R11_R2 | PPC_HA (off), loc);
++	      bfd_put_32 (htab->stub_bfd, ADDIS_R12_R2 | PPC_HA (off), loc);
+ 	      loc += 4;
+-	      bfd_put_32 (htab->stub_bfd, LD_R12_0R11 | PPC_LO (off), loc);
++	      bfd_put_32 (htab->stub_bfd, LD_R12_0R12 | PPC_LO (off), loc);
+ 	    }
+ 	  else
+ 	    {
+@@ -10436,9 +10445,9 @@ ppc_build_one_stub (struct bfd_hash_entr
+ 	  if (PPC_HA (off) != 0)
+ 	    {
+ 	      size += 4;
+-	      bfd_put_32 (htab->stub_bfd, ADDIS_R11_R2 | PPC_HA (off), loc);
++	      bfd_put_32 (htab->stub_bfd, ADDIS_R12_R2 | PPC_HA (off), loc);
+ 	      loc += 4;
+-	      bfd_put_32 (htab->stub_bfd, LD_R12_0R11 | PPC_LO (off), loc);
++	      bfd_put_32 (htab->stub_bfd, LD_R12_0R12 | PPC_LO (off), loc);
+ 	    }
+ 	  else
+ 	    bfd_put_32 (htab->stub_bfd, LD_R12_0R2 | PPC_LO (off), loc);
+Index: gdb-7.6.1/gdb/ppc64-tdep.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/ppc64-tdep.c
++++ gdb-7.6.1/gdb/ppc64-tdep.c
+@@ -303,6 +303,29 @@ static struct ppc_insn_pattern ppc64_sta
+     { 0, 0, 0 }
+   };
+ 
++/* ELFv2 PLT call stub to access PLT entries more than +/- 32k from r2,
++   supporting fusion.  */
++
++static struct ppc_insn_pattern ppc64_standard_linkage8[] =
++  {
++    /* std r2, 24(r1) <optional> */
++    { -1, insn_ds (62, 2, 1, 24, 0), 1 },
++
++    /* addis r12, r2, <any> */
++    { insn_d (-1, -1, -1, 0), insn_d (15, 12, 2, 0), 0 },
++
++    /* ld r12, <any>(r12) */
++    { insn_ds (-1, -1, -1, 0, -1), insn_ds (58, 12, 12, 0, 0), 0 },
++
++    /* mtctr r12 */
++    { insn_xfx (-1, -1, -1, -1), insn_xfx (31, 12, 9, 467), 0 },
++
++    /* bctr */
++    { -1, 0x4e800420, 0 },
++
++    { 0, 0, 0 }
++  };
++
+ /* When the dynamic linker is doing lazy symbol resolution, the first
+    call to a function in another object will go like this:
+ 
+@@ -437,10 +460,14 @@ ppc64_skip_trampoline_code (struct frame
+ 				    ARRAY_SIZE (ppc64_standard_linkage4))),
+ 			  MAX (MAX (ARRAY_SIZE (ppc64_standard_linkage5),
+ 				    ARRAY_SIZE (ppc64_standard_linkage6)),
+-			       ARRAY_SIZE (ppc64_standard_linkage7))) - 1];
++			       MAX (ARRAY_SIZE (ppc64_standard_linkage7),
++				    ARRAY_SIZE (ppc64_standard_linkage8))))
++		     - 1];
+   CORE_ADDR target;
+ 
+-  if (ppc_insns_match_pattern (frame, pc, ppc64_standard_linkage7, insns))
++  if (ppc_insns_match_pattern (frame, pc, ppc64_standard_linkage8, insns))
++    pc = ppc64_standard_linkage4_target (frame, pc, insns);
++  else if (ppc_insns_match_pattern (frame, pc, ppc64_standard_linkage7, insns))
+     pc = ppc64_standard_linkage3_target (frame, pc, insns);
+   else if (ppc_insns_match_pattern (frame, pc, ppc64_standard_linkage6, insns))
+     pc = ppc64_standard_linkage4_target (frame, pc, insns);

@@ -1,0 +1,228 @@
+commit b80eed39e2e813c37cffcb873dc4fdd03381383c
+Author: Alan Modra <amodra@gmail.com>
+Date:   Fri Mar 7 10:14:30 2014 +1030
+
+    Better overflow checking for powerpc64 relocations
+    
+    R_PPC64_ADDR16 is used in three contexts:
+    - .short data relocation
+    - 16-bit signed insn fields, eg. addi
+    - 16-bit unsigned insn fields, eg. ori
+    In the first case we want to allow both signed and unsigned 16-bit
+    values, the latter two ought to error if the field exceeds the range
+    of values allowed for 16-bit signed and unsigned integers
+    respectively.  These conflicting requirements meant that ld had to
+    choose the least restrictive overflow checks, and thus it is possible
+    to construct testcases where an addi field overflows but is not
+    reported by ld.  Many relocations dealing with 16-bit insn fields have
+    this problem.  What's more, some relocations that are only ever used
+    for signed fields of instructions woodenly copied the lax overflow
+    checking of R_PPC64_ADDR16.
+    
+    bfd/
+            * elf64-ppc.c (ppc64_elf_howto_raw): Use complain_overflow_signed
+            for R_PPC64_ADDR14, R_PPC64_ADDR14_BRTAKEN, R_PPC64_ADDR14_BRNTAKEN,
+            R_PPC64_SECTOFF, R_PPC64_ADDR16_DS, R_PPC64_SECTOFF_DS,
+            R_PPC64_REL16 entries.  Use complain_overflow_dont for R_PPC64_TOC.
+            (ppc64_elf_relocate_section): Modify overflow test for 16-bit
+            fields in instructions to signed/unsigned according to whether
+            the field takes a signed or unsigned value.
+    gold/
+            * powerpc.cc (Powerpc_relocate_functions::Overflow_check): Add
+            CHECK_UNSIGNED, CHECK_LOW_INSN, CHECK_HIGH_INSN.
+            (Powerpc_relocate_functions::has_overflow_unsigned): New function.
+            (Powerpc_relocate_functions::has_overflow_bitfield,
+            overflowed): Use the above.
+            (Target_powerpc::Relocate::relocate): Correct overflow checking
+            for a number of relocations.  Modify overflow test for 16-bit
+            fields in instructions to signed/unsigned according to whether
+            the field takes a signed or unsigned value.
+
+### a/bfd/ChangeLog
+### b/bfd/ChangeLog
+## -1,3 +1,13 @@
++2014-03-08  Alan Modra  <amodra@gmail.com>
++
++	* elf64-ppc.c (ppc64_elf_howto_raw): Use complain_overflow_signed
++	for R_PPC64_ADDR14, R_PPC64_ADDR14_BRTAKEN, R_PPC64_ADDR14_BRNTAKEN,
++	R_PPC64_SECTOFF, R_PPC64_ADDR16_DS, R_PPC64_SECTOFF_DS,
++	R_PPC64_REL16 entries.  Use complain_overflow_dont for R_PPC64_TOC.
++	(ppc64_elf_relocate_section): Modify overflow test for 16-bit
++	fields in instructions to signed/unsigned according to whether
++	the field takes a signed or unsigned value.
++
+ 2014-03-07  Pedro Alves  <palves@redhat.com>
+ 
+ 	* rs6000-core.c (rs6000coff_core_p): Cast pointers to bfd_vma
+--- a/bfd/elf64-ppc.c
++++ b/bfd/elf64-ppc.c
+@@ -357,7 +357,7 @@ static reloc_howto_type ppc64_elf_howto_raw[] = {
+ 	 16,			/* bitsize */
+ 	 FALSE,			/* pc_relative */
+ 	 0,			/* bitpos */
+-	 complain_overflow_bitfield, /* complain_on_overflow */
++	 complain_overflow_signed, /* complain_on_overflow */
+ 	 ppc64_elf_branch_reloc, /* special_function */
+ 	 "R_PPC64_ADDR14",	/* name */
+ 	 FALSE,			/* partial_inplace */
+@@ -374,7 +374,7 @@ static reloc_howto_type ppc64_elf_howto_raw[] = {
+ 	 16,			/* bitsize */
+ 	 FALSE,			/* pc_relative */
+ 	 0,			/* bitpos */
+-	 complain_overflow_bitfield, /* complain_on_overflow */
++	 complain_overflow_signed, /* complain_on_overflow */
+ 	 ppc64_elf_brtaken_reloc, /* special_function */
+ 	 "R_PPC64_ADDR14_BRTAKEN",/* name */
+ 	 FALSE,			/* partial_inplace */
+@@ -391,7 +391,7 @@ static reloc_howto_type ppc64_elf_howto_raw[] = {
+ 	 16,			/* bitsize */
+ 	 FALSE,			/* pc_relative */
+ 	 0,			/* bitpos */
+-	 complain_overflow_bitfield, /* complain_on_overflow */
++	 complain_overflow_signed, /* complain_on_overflow */
+ 	 ppc64_elf_brtaken_reloc, /* special_function */
+ 	 "R_PPC64_ADDR14_BRNTAKEN",/* name */
+ 	 FALSE,			/* partial_inplace */
+@@ -632,7 +632,6 @@ static reloc_howto_type ppc64_elf_howto_raw[] = {
+ 	 32,			/* bitsize */
+ 	 TRUE,			/* pc_relative */
+ 	 0,			/* bitpos */
+-	 /* FIXME: Verify.  Was complain_overflow_bitfield.  */
+ 	 complain_overflow_signed, /* complain_on_overflow */
+ 	 bfd_elf_generic_reloc,	/* special_function */
+ 	 "R_PPC64_REL32",	/* name */
+@@ -727,7 +726,7 @@ static reloc_howto_type ppc64_elf_howto_raw[] = {
+ 	 16,			/* bitsize */
+ 	 FALSE,			/* pc_relative */
+ 	 0,			/* bitpos */
+-	 complain_overflow_bitfield, /* complain_on_overflow */
++	 complain_overflow_signed, /* complain_on_overflow */
+ 	 ppc64_elf_sectoff_reloc, /* special_function */
+ 	 "R_PPC64_SECTOFF",	/* name */
+ 	 FALSE,			/* partial_inplace */
+@@ -1015,7 +1014,7 @@ static reloc_howto_type ppc64_elf_howto_raw[] = {
+ 	 64,			/* bitsize */
+ 	 FALSE,			/* pc_relative */
+ 	 0,			/* bitpos */
+-	 complain_overflow_bitfield, /* complain_on_overflow */
++	 complain_overflow_dont, /* complain_on_overflow */
+ 	 ppc64_elf_toc64_reloc,	/* special_function */
+ 	 "R_PPC64_TOC",		/* name */
+ 	 FALSE,			/* partial_inplace */
+@@ -1103,7 +1102,7 @@ static reloc_howto_type ppc64_elf_howto_raw[] = {
+ 	 16,			/* bitsize */
+ 	 FALSE,			/* pc_relative */
+ 	 0,			/* bitpos */
+-	 complain_overflow_bitfield, /* complain_on_overflow */
++	 complain_overflow_signed, /* complain_on_overflow */
+ 	 bfd_elf_generic_reloc,	/* special_function */
+ 	 "R_PPC64_ADDR16_DS",	/* name */
+ 	 FALSE,			/* partial_inplace */
+@@ -1178,7 +1177,7 @@ static reloc_howto_type ppc64_elf_howto_raw[] = {
+ 	 16,			/* bitsize */
+ 	 FALSE,			/* pc_relative */
+ 	 0,			/* bitpos */
+-	 complain_overflow_bitfield, /* complain_on_overflow */
++	 complain_overflow_signed, /* complain_on_overflow */
+ 	 ppc64_elf_sectoff_reloc, /* special_function */
+ 	 "R_PPC64_SECTOFF_DS",	/* name */
+ 	 FALSE,			/* partial_inplace */
+@@ -1950,7 +1949,7 @@ static reloc_howto_type ppc64_elf_howto_raw[] = {
+ 	 16,			/* bitsize */
+ 	 TRUE,			/* pc_relative */
+ 	 0,			/* bitpos */
+-	 complain_overflow_bitfield, /* complain_on_overflow */
++	 complain_overflow_signed, /* complain_on_overflow */
+ 	 bfd_elf_generic_reloc,	/* special_function */
+ 	 "R_PPC64_REL16",	/* name */
+ 	 FALSE,			/* partial_inplace */
+@@ -12943,6 +12942,8 @@ ppc64_elf_relocate_section (bfd *output_bfd,
+       bfd_vma max_br_offset;
+       bfd_vma from;
+       const Elf_Internal_Rela orig_rel = *rel;
++      reloc_howto_type *howto;
++      struct reloc_howto_struct alt_howto;
+ 
+       r_type = ELF64_R_TYPE (rel->r_info);
+       r_symndx = ELF64_R_SYM (rel->r_info);
+@@ -14507,6 +14508,7 @@ ppc64_elf_relocate_section (bfd *output_bfd,
+ 	}
+ 
+       /* Do any further special processing.  */
++      howto = ppc64_elf_howto_table[(int) r_type];
+       switch (r_type)
+ 	{
+ 	default:
+@@ -14581,7 +14583,7 @@ ppc64_elf_relocate_section (bfd *output_bfd,
+ 	      info->callbacks->einfo
+ 		(_("%P: %H: error: %s not a multiple of %u\n"),
+ 		 input_bfd, input_section, rel->r_offset,
+-		 ppc64_elf_howto_table[r_type]->name,
++		 howto->name,
+ 		 mask + 1);
+ 	      bfd_set_error (bfd_error_bad_value);
+ 	      ret = FALSE;
+@@ -14602,23 +14604,45 @@ ppc64_elf_relocate_section (bfd *output_bfd,
+ 	  info->callbacks->einfo
+ 	    (_("%P: %H: unresolvable %s against `%T'\n"),
+ 	     input_bfd, input_section, rel->r_offset,
+-	     ppc64_elf_howto_table[(int) r_type]->name,
++	     howto->name,
+ 	     h->elf.root.root.string);
+ 	  ret = FALSE;
+ 	}
+ 
+-      r = _bfd_final_link_relocate (ppc64_elf_howto_table[(int) r_type],
+-				    input_bfd,
+-				    input_section,
+-				    contents,
+-				    rel->r_offset,
+-				    relocation,
+-				    addend);
++      /* 16-bit fields in insns mostly have signed values, but a
++	 few insns have 16-bit unsigned values.  Really, we should
++	 have different reloc types.  */
++      if (howto->complain_on_overflow != complain_overflow_dont
++	  && howto->dst_mask == 0xffff
++	  && (input_section->flags & SEC_CODE) != 0)
++	{
++	  enum complain_overflow complain = complain_overflow_signed;
++
++	  insn = bfd_get_32 (input_bfd, contents + (rel->r_offset & ~3));
++	  if (howto->rightshift == 0
++	      ? ((insn & (0x3f << 26)) == 28u << 26 /* andi */
++		 || (insn & (0x3f << 26)) == 24u << 26 /* ori */
++		 || (insn & (0x3f << 26)) == 26u << 26 /* xori */
++		 || (insn & (0x3f << 26)) == 10u << 26 /* cmpli */)
++	      : ((insn & (0x3f << 26)) == 29u << 26 /* andis */
++		 || (insn & (0x3f << 26)) == 25u << 26 /* oris */
++		 || (insn & (0x3f << 26)) == 27u << 26 /* xoris */))
++	    complain = complain_overflow_unsigned;
++	  if (howto->complain_on_overflow != complain)
++	    {
++	      alt_howto = *howto;
++	      alt_howto.complain_on_overflow = complain;
++	      howto = &alt_howto;
++	    }
++	}
++
++      r = _bfd_final_link_relocate (howto, input_bfd, input_section, contents,
++				    rel->r_offset, relocation, addend);
+ 
+       if (r != bfd_reloc_ok)
+ 	{
+ 	  char *more_info = NULL;
+-	  const char *reloc_name = ppc64_elf_howto_table[r_type]->name;
++	  const char *reloc_name = howto->name;
+ 
+ 	  if (reloc_dest != DEST_NORMAL)
+ 	    {
+@@ -14638,7 +14662,7 @@ ppc64_elf_relocate_section (bfd *output_bfd,
+ 		continue;
+ 	      if (h != NULL
+ 		  && h->elf.root.type == bfd_link_hash_undefweak
+-		  && ppc64_elf_howto_table[r_type]->pc_relative)
++		  && howto->pc_relative)
+ 		{
+ 		  /* Assume this is a call protected by other code that
+ 		     detects the symbol is undefined.  If this is the case,

@@ -1,0 +1,193 @@
+commit 88dfca6c43c11dea69db24cfb87e6821e63e29b2
+Author: Ulrich Weigand <ulrich.weigand@de.ibm.com>
+Date:   Tue Sep 6 17:26:32 2016 +0200
+
+    Add some missing arch_..._type helpers
+    
+    gdbtypes provides a number of helper routines that can be called instead of
+    using arch_type directly to create a type of a particular kind.  This patch
+    adds two additional such routines that have been missing so far, to allow
+    creation of TYPE_CODE_DECFLOAT and TYPE_CODE_POINTER types.
+    
+    The patch also changes a number of places to use the new helper routines
+    instead of calling arch_type directly.  No functional change intended.
+    
+    gdb/ChangeLog:
+    
+            * gdbtypes.h (arch_decfloat_type): New prototype.
+            (arch_pointer_type): Likewise.
+            * gdbtypes.c (arch_decfloat_type): New function.
+            (arch_pointer_type): Likewise.
+            (gdbtypes_post_init): Use arch_decfloat_type.
+            * avr-tdep.c (avr_gdbarch_init): Use arch_pointer_type.
+            * ft32-tdep.c (ft32_gdbarch_init): Likewise.
+            * m32c-tdep.c (make_types): Likewise.
+            * rl78-tdep.c (rl78_gdbarch_init): Likewise.
+    
+    Signed-off-by: Ulrich Weigand <ulrich.weigand@de.ibm.com>
+
+### a/gdb/ChangeLog
+### b/gdb/ChangeLog
+## -1,5 +1,17 @@
+ 2016-09-05  Ulrich Weigand  <uweigand@de.ibm.com>
+ 
++	* gdbtypes.h (arch_decfloat_type): New prototype.
++	(arch_pointer_type): Likewise.
++	* gdbtypes.c (arch_decfloat_type): New function.
++	(arch_pointer_type): Likewise.
++	(gdbtypes_post_init): Use arch_decfloat_type.
++	* avr-tdep.c (avr_gdbarch_init): Use arch_pointer_type.
++	* ft32-tdep.c (ft32_gdbarch_init): Likewise.
++	* m32c-tdep.c (make_types): Likewise.
++	* rl78-tdep.c (rl78_gdbarch_init): Likewise.
++
++2016-09-05  Ulrich Weigand  <uweigand@de.ibm.com>
++
+ 	* gdbtypes.c (set_type_code): New function.
+ 	(init_type, arch_type): Use it.
+ 
+Index: gdb-7.6.1/gdb/avr-tdep.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/avr-tdep.c	2017-03-11 21:27:41.914206796 +0100
++++ gdb-7.6.1/gdb/avr-tdep.c	2017-03-11 21:27:46.928242088 +0100
+@@ -1390,9 +1390,8 @@
+      be defined.  */
+   tdep->void_type = arch_type (gdbarch, TYPE_CODE_VOID, 1, "void");
+   tdep->func_void_type = make_function_type (tdep->void_type, NULL);
+-  tdep->pc_type = arch_type (gdbarch, TYPE_CODE_PTR, 4, NULL);
+-  TYPE_TARGET_TYPE (tdep->pc_type) = tdep->func_void_type;
+-  TYPE_UNSIGNED (tdep->pc_type) = 1;
++  tdep->pc_type = arch_pointer_type (gdbarch, 4 * TARGET_CHAR_BIT, NULL,
++				     tdep->func_void_type);
+ 
+   set_gdbarch_short_bit (gdbarch, 2 * TARGET_CHAR_BIT);
+   set_gdbarch_int_bit (gdbarch, 2 * TARGET_CHAR_BIT);
+Index: gdb-7.6.1/gdb/gdbtypes.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/gdbtypes.c	2017-03-11 21:27:41.914206796 +0100
++++ gdb-7.6.1/gdb/gdbtypes.c	2017-03-11 21:29:16.324862413 +0100
+@@ -3932,7 +3932,7 @@
+ 
+ struct type *
+ arch_type (struct gdbarch *gdbarch,
+-	   enum type_code code, LONGEST length, char *name)
++	   enum type_code code, LONGEST length, const char *name)
+ {
+   struct type *type;
+ 
+@@ -4023,6 +4023,18 @@
+   return t;
+ }
+ 
++/* Allocate a TYPE_CODE_DECFLOAT type structure associated with GDBARCH.
++   BIT is the type size in bits.  NAME is the type name.  */
++
++struct type *
++arch_decfloat_type (struct gdbarch *gdbarch, int bit, const char *name)
++{
++  struct type *t;
++
++  t = arch_type (gdbarch, TYPE_CODE_DECFLOAT, bit / TARGET_CHAR_BIT, name);
++  return t;
++}
++
+ /* Allocate a TYPE_CODE_COMPLEX type structure associated with GDBARCH.
+    NAME is the type name.  TARGET_TYPE is the component float type.  */
+ 
+@@ -4038,6 +4050,23 @@
+   return t;
+ }
+ 
++/* Allocate a TYPE_CODE_PTR type structure associated with GDBARCH.
++   BIT is the pointer type size in bits.  NAME is the type name.
++   TARGET_TYPE is the pointer target type.  Always sets the pointer type's
++   TYPE_UNSIGNED flag.  */
++
++struct type *
++arch_pointer_type (struct gdbarch *gdbarch,
++		   int bit, const char *name, struct type *target_type)
++{
++  struct type *t;
++
++  t = arch_type (gdbarch, TYPE_CODE_PTR, bit / TARGET_CHAR_BIT, name);
++  TYPE_TARGET_TYPE (t) = target_type;
++  TYPE_UNSIGNED (t) = 1;
++  return t;
++}
++
+ /* Allocate a TYPE_CODE_FLAGS type structure associated with GDBARCH.
+    NAME is the type name.  LENGTH is the size of the flag word in bytes.  */
+ 
+@@ -4235,11 +4264,11 @@
+   /* The following three are about decimal floating point types, which
+      are 32-bits, 64-bits and 128-bits respectively.  */
+   builtin_type->builtin_decfloat
+-    = arch_type (gdbarch, TYPE_CODE_DECFLOAT, 32 / 8, "_Decimal32");
++    = arch_decfloat_type (gdbarch, 32, "_Decimal32");
+   builtin_type->builtin_decdouble
+-    = arch_type (gdbarch, TYPE_CODE_DECFLOAT, 64 / 8, "_Decimal64");
++    = arch_decfloat_type (gdbarch, 64, "_Decimal64");
+   builtin_type->builtin_declong
+-    = arch_type (gdbarch, TYPE_CODE_DECFLOAT, 128 / 8, "_Decimal128");
++    = arch_decfloat_type (gdbarch, 128, "_Decimal128");
+ 
+   /* "True" character types.  */
+   builtin_type->builtin_true_char
+Index: gdb-7.6.1/gdb/gdbtypes.h
+===================================================================
+--- gdb-7.6.1.orig/gdb/gdbtypes.h	2017-03-11 21:27:41.914206796 +0100
++++ gdb-7.6.1/gdb/gdbtypes.h	2017-03-11 21:29:02.861770587 +0100
+@@ -1547,14 +1547,17 @@
+ 
+ /* Helper functions to construct architecture-owned types.  */
+ extern struct type *arch_type (struct gdbarch *, enum type_code, LONGEST,
+-			       char *);
++			       const char *);
+ extern struct type *arch_integer_type (struct gdbarch *, int, int, char *);
+ extern struct type *arch_character_type (struct gdbarch *, int, int, char *);
+ extern struct type *arch_boolean_type (struct gdbarch *, int, int, char *);
+ extern struct type *arch_float_type (struct gdbarch *, int, char *,
+ 				     const struct floatformat **);
++extern struct type *arch_decfloat_type (struct gdbarch *, int, const char *);
+ extern struct type *arch_complex_type (struct gdbarch *, char *,
+ 				       struct type *);
++extern struct type *arch_pointer_type (struct gdbarch *, int, const char *,
++				       struct type *);
+ 
+ /* Helper functions to construct a struct or record type.  An
+    initially empty type is created using arch_composite_type().
+Index: gdb-7.6.1/gdb/m32c-tdep.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/m32c-tdep.c	2017-03-11 21:27:41.914206796 +0100
++++ gdb-7.6.1/gdb/m32c-tdep.c	2017-03-11 21:27:46.930242102 +0100
+@@ -194,27 +194,18 @@
+      this is called, so we avoid using them.  */
+   tdep->voyd = arch_type (arch, TYPE_CODE_VOID, 1, "void");
+   tdep->ptr_voyd
+-    = arch_type (arch, TYPE_CODE_PTR, gdbarch_ptr_bit (arch) / TARGET_CHAR_BIT,
+-                 NULL);
+-  TYPE_TARGET_TYPE (tdep->ptr_voyd) = tdep->voyd;
+-  TYPE_UNSIGNED (tdep->ptr_voyd) = 1;
++    = arch_pointer_type (arch, gdbarch_ptr_bit (arch), NULL, tdep->voyd);
+   tdep->func_voyd = lookup_function_type (tdep->voyd);
+ 
+   xsnprintf (type_name, sizeof (type_name), "%s_data_addr_t",
+ 	     gdbarch_bfd_arch_info (arch)->printable_name);
+   tdep->data_addr_reg_type
+-    = arch_type (arch, TYPE_CODE_PTR, data_addr_reg_bits / TARGET_CHAR_BIT,
+-                 xstrdup (type_name));
+-  TYPE_TARGET_TYPE (tdep->data_addr_reg_type) = tdep->voyd;
+-  TYPE_UNSIGNED (tdep->data_addr_reg_type) = 1;
++    = arch_pointer_type (arch, data_addr_reg_bits, type_name, tdep->voyd);
+ 
+   xsnprintf (type_name, sizeof (type_name), "%s_code_addr_t",
+ 	     gdbarch_bfd_arch_info (arch)->printable_name);
+   tdep->code_addr_reg_type
+-    = arch_type (arch, TYPE_CODE_PTR, code_addr_reg_bits / TARGET_CHAR_BIT,
+-                 xstrdup (type_name));
+-  TYPE_TARGET_TYPE (tdep->code_addr_reg_type) = tdep->func_voyd;
+-  TYPE_UNSIGNED (tdep->code_addr_reg_type) = 1;
++    = arch_pointer_type (arch, code_addr_reg_bits, type_name, tdep->func_voyd);
+ 
+   tdep->uint8  = arch_integer_type (arch,  8, 1, "uint8_t");
+   tdep->uint16 = arch_integer_type (arch, 16, 1, "uint16_t");

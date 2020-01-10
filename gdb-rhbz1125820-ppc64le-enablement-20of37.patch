@@ -1,0 +1,33 @@
+commit 3ba720c788c2845c93a6dfe592f36163cbfa63fd
+Author: Alan Modra <amodra@gmail.com>
+Date:   Fri Jan 24 14:22:10 2014 +1030
+
+    Fixes powerpc64le ld segfaults when --emit-relocs is used.
+    
+    ELFv2 needs fewer relocs to annotate plt call stubs.  I correctly
+    allocated a smaller buffer and wrote the proper relocs, but stupidly
+    bumped the reloc count as for ELFv1.
+    
+    	* elf64-ppc.c (ppc_build_one_stub): Correct reloc count passed
+    	to get_relocs for ELFv2.
+
+Index: gdb-7.6.1/bfd/elf64-ppc.c
+===================================================================
+--- gdb-7.6.1.orig/bfd/elf64-ppc.c
++++ gdb-7.6.1/bfd/elf64-ppc.c
+@@ -10546,10 +10546,11 @@ ppc_build_one_stub (struct bfd_hash_entr
+       if (info->emitrelocations)
+ 	{
+ 	  r = get_relocs (stub_entry->stub_sec,
+-			  (2
+-			   + (PPC_HA (off) != 0)
+-			   + (htab->plt_static_chain
+-			      && PPC_HA (off + 16) == PPC_HA (off))));
++			  ((PPC_HA (off) != 0)
++			   + (htab->opd_abi
++			      ? 2 + (htab->plt_static_chain
++				     && PPC_HA (off + 16) == PPC_HA (off))
++			      : 1)));
+ 	  if (r == NULL)
+ 	    return FALSE;
+ 	  r[0].r_offset = loc - stub_entry->stub_sec->contents;

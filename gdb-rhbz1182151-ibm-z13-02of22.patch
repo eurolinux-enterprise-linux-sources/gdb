@@ -1,0 +1,510 @@
+commit fb798c50b2c896195fb94af229dfbcc52babdfea
+Author: Andreas Krebbel <Andreas.Krebbel@de.ibm.com>
+Date:   Fri Jul 5 09:45:44 2013 +0000
+
+    2013-07-05  Andreas Krebbel  <Andreas.Krebbel@de.ibm.com>
+    opcodes/
+    	    * s390-opc.c (J12_12, J24_24): New macros.
+    	    (INSTR_MII_UPI): Rename to INSTR_MII_UPP.
+    	    (MASK_MII_UPI): Rename to MASK_MII_UPP.
+    	    * s390-opc.txt: Rename MII_UPI to MII_UPP for bprp instruction.
+    
+    include/elf/
+    	    * s390.h: Add new relocs R_390_PC12DBL, R_390_PLT12DBL,
+    	    R_390_PC24DBL, and R_390_PLT24DBL.
+    
+    gas/testsuite/
+    	    * gas/s390/zarch-zEC12.s: Change bprp second operand and add
+    	    variants requiring relocations.
+    	    * gas/s390/zarch-zEC12.d: Likewise.
+    
+    gas/
+    	    * config/tc-s390.c (md_gather_operands, md_apply_fix): Support new
+    	    relocs.
+    bfd/
+    	    * elf32-s390.c: Add new relocation definitions R_390_PC12DBL,
+    	    R_390_PLT12DBL, R_390_PC24DBL, and R_390_PLT24DBL.
+    	    (elf_s390_reloc_type_lookup, elf_s390_check_relocs)
+    	    (elf_s390_gc_sweep_hook, elf_s390_relocate_section): Support new
+    	    relocations.
+    	    * elf64-s390.c: See elf32-s390.c
+    	    * bfd-in2.h: Add new relocs to enum bfd_reloc_code_real.
+    	    * libbfd.h: Add new reloc strings.
+
+### a/bfd/ChangeLog
+### b/bfd/ChangeLog
+## -1,3 +1,14 @@
++2013-07-05  Andreas Krebbel  <Andreas.Krebbel@de.ibm.com>
++
++	* elf32-s390.c: Add new relocation definitions R_390_PC12DBL,
++	R_390_PLT12DBL, R_390_PC24DBL, and R_390_PLT24DBL.
++	(elf_s390_reloc_type_lookup, elf_s390_check_relocs)
++	(elf_s390_gc_sweep_hook, elf_s390_relocate_section): Support new
++	relocations.
++	* elf64-s390.c: See elf32-s390.c
++	* bfd-in2.h: Add new relocs to enum bfd_reloc_code_real.
++	* libbfd.h: Add new reloc strings.
++
+ 2013-07-03  Marcus Shawcroft  <marcus.shawcroft@arm.com>
+ 
+ 	* elfnn-aarch64.c (elfNN_aarch64_final_link_relocate): Reorder case
+--- a/bfd/bfd-in2.h
++++ b/bfd/bfd-in2.h
+@@ -4332,12 +4332,24 @@ in .byte hlo8(symbol)  */
+ /* 16 bit GOT offset.  */
+   BFD_RELOC_390_GOT16,
+ 
++/* PC relative 12 bit shifted by 1.  */
++  BFD_RELOC_390_PC12DBL,
++
++/* 12 bit PC rel. PLT shifted by 1.  */
++  BFD_RELOC_390_PLT12DBL,
++
+ /* PC relative 16 bit shifted by 1.  */
+   BFD_RELOC_390_PC16DBL,
+ 
+ /* 16 bit PC rel. PLT shifted by 1.  */
+   BFD_RELOC_390_PLT16DBL,
+ 
++/* PC relative 24 bit shifted by 1.  */
++  BFD_RELOC_390_PC24DBL,
++
++/* 24 bit PC rel. PLT shifted by 1.  */
++  BFD_RELOC_390_PLT24DBL,
++
+ /* PC relative 32 bit shifted by 1.  */
+   BFD_RELOC_390_PC32DBL,
+ 
+--- a/bfd/elf32-s390.c
++++ b/bfd/elf32-s390.c
+@@ -40,7 +40,7 @@ static reloc_howto_type elf_howto_table[] =
+ {
+   HOWTO (R_390_NONE,		/* type */
+ 	 0,			/* rightshift */
+-	 0,			/* size (0 = byte, 1 = short, 2 = long) */
++	 0,			/* size (0 = byte, 1 = 2 byte, 2 = 4 byte) */
+ 	 0,			/* bitsize */
+ 	 FALSE,			/* pc_relative */
+ 	 0,			/* bitpos */
+@@ -161,6 +161,14 @@ static reloc_howto_type elf_howto_table[] =
+ 	s390_elf_ldisp_reloc, "R_390_TLS_GOTIE20", FALSE, 0,0x0fffff00, FALSE),
+   HOWTO(R_390_IRELATIVE, 0, 2, 32, TRUE, 0, complain_overflow_bitfield,
+ 	bfd_elf_generic_reloc, "R_390_IRELATIVE", FALSE, 0, 0xffffffff, FALSE),
++  HOWTO(R_390_PC12DBL,   1, 1, 12,  TRUE, 0, complain_overflow_bitfield,
++	bfd_elf_generic_reloc, "R_390_PC12DBL",  FALSE, 0,0x00000fff, TRUE),
++  HOWTO(R_390_PLT12DBL,	 1, 1, 12,  TRUE, 0, complain_overflow_bitfield,
++	bfd_elf_generic_reloc, "R_390_PLT12DBL", FALSE, 0,0x00000fff, TRUE),
++  HOWTO(R_390_PC24DBL,   1, 2, 24,  TRUE, 0, complain_overflow_bitfield,
++	bfd_elf_generic_reloc, "R_390_PC24DBL",  FALSE, 0,0x00ffffff, TRUE),
++  HOWTO(R_390_PLT24DBL,	 1, 2, 24,  TRUE, 0, complain_overflow_bitfield,
++	bfd_elf_generic_reloc, "R_390_PLT24DBL", FALSE, 0,0x00ffffff, TRUE),
+ };
+ 
+ /* GNU extension to record C++ vtable hierarchy.  */
+@@ -211,10 +219,18 @@ elf_s390_reloc_type_lookup (bfd *abfd ATTRIBUTE_UNUSED,
+       return &elf_howto_table[(int) R_390_GOT16];
+     case BFD_RELOC_16_PCREL:
+       return &elf_howto_table[(int) R_390_PC16];
++    case BFD_RELOC_390_PC12DBL:
++      return &elf_howto_table[(int) R_390_PC12DBL];
++    case BFD_RELOC_390_PLT12DBL:
++      return &elf_howto_table[(int) R_390_PLT12DBL];
+     case BFD_RELOC_390_PC16DBL:
+       return &elf_howto_table[(int) R_390_PC16DBL];
+     case BFD_RELOC_390_PLT16DBL:
+       return &elf_howto_table[(int) R_390_PLT16DBL];
++    case BFD_RELOC_390_PC24DBL:
++      return &elf_howto_table[(int) R_390_PC24DBL];
++    case BFD_RELOC_390_PLT24DBL:
++      return &elf_howto_table[(int) R_390_PLT24DBL];
+     case BFD_RELOC_390_PC32DBL:
+       return &elf_howto_table[(int) R_390_PC32DBL];
+     case BFD_RELOC_390_PLT32DBL:
+@@ -1107,7 +1123,9 @@ elf_s390_check_relocs (bfd *abfd,
+ 	     are done.  */
+ 	  break;
+ 
++	case R_390_PLT12DBL:
+ 	case R_390_PLT16DBL:
++	case R_390_PLT24DBL:
+ 	case R_390_PLT32DBL:
+ 	case R_390_PLT32:
+ 	case R_390_PLTOFF16:
+@@ -1242,7 +1260,9 @@ elf_s390_check_relocs (bfd *abfd,
+ 	case R_390_16:
+ 	case R_390_32:
+ 	case R_390_PC16:
++	case R_390_PC12DBL:
+ 	case R_390_PC16DBL:
++	case R_390_PC24DBL:
+ 	case R_390_PC32DBL:
+ 	case R_390_PC32:
+ 	  if (h != NULL)
+@@ -1287,7 +1307,9 @@ elf_s390_check_relocs (bfd *abfd,
+ 	  if ((info->shared
+ 	       && (sec->flags & SEC_ALLOC) != 0
+ 	       && ((ELF32_R_TYPE (rel->r_info) != R_390_PC16
++		    && ELF32_R_TYPE (rel->r_info) != R_390_PC12DBL
+ 		    && ELF32_R_TYPE (rel->r_info) != R_390_PC16DBL
++		    && ELF32_R_TYPE (rel->r_info) != R_390_PC24DBL
+ 		    && ELF32_R_TYPE (rel->r_info) != R_390_PC32DBL
+ 		    && ELF32_R_TYPE (rel->r_info) != R_390_PC32)
+ 		   || (h != NULL
+@@ -1364,7 +1386,9 @@ elf_s390_check_relocs (bfd *abfd,
+ 
+ 	      p->count += 1;
+ 	      if (ELF32_R_TYPE (rel->r_info) == R_390_PC16
++		  || ELF32_R_TYPE (rel->r_info) == R_390_PC12DBL
+ 		  || ELF32_R_TYPE (rel->r_info) == R_390_PC16DBL
++		  || ELF32_R_TYPE (rel->r_info) == R_390_PC24DBL
+ 		  || ELF32_R_TYPE (rel->r_info) == R_390_PC32DBL
+ 		  || ELF32_R_TYPE (rel->r_info) == R_390_PC32)
+ 		p->pc_count += 1;
+@@ -1531,14 +1555,18 @@ elf_s390_gc_sweep_hook (bfd *abfd,
+ 	case R_390_20:
+ 	case R_390_32:
+ 	case R_390_PC16:
++	case R_390_PC12DBL:
+ 	case R_390_PC16DBL:
++	case R_390_PC24DBL:
+ 	case R_390_PC32DBL:
+ 	case R_390_PC32:
+ 	  if (info->shared)
+ 	    break;
+ 	  /* Fall through.  */
+ 
++	case R_390_PLT12DBL:
+ 	case R_390_PLT16DBL:
++	case R_390_PLT24DBL:
+ 	case R_390_PLT32DBL:
+ 	case R_390_PLT32:
+ 	case R_390_PLTOFF16:
+@@ -2588,7 +2616,9 @@ elf_s390_relocate_section (bfd *output_bfd,
+ 	  unresolved_reloc = FALSE;
+ 	  break;
+ 
++	case R_390_PLT12DBL:
+ 	case R_390_PLT16DBL:
++	case R_390_PLT24DBL:
+ 	case R_390_PLT32DBL:
+ 	case R_390_PLT32:
+ 	  /* Relocation is to the entry for this symbol in the
+@@ -2651,7 +2681,9 @@ elf_s390_relocate_section (bfd *output_bfd,
+ 	case R_390_16:
+ 	case R_390_32:
+ 	case R_390_PC16:
++	case R_390_PC12DBL:
+ 	case R_390_PC16DBL:
++	case R_390_PC24DBL:
+ 	case R_390_PC32DBL:
+ 	case R_390_PC32:
+ 	  if (h != NULL
+@@ -2723,7 +2755,9 @@ elf_s390_relocate_section (bfd *output_bfd,
+ 		   || ELF_ST_VISIBILITY (h->other) == STV_DEFAULT
+ 		   || h->root.type != bfd_link_hash_undefweak)
+ 	       && ((r_type != R_390_PC16
++		    && r_type != R_390_PC12DBL
+ 		    && r_type != R_390_PC16DBL
++		    && r_type != R_390_PC24DBL
+ 		    && r_type != R_390_PC32DBL
+ 		    && r_type != R_390_PC32)
+ 		   || !SYMBOL_CALLS_LOCAL (info, h)))
+@@ -2764,7 +2798,9 @@ elf_s390_relocate_section (bfd *output_bfd,
+ 	      else if (h != NULL
+ 		       && h->dynindx != -1
+ 		       && (r_type == R_390_PC16
++			   || r_type == R_390_PC12DBL
+ 			   || r_type == R_390_PC16DBL
++			   || r_type == R_390_PC24DBL
+ 			   || r_type == R_390_PC32DBL
+ 			   || r_type == R_390_PC32
+ 			   || !info->shared
+@@ -3242,6 +3278,13 @@ elf_s390_relocate_section (bfd *output_bfd,
+ 
+     do_relocation:
+ 
++      /* When applying a 24 bit reloc we need to start one byte
++	 earlier.  Otherwise the 32 bit get/put bfd operations might
++	 access a byte after the actual section.  */
++      if (r_type == R_390_PC24DBL
++	  || r_type == R_390_PLT24DBL)
++	rel->r_offset--;
++
+       if (r_type == R_390_20
+ 	  || r_type == R_390_GOT20
+ 	  || r_type == R_390_GOTPLT20
+--- a/bfd/elf64-s390.c
++++ b/bfd/elf64-s390.c
+@@ -43,7 +43,7 @@ static reloc_howto_type elf_howto_table[] =
+ {
+   HOWTO (R_390_NONE,		/* type */
+ 	 0,			/* rightshift */
+-	 0,			/* size (0 = byte, 1 = short, 2 = long) */
++	 0,			/* size (0 = byte, 1 = 2 byte, 2 = 4 byte) */
+ 	 0,			/* bitsize */
+ 	 FALSE,			/* pc_relative */
+ 	 0,			/* bitpos */
+@@ -171,7 +171,14 @@ static reloc_howto_type elf_howto_table[] =
+ 	s390_elf_ldisp_reloc, "R_390_TLS_GOTIE20", FALSE, 0,0x0fffff00, FALSE),
+   HOWTO(R_390_IRELATIVE, 0, 4, 64, FALSE, 0, complain_overflow_bitfield,
+ 	bfd_elf_generic_reloc, "R_390_IRELATIVE", FALSE, 0, MINUS_ONE, FALSE),
+-
++  HOWTO(R_390_PC12DBL,   1, 1, 12,  TRUE, 0, complain_overflow_bitfield,
++	bfd_elf_generic_reloc, "R_390_PC12DBL",  FALSE, 0,0x00000fff, TRUE),
++  HOWTO(R_390_PLT12DBL,  1, 1, 12,  TRUE, 0, complain_overflow_bitfield,
++	bfd_elf_generic_reloc, "R_390_PLT12DBL", FALSE, 0,0x00000fff, TRUE),
++  HOWTO(R_390_PC24DBL,   1, 2, 24,  TRUE, 0, complain_overflow_bitfield,
++	bfd_elf_generic_reloc, "R_390_PC24DBL",  FALSE, 0,0x00ffffff, TRUE),
++  HOWTO(R_390_PLT24DBL,  1, 2, 24,  TRUE, 0, complain_overflow_bitfield,
++	bfd_elf_generic_reloc, "R_390_PLT24DBL", FALSE, 0,0x00ffffff, TRUE),
+ };
+ 
+ /* GNU extension to record C++ vtable hierarchy.  */
+@@ -222,10 +229,18 @@ elf_s390_reloc_type_lookup (bfd *abfd ATTRIBUTE_UNUSED,
+       return &elf_howto_table[(int) R_390_GOT16];
+     case BFD_RELOC_16_PCREL:
+       return &elf_howto_table[(int) R_390_PC16];
++    case BFD_RELOC_390_PC12DBL:
++      return &elf_howto_table[(int) R_390_PC12DBL];
++    case BFD_RELOC_390_PLT12DBL:
++      return &elf_howto_table[(int) R_390_PLT12DBL];
+     case BFD_RELOC_390_PC16DBL:
+       return &elf_howto_table[(int) R_390_PC16DBL];
+     case BFD_RELOC_390_PLT16DBL:
+       return &elf_howto_table[(int) R_390_PLT16DBL];
++    case BFD_RELOC_390_PC24DBL:
++      return &elf_howto_table[(int) R_390_PC24DBL];
++    case BFD_RELOC_390_PLT24DBL:
++      return &elf_howto_table[(int) R_390_PLT24DBL];
+     case BFD_RELOC_390_PC32DBL:
+       return &elf_howto_table[(int) R_390_PC32DBL];
+     case BFD_RELOC_390_PLT32DBL:
+@@ -1037,7 +1052,9 @@ elf_s390_check_relocs (bfd *abfd,
+ 	     are done.  */
+ 	  break;
+ 
++	case R_390_PLT12DBL:
+ 	case R_390_PLT16DBL:
++	case R_390_PLT24DBL:
+ 	case R_390_PLT32:
+ 	case R_390_PLT32DBL:
+ 	case R_390_PLT64:
+@@ -1176,8 +1193,10 @@ elf_s390_check_relocs (bfd *abfd,
+ 	case R_390_16:
+ 	case R_390_32:
+ 	case R_390_64:
++	case R_390_PC12DBL:
+ 	case R_390_PC16:
+ 	case R_390_PC16DBL:
++	case R_390_PC24DBL:
+ 	case R_390_PC32:
+ 	case R_390_PC32DBL:
+ 	case R_390_PC64:
+@@ -1223,7 +1242,9 @@ elf_s390_check_relocs (bfd *abfd,
+ 	  if ((info->shared
+ 	       && (sec->flags & SEC_ALLOC) != 0
+ 	       && ((ELF64_R_TYPE (rel->r_info) != R_390_PC16
++		    && ELF64_R_TYPE (rel->r_info) != R_390_PC12DBL
+ 		    && ELF64_R_TYPE (rel->r_info) != R_390_PC16DBL
++		    && ELF64_R_TYPE (rel->r_info) != R_390_PC24DBL
+ 		    && ELF64_R_TYPE (rel->r_info) != R_390_PC32
+ 		    && ELF64_R_TYPE (rel->r_info) != R_390_PC32DBL
+ 		    && ELF64_R_TYPE (rel->r_info) != R_390_PC64)
+@@ -1300,6 +1321,8 @@ elf_s390_check_relocs (bfd *abfd,
+ 
+ 	      p->count += 1;
+ 	      if (ELF64_R_TYPE (rel->r_info) == R_390_PC16
++		  || ELF64_R_TYPE (rel->r_info) == R_390_PC12DBL
++		  || ELF64_R_TYPE (rel->r_info) == R_390_PC16DBL
+ 		  || ELF64_R_TYPE (rel->r_info) == R_390_PC16DBL
+ 		  || ELF64_R_TYPE (rel->r_info) == R_390_PC32
+ 		  || ELF64_R_TYPE (rel->r_info) == R_390_PC32DBL
+@@ -1471,7 +1494,9 @@ elf_s390_gc_sweep_hook (bfd *abfd,
+ 	case R_390_32:
+ 	case R_390_64:
+ 	case R_390_PC16:
++	case R_390_PC12DBL:
+ 	case R_390_PC16DBL:
++	case R_390_PC24DBL:
+ 	case R_390_PC32:
+ 	case R_390_PC32DBL:
+ 	case R_390_PC64:
+@@ -1479,7 +1504,9 @@ elf_s390_gc_sweep_hook (bfd *abfd,
+ 	    break;
+ 	  /* Fall through */
+ 
++	case R_390_PLT12DBL:
+ 	case R_390_PLT16DBL:
++	case R_390_PLT24DBL:
+ 	case R_390_PLT32:
+ 	case R_390_PLT32DBL:
+ 	case R_390_PLT64:
+@@ -2550,7 +2577,9 @@ elf_s390_relocate_section (bfd *output_bfd,
+ 	  unresolved_reloc = FALSE;
+ 	  break;
+ 
++	case R_390_PLT12DBL:
+ 	case R_390_PLT16DBL:
++	case R_390_PLT24DBL:
+ 	case R_390_PLT32:
+ 	case R_390_PLT32DBL:
+ 	case R_390_PLT64:
+@@ -2615,7 +2644,9 @@ elf_s390_relocate_section (bfd *output_bfd,
+ 	case R_390_32:
+ 	case R_390_64:
+ 	case R_390_PC16:
++	case R_390_PC12DBL:
+ 	case R_390_PC16DBL:
++	case R_390_PC24DBL:
+ 	case R_390_PC32:
+ 	case R_390_PC32DBL:
+ 	case R_390_PC64:
+@@ -2689,7 +2720,9 @@ elf_s390_relocate_section (bfd *output_bfd,
+ 		   || ELF_ST_VISIBILITY (h->other) == STV_DEFAULT
+ 		   || h->root.type != bfd_link_hash_undefweak)
+ 	       && ((r_type != R_390_PC16
++		    && r_type != R_390_PC12DBL
+ 		    && r_type != R_390_PC16DBL
++		    && r_type != R_390_PC24DBL
+ 		    && r_type != R_390_PC32
+ 		    && r_type != R_390_PC32DBL
+ 		    && r_type != R_390_PC64)
+@@ -2731,7 +2764,9 @@ elf_s390_relocate_section (bfd *output_bfd,
+ 	      else if (h != NULL
+ 		       && h->dynindx != -1
+ 		       && (r_type == R_390_PC16
++			   || r_type == R_390_PC12DBL
+ 			   || r_type == R_390_PC16DBL
++			   || r_type == R_390_PC24DBL
+ 			   || r_type == R_390_PC32
+ 			   || r_type == R_390_PC32DBL
+ 			   || r_type == R_390_PC64
+@@ -3168,6 +3203,13 @@ elf_s390_relocate_section (bfd *output_bfd,
+ 
+     do_relocation:
+ 
++      /* When applying a 24 bit reloc we need to start one byte
++	 earlier.  Otherwise the 32 bit get/put bfd operations might
++	 access a byte after the actual section.  */
++      if (r_type == R_390_PC24DBL
++	  || r_type == R_390_PLT24DBL)
++	rel->r_offset--;
++
+       if (r_type == R_390_20
+ 	  || r_type == R_390_GOT20
+ 	  || r_type == R_390_GOTPLT20
+--- a/bfd/libbfd.h
++++ b/bfd/libbfd.h
+@@ -2008,8 +2008,12 @@ static const char *const bfd_reloc_code_real_names[] = { "@@uninitialized@@",
+   "BFD_RELOC_390_RELATIVE",
+   "BFD_RELOC_390_GOTPC",
+   "BFD_RELOC_390_GOT16",
++  "BFD_RELOC_390_PC12DBL",
++  "BFD_RELOC_390_PLT12DBL",
+   "BFD_RELOC_390_PC16DBL",
+   "BFD_RELOC_390_PLT16DBL",
++  "BFD_RELOC_390_PC24DBL",
++  "BFD_RELOC_390_PLT24DBL",
+   "BFD_RELOC_390_PC32DBL",
+   "BFD_RELOC_390_PLT32DBL",
+   "BFD_RELOC_390_GOTPCDBL",
+### a/include/elf/ChangeLog
+### b/include/elf/ChangeLog
+## -1,3 +1,8 @@
++2013-07-05  Andreas Krebbel  <Andreas.Krebbel@de.ibm.com>
++
++	* s390.h: Add new relocs R_390_PC12DBL, R_390_PLT12DBL,
++	R_390_PC24DBL, and R_390_PLT24DBL.
++
+ 2013-06-26  Yufeng Zhang  <yufeng.zhang@arm.com>
+ 
+ 	* aarch64.h: Add ELF32 reloc codes and remove fake ELF64 ones.
+--- a/include/elf/s390.h
++++ b/include/elf/s390.h
+@@ -57,8 +57,12 @@ START_RELOC_NUMBERS (elf_s390_reloc_type)
+     RELOC_NUMBER (R_390_GOTPC, 14)	/* 32 bit PC relative offset to GOT.  */
+     RELOC_NUMBER (R_390_GOT16, 15)	/* 16 bit GOT offset.  */
+     RELOC_NUMBER (R_390_PC16, 16)	/* PC relative 16 bit.  */
++    RELOC_NUMBER (R_390_PC12DBL, 62)	/* PC relative 12 bit shifted by 1.  */
++    RELOC_NUMBER (R_390_PLT12DBL, 63)	/* 12 bit PC rel. PLT shifted by 1.  */
+     RELOC_NUMBER (R_390_PC16DBL, 17)	/* PC relative 16 bit shifted by 1.  */
+     RELOC_NUMBER (R_390_PLT16DBL, 18)	/* 16 bit PC rel. PLT shifted by 1.  */
++    RELOC_NUMBER (R_390_PC24DBL, 64)	/* PC relative 24 bit shifted by 1.  */
++    RELOC_NUMBER (R_390_PLT24DBL, 65)	/* 24 bit PC rel. PLT shifted by 1.  */
+     RELOC_NUMBER (R_390_PC32DBL, 19)	/* PC relative 32 bit shifted by 1.  */
+     RELOC_NUMBER (R_390_PLT32DBL, 20)	/* 32 bit PC rel. PLT shifted by 1.  */
+     RELOC_NUMBER (R_390_GOTPCDBL, 21)	/* 32 bit PC rel. GOT shifted by 1.  */
+### a/opcodes/ChangeLog
+### b/opcodes/ChangeLog
+## -1,3 +1,10 @@
++2013-07-05  Andreas Krebbel  <Andreas.Krebbel@de.ibm.com>
++
++	* s390-opc.c (J12_12, J24_24): New macros.
++	(INSTR_MII_UPI): Rename to INSTR_MII_UPP.
++	(MASK_MII_UPI): Rename to MASK_MII_UPP.
++	* s390-opc.txt: Rename MII_UPI to MII_UPP for bprp instruction.
++
+ 2013-07-04  Alan Modra  <amodra@gmail.com>
+ 
+ 	* ppc-opc.c (powerpc_opcodes): Add tdui, twui, tdu, twu, tui, tu.
+--- a/opcodes/s390-opc.c
++++ b/opcodes/s390-opc.c
+@@ -217,20 +217,23 @@ const struct s390_operand s390_operands[] =
+ 
+ /* PC-relative address operands.  */
+ 
+-#define J12_12 69                 /* PC relative offset at 12 */
++#define J12_12 69                 /* 12 bit PC relative offset at 12 */
+   { 12, 12, S390_OPERAND_PCREL },
+-#define J16_16 70                 /* PC relative offset at 16 */
++#define J16_16 70                 /* 16 bit PC relative offset at 16 */
+   { 16, 16, S390_OPERAND_PCREL },
+-#define J16_32 71                 /* PC relative offset at 16 */
++#define J16_32 71                 /* 16 bit PC relative offset at 32 */
+   { 16, 32, S390_OPERAND_PCREL },
+-#define J32_16 72                 /* PC relative offset at 16 */
++#define J24_24 72                 /* 24 bit PC relative offset at 24 */
++  { 24, 24, S390_OPERAND_PCREL },
++#define J32_16 73                 /* 32 bit PC relative offset at 16 */
+   { 32, 16, S390_OPERAND_PCREL },
+ 
++
+ /* Conditional mask operands.  */
+ 
+-#define M_16OPT   73              /* 4 bit optional mask starting at 16 */
++#define M_16OPT   74              /* 4 bit optional mask starting at 16 */
+   { 4, 16, S390_OPERAND_OPTIONAL },
+-#define M_20OPT   74              /* 4 bit optional mask starting at 20 */
++#define M_20OPT   75              /* 4 bit optional mask starting at 20 */
+   { 4, 20, S390_OPERAND_OPTIONAL },
+ 
+ };
+@@ -284,7 +287,7 @@ const struct s390_operand s390_operands[] =
+ 
+ #define INSTR_E          2, { 0,0,0,0,0,0 }                    /* e.g. pr    */
+ #define INSTR_IE_UU      4, { U4_24,U4_28,0,0,0,0 }            /* e.g. niai  */
+-#define INSTR_MII_UPI    6, { U4_8,J12_12,I24_24 }             /* e.g. bprp  */
++#define INSTR_MII_UPP    6, { U4_8,J12_12,J24_24 }             /* e.g. bprp  */
+ #define INSTR_RIE_RRP    6, { R_8,R_12,J16_16,0,0,0 }          /* e.g. brxhg */
+ #define INSTR_RIE_RRPU   6, { R_8,R_12,U4_32,J16_16,0,0 }      /* e.g. crj   */
+ #define INSTR_RIE_RRP0   6, { R_8,R_12,J16_16,0,0,0 }          /* e.g. crjne */
+@@ -446,7 +449,7 @@ const struct s390_operand s390_operands[] =
+ 
+ #define MASK_E           { 0xff, 0xff, 0x00, 0x00, 0x00, 0x00 }
+ #define MASK_IE_UU       { 0xff, 0xff, 0xff, 0x00, 0x00, 0x00 }
+-#define MASK_MII_UPI     { 0xff, 0x00, 0x00, 0x00, 0x00, 0x00 }
++#define MASK_MII_UPP     { 0xff, 0x00, 0x00, 0x00, 0x00, 0x00 }
+ #define MASK_RIE_RRP     { 0xff, 0x00, 0x00, 0x00, 0x00, 0xff }
+ #define MASK_RIE_RRPU    { 0xff, 0x00, 0x00, 0x00, 0x00, 0xff }
+ #define MASK_RIE_RRP0    { 0xff, 0x00, 0x00, 0x00, 0xf0, 0xff }
+--- a/opcodes/s390-opc.txt
++++ b/opcodes/s390-opc.txt
+@@ -1126,7 +1126,7 @@ e560 tbegin SIL_RDU "transaction begin" zEC12 zarch
+ e561 tbeginc SIL_RDU "constrained transaction begin" zEC12 zarch
+ b2f8 tend S_00 "transaction end" zEC12 zarch
+ c7 bpp SMI_U0RDP "branch prediction preload" zEC12 zarch
+-c5 bprp MII_UPI "branch prediction relative preload" zEC12 zarch
++c5 bprp MII_UPP "branch prediction relative preload" zEC12 zarch
+ b2e8 ppa RRF_U0RR "perform processor assist" zEC12 zarch
+ b2fa niai IE_UU "next instruction access intent" zEC12 zarch
+ b98f crdte RRF_RMRR "compare and replace DAT table entry" zEC12 zarch

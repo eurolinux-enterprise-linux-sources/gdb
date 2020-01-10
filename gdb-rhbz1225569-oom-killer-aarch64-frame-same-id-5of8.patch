@@ -1,0 +1,69 @@
+commit 2d6f0de676f46ebd8bb7d98a0093aa081e17e94b
+Author: Yao Qi <yao@codesourcery.com>
+Date:   Mon Jun 30 11:47:51 2014 +0800
+
+    Tweak gdb.trace/tfile.c for thumb mode
+    
+    We see the fail below happens on thumb related multi-libs
+    (-mthumb -march={armv4t,armv7-a}),
+    
+    target tfile tfile-basic.tf ^M
+    warning: Uploaded tracepoint 1 has no source location, using raw address^M
+    warning: Breakpoint address adjusted from 0x00008959 to 0x00008958.^M
+    Tracepoint 3 at 0x8958: file /scratch/yqi/arm-none-linux-gnueabi/src/gdb-trunk/gdb/testsuite/gdb.trace/tfile.c, line 91.^M
+    Created tracepoint 3 for target's tracepoint 1 at 0x8959.^M
+    warning: Breakpoint address adjusted from 0x00008959 to 0x00008958.^M
+    warning: Breakpoint address adjusted from 0x00008959 to 0x00008958.^M
+    warning: Breakpoint address adjusted from 0x00008959 to 0x00008958.^M
+    (gdb) FAIL: gdb.trace/tfile.exp: complete-command 'target tfile'
+    
+    The address of write_basic_trace_file is two-bytes aligned,
+    
+    (gdb) p write_basic_trace_file
+    $1 = {void (void)} 0x8958 <write_basic_trace_file>
+    
+    but the ld sets the LSB of every reference to the function address
+    (indicating the address is in thumb mode), so "&write_basic_trace_file"
+    in the program becomes 0x8959, which is saved in the trace file.  That
+    is why the warnnings are emitted.
+    
+    This patch is to clear the LSB of the function address written to trace
+    file in thumb and thumb2 mode.  This patch fixes the fail above.
+    
+    gdb/testsuite:
+    
+    2014-07-10  Yao Qi  <yao@codesourcery.com>
+    
+    	* gdb.trace/tfile.c (write_basic_trace_file)
+    	[__thumb__||__thumb2__]: Clear the Thumb bit of the function
+    	address written to trace file.
+
+Index: gdb-7.6.1/gdb/testsuite/gdb.trace/tfile.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/testsuite/gdb.trace/tfile.c
++++ gdb-7.6.1/gdb/testsuite/gdb.trace/tfile.c
+@@ -68,6 +68,7 @@ write_basic_trace_file (void)
+ {
+   int fd, int_x;
+   short short_x;
++  long func_addr;
+ 
+   fd = start_trace_file ("basic.tf");
+ 
+@@ -86,8 +87,14 @@ write_basic_trace_file (void)
+   /* Dump tracepoint definitions, in syntax similar to that used
+      for reconnection uploads.  */
+   /* FIXME need a portable way to print function address in hex */
+-  snprintf (spbuf, sizeof spbuf, "tp T1:%lx:E:0:0\n",
+-	    (long) &write_basic_trace_file);
++  func_addr = (long) &write_basic_trace_file;
++#if defined(__thumb__) || defined(__thumb2__)
++  /* Although Thumb functions are two-byte aligned, function
++     pointers have the Thumb bit set.  Clear it.  */
++  func_addr &= ~1;
++#endif
++
++  snprintf (spbuf, sizeof spbuf, "tp T1:%lx:E:0:0\n", func_addr);
+   write (fd, spbuf, strlen (spbuf));
+   /* (Note that we would only need actions defined if we wanted to
+      test tdump.) */

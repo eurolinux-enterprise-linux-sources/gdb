@@ -1,0 +1,45 @@
+commit 6dbc9c045741c27435b9b23246c2113221b26c2f
+Author: Andreas Arnez <arnez@linux.vnet.ibm.com>
+Date:   Mon Apr 27 11:38:46 2015 +0200
+
+    S390: For zero, let is_power_of_two() return false
+    
+    This fixes a minor issue with the helper function is_power_of_two(),
+    which returned non-zero ("true") if the argument was zero.  This led
+    to a wrong decision when passing a zero-sized struct in an inferior
+    function call.
+    
+    gdb/ChangeLog:
+    
+    	* s390-linux-tdep.c (is_power_of_two): Add comment.  Return
+    	  false if the argument is zero.
+
+### a/gdb/ChangeLog
+### b/gdb/ChangeLog
+## -1,3 +1,8 @@
++2015-04-27  Andreas Arnez  <arnez@linux.vnet.ibm.com>
++
++	* s390-linux-tdep.c (is_power_of_two): Add comment.  Return
++	  false if the argument is zero.
++
+ 2015-04-27  Pierre-Marie de Rodat  <derodat@adacore.com>
+ 
+ 	* ada-lang.c (template_to_static_fixed_type): Return input type
+Index: gdb-7.6.1/gdb/s390-tdep.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/s390-tdep.c	2016-02-21 22:13:34.600107988 +0100
++++ gdb-7.6.1/gdb/s390-tdep.c	2016-02-21 22:14:09.318523194 +0100
+@@ -2641,11 +2641,12 @@
+           || is_float_singleton (type));
+ }
+ 
++/* Determine whether N is a power of two.  */
+ 
+ static int
+ is_power_of_two (ULONGEST n)
+ {
+-  return ((n & (n - 1)) == 0);
++  return n && ((n & (n - 1)) == 0);
+ }
+ 
+ /* Return non-zero if TYPE should be passed as a pointer to a copy,

@@ -1,0 +1,88 @@
+commit 62261490a36c6911c5eb61be7cddcfb1bd19ba18
+Author: Pedro Alves <palves@redhat.com>
+Date:   Thu Jan 16 17:43:26 2014 +0000
+
+    Fix gdb.trace/mi-traceframe-changed.exp on s390.
+    
+    The test fails on s390 with:
+    
+      -trace-find frame-number 0^M
+      &"PC not available\n"^M
+      ^done,found="1",tracepoint="1",traceframe="0",frame={level="-1",addr="<unavailable>",func="??",args=[]}^M
+      (gdb) ^M
+      FAIL: gdb.trace/mi-traceframe-changed.exp: tfile: -trace-find frame-number 0
+    
+    tfile knows to infer the PC from the tracepoint's address if the PC
+    wasn't collected (tfile_fetch_registers) but, that only works on
+    targets whose PC register is a raw register, and on s390, the PC
+    register is a pseudo register.
+    
+    But even if GDB doesn't know how to infer the value of PC, saying the
+    current frame is level -1 is a bug:
+    
+      ^done,found="1",tracepoint="1",traceframe="0",frame={level="-1",addr="<unavailable>",func="??",args=[]}^M
+                                                           ^^^^^^^^^
+    
+    '-1' is the level of the sentinel frame, which should never be visible.
+    
+    This is caused by the s390's heuristic unwinder accepting the frame
+    (the fallback heuristic unwinders _always_ accept the frame), but then
+    the unwind->this_id method throws that "PC not available\n" error.
+    
+    IOW, the s390's heuristic unwinder was never adjusted to handle
+    unavailable register values gracefully, which can happen with e.g., a
+    trimmed core file too.
+    
+    This is just the minimal necessary for
+    <unavailable> frames, which at least gets us:
+    
+      (gdb) tfind
+      Found trace frame 0, tracepoint 1
+      #0  <unavailable> in ?? ()
+    
+    That is, frame #0 instead of -1.
+    
+    We could get better info out of "info frame" (this patch makes us show
+    "outermost"), but this change would still be necessary.
+    
+    gdb/
+    2014-01-16  Pedro Alves  <palves@redhat.com>
+    
+    	* s390-linux-tdep.c (s390_frame_unwind_cache): Swallow
+    	NOT_AVAILABLE_ERROR errors while parsing the prologue or reading
+    	the backchain.
+
+Index: gdb-7.6.1/gdb/s390-tdep.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/s390-tdep.c
++++ gdb-7.6.1/gdb/s390-tdep.c
+@@ -1995,7 +1995,9 @@ static struct s390_unwind_cache *
+ s390_frame_unwind_cache (struct frame_info *this_frame,
+ 			 void **this_prologue_cache)
+ {
++  volatile struct gdb_exception ex;
+   struct s390_unwind_cache *info;
++
+   if (*this_prologue_cache)
+     return *this_prologue_cache;
+ 
+@@ -2006,10 +2008,15 @@ s390_frame_unwind_cache (struct frame_in
+   info->frame_base = -1;
+   info->local_base = -1;
+ 
+-  /* Try to use prologue analysis to fill the unwind cache.
+-     If this fails, fall back to reading the stack backchain.  */
+-  if (!s390_prologue_frame_unwind_cache (this_frame, info))
+-    s390_backchain_frame_unwind_cache (this_frame, info);
++  TRY_CATCH (ex, RETURN_MASK_ERROR)
++    {
++      /* Try to use prologue analysis to fill the unwind cache.
++	 If this fails, fall back to reading the stack backchain.  */
++      if (!s390_prologue_frame_unwind_cache (this_frame, info))
++	s390_backchain_frame_unwind_cache (this_frame, info);
++    }
++  if (ex.reason < 0 && ex.error != NOT_AVAILABLE_ERROR)
++    throw_exception (ex);
+ 
+   return info;
+ }

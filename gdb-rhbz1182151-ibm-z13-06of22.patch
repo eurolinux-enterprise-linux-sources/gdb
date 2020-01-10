@@ -1,0 +1,76 @@
+commit 6b1d7593a5eb7e64a38acd8bfce7bc4edca09793
+Author: Andreas Krebbel <krebbel@linux.vnet.ibm.com>
+Date:   Tue Mar 10 12:44:54 2015 +0100
+
+    S/390: Add more IBM z13 instructions
+    
+    opcodes/
+    2015-03-10  Andreas Krebbel  <krebbel@linux.vnet.ibm.com>
+    
+    	* s390-opc.c: Add new IBM z13 instructions.
+    	* s390-opc.txt: Likewise.
+    
+    gas/testsuite/
+    2015-03-10  Andreas Krebbel  <krebbel@linux.vnet.ibm.com>
+    
+    	* gas/s390/zarch-z13.d: Add more z13 instructions.
+    	* gas/s390/zarch-z13.s: Likewise.
+
+### a/opcodes/ChangeLog
+### b/opcodes/ChangeLog
+## -1,3 +1,8 @@
++2015-03-10  Andreas Krebbel  <krebbel@linux.vnet.ibm.com>
++
++	* s390-opc.c: Add new IBM z13 instructions.
++	* s390-opc.txt: Likewise.
++
+ 2015-03-10  Renlin Li  <renlin.li@arm.com>
+ 
+ 	* aarch64-tbl.h (aarch64_opcode_table): Remove strub, ldurb, ldursb,
+--- a/opcodes/s390-opc.c
++++ b/opcodes/s390-opc.c
+@@ -311,6 +311,7 @@ const struct s390_operand s390_operands[] =
+ #define INSTR_RIE_R0I0     6, { R_8,I16_16,0,0,0,0 }             /* e.g. citne */
+ #define INSTR_RIE_R0UU     6, { R_8,U16_16,U4_32,0,0,0 }         /* e.g. clfit */
+ #define INSTR_RIE_R0U0     6, { R_8,U16_16,0,0,0,0 }             /* e.g. clfitne */
++#define INSTR_RIE_RUI0     6, { R_8,I16_16,U4_12,0,0,0 }         /* e.g. lochi */
+ #define INSTR_RIE_RRUUU    6, { R_8,R_12,U8_16,U8_24,U8_32,0 }   /* e.g. rnsbg */
+ #define INSTR_RIL_0P       6, { J32_16,0,0,0,0 }                 /* e.g. jg    */
+ #define INSTR_RIL_RP       6, { R_8,J32_16,0,0,0,0 }             /* e.g. brasl */
+@@ -515,6 +516,7 @@ const struct s390_operand s390_operands[] =
+ #define MASK_RIE_R0I0     { 0xff, 0x0f, 0x00, 0x00, 0xff, 0xff }
+ #define MASK_RIE_R0UU     { 0xff, 0x0f, 0x00, 0x00, 0x0f, 0xff }
+ #define MASK_RIE_R0U0     { 0xff, 0x0f, 0x00, 0x00, 0xff, 0xff }
++#define MASK_RIE_RUI0     { 0xff, 0x00, 0x00, 0x00, 0xff, 0xff }
+ #define MASK_RIE_RRUUU    { 0xff, 0x00, 0x00, 0x00, 0x00, 0xff }
+ #define MASK_RIL_0P       { 0xff, 0xff, 0x00, 0x00, 0x00, 0x00 }
+ #define MASK_RIL_RP       { 0xff, 0x0f, 0x00, 0x00, 0x00, 0x00 }
+--- a/opcodes/s390-opc.txt
++++ b/opcodes/s390-opc.txt
+@@ -1656,3 +1656,26 @@ e700000830e2 wfsdb VRR_VVV "vector fp subtract" z13 zarch
+ e7000000004a vftci VRI_VVUUU "vector fp test data class immediate" z13 zarch
+ e7000000304a vftcidb VRI_VVU2 "vector fp test data class immediate" z13 zarch
+ e7000008304a wftcidb VRI_VVU2 "vector fp test data class immediate" z13 zarch
++
++ed00000000ae cdpt RSL_LRDFU "convert from packed to long dfp" z13 zarch
++ed00000000af cxpt RSL_LRDFEU "convert from packed to extended dfp" z13 zarch
++ed00000000ac cpdt RSL_LRDFU "convert from long dfp to packed" z13 zarch
++ed00000000ad cpxt RSL_LRDFEU "convert from extended dfp to packed" z13 zarch
++
++b9e0 locfhr RRF_U0RR "load high on condition from gpr" z13 zarch
++b9e000000000 locfhr*16 RRF_00RR "load high on condition from gpr" z13 zarch
++eb00000000e0 locfh RSY_RURD2 "load high on condition from memory" z13 zarch
++eb00000000e0 locfh*12 RSY_R0RD "load high on condition from memory" z13 zarch
++ec0000000042 lochi RIE_RUI0 "load halfword immediate on condition into 32 bit gpr" z13 zarch
++ec0000000042 lochi*12 RIE_R0I0 "load halfword immediate on condition into 32 bit gpr" z13 zarch
++ec0000000046 locghi RIE_RUI0 "load halfword immediate on condition into 64 bit gpr" z13 zarch
++ec0000000046 locghi*12 RIE_R0I0 "load halfword immediate on condition into 64 bit gpr" z13 zarch
++ec000000004e lochhi RIE_RUI0 "load halfword high immediate on condition" z13 zarch
++ec000000004e lochhi*12 RIE_R0I0 "load halfword high immediate on condition" z13 zarch
++eb00000000e1 stocfh RSY_RURD2 "store high on condition" z13 zarch
++eb00000000e1 stocfh*12 RSY_R0RD "store high on condition" z13 zarch
++
++e3000000003a llzrgf RXY_RRRD "load logical and zero rightmost bytes 32->64" z13 zarch
++e3000000003b lzrf RXY_RRRD "load and zero rightmost byte 32->32" z13 zarch
++e3000000002a lzrg RXY_RRRD "load and zero rightmost byte 64->64" z13 zarch
++b9ec ppno RRE_RR "perform pseudorandom number operation" z13 zarch

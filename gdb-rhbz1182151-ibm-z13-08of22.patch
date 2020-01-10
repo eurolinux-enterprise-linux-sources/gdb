@@ -1,0 +1,1035 @@
+commit 5aa82d050d61784823767fe3c982b6862fa47391
+Author: Andreas Arnez <arnez@linux.vnet.ibm.com>
+Date:   Thu Sep 4 15:26:43 2014 +0000
+
+    Replace 'core_regset_sections' by iterator method
+    
+    The core_regset_sections list in gdbarch (needed for multi-arch
+    capable core file generation support) is replaced by an iterator
+    method.  Overall, this reduces the code a bit, and it allows for more
+    flexibility.
+    
+    gdb/ChangeLog:
+    
+    	* amd64-linux-tdep.c (amd64_linux_regset_sections): Remove.
+    	(amd64_linux_iterate_over_regset_sections): New.
+    	(amd64_linux_init_abi_common): Don't install the regset section
+    	list, but the new iterator in gdbarch.
+    	* arm-linux-tdep.c (arm_linux_fpa_regset_sections)
+    	(arm_linux_vfp_regset_sections): Remove.  Move combined logic...
+    	(arm_linux_iterate_over_regset_sections): ...here.  New function.
+    	(arm_linux_init_abi): Set iterator instead of section list.
+    	* corelow.c (get_core_registers_cb): New function, logic moved
+    	from...
+    	(get_core_registers): ...loop body here.  Use new iterator method
+    	instead of walking through the regset section list.
+    	* gdbarch.sh: Remove 'core_regset_sections'.  New method
+    	'iterate_over_regset_sections'.  New typedef
+    	'iterate_over_regset_sections_cb'.
+    	* gdbarch.c: Regenerate.
+    	* gdbarch.h: Likewise.
+    	* i386-linux-tdep.c (i386_linux_regset_sections)
+    	(i386_linux_sse_regset_sections, i386_linux_avx_regset_sections):
+    	Remove.
+    	(i386_linux_iterate_over_regset_sections): New.
+    	(i386_linux_init_abi): Don't choose a regset section list, but
+    	install new iterator in gdbarch.
+    	* linux-tdep.c (struct linux_collect_regset_section_cb_data): New.
+    	(linux_collect_regset_section_cb): New function, logic moved
+    	from...
+    	(linux_collect_thread_registers): ...loop body here.  Use iterator
+    	method instead of walking through list.
+    	(linux_make_corefile_notes_1): Check for presence of iterator
+    	method instead of regset section list.
+    	* ppc-linux-tdep.c (ppc_linux_vsx_regset_sections)
+    	(ppc_linux_vmx_regset_sections, ppc_linux_fp_regset_sections)
+    	(ppc64_linux_vsx_regset_sections, ppc64_linux_vmx_regset_sections)
+    	(ppc64_linux_fp_regset_sections): Remove.  Move combined logic...
+    	(ppc_linux_iterate_over_regset_sections): ...here.  New function.
+    	(ppc_linux_init_abi): Don't choose from above regset section
+    	lists, but install new iterator in gdbarch.
+    	* regset.h (struct core_regset_section): Remove.
+    	* s390-linux-tdep.c (struct gdbarch_tdep): Add new fields
+    	have_linux_v1, have_linux_v2, and have_tdb.
+    	(s390_linux32_regset_sections, s390_linux32v1_regset_sections)
+    	(s390_linux32v2_regset_sections, s390_linux64_regset_sections)
+    	(s390_linux64v1_regset_sections, s390_linux64v2_regset_sections)
+    	(s390x_linux64_regset_sections, s390x_linux64v1_regset_sections)
+    	(s390x_linux64v2_regset_sections): Remove.  Move combined logic...
+    	(s390_iterate_over_regset_sections): ...here.  New function.  Use
+    	new tdep fields.
+    	(s390_gdbarch_init): Set new tdep fields.  Don't choose from above
+    	regset section lists, but install new iterator.
+
+### a/gdb/ChangeLog
+### b/gdb/ChangeLog
+## -1,3 +1,55 @@
++2014-09-30  Andreas Arnez  <arnez@linux.vnet.ibm.com>
++
++	* amd64-linux-tdep.c (amd64_linux_regset_sections): Remove.
++	(amd64_linux_iterate_over_regset_sections): New.
++	(amd64_linux_init_abi_common): Don't install the regset section
++	list, but the new iterator in gdbarch.
++	* arm-linux-tdep.c (arm_linux_fpa_regset_sections)
++	(arm_linux_vfp_regset_sections): Remove.  Move combined logic...
++	(arm_linux_iterate_over_regset_sections): ...here.  New function.
++	(arm_linux_init_abi): Set iterator instead of section list.
++	* corelow.c (get_core_registers_cb): New function, logic moved
++	from...
++	(get_core_registers): ...loop body here.  Use new iterator method
++	instead of walking through the regset section list.
++	* gdbarch.sh: Remove 'core_regset_sections'.  New method
++	'iterate_over_regset_sections'.  New typedef
++	'iterate_over_regset_sections_cb'.
++	* gdbarch.c: Regenerate.
++	* gdbarch.h: Likewise.
++	* i386-linux-tdep.c (i386_linux_regset_sections)
++	(i386_linux_sse_regset_sections, i386_linux_avx_regset_sections):
++	Remove.
++	(i386_linux_iterate_over_regset_sections): New.
++	(i386_linux_init_abi): Don't choose a regset section list, but
++	install new iterator in gdbarch.
++	* linux-tdep.c (struct linux_collect_regset_section_cb_data): New.
++	(linux_collect_regset_section_cb): New function, logic moved
++	from...
++	(linux_collect_thread_registers): ...loop body here.  Use iterator
++	method instead of walking through list.
++	(linux_make_corefile_notes_1): Check for presence of iterator
++	method instead of regset section list.
++	* ppc-linux-tdep.c (ppc_linux_vsx_regset_sections)
++	(ppc_linux_vmx_regset_sections, ppc_linux_fp_regset_sections)
++	(ppc64_linux_vsx_regset_sections, ppc64_linux_vmx_regset_sections)
++	(ppc64_linux_fp_regset_sections): Remove.  Move combined logic...
++	(ppc_linux_iterate_over_regset_sections): ...here.  New function.
++	(ppc_linux_init_abi): Don't choose from above regset section
++	lists, but install new iterator in gdbarch.
++	* regset.h (struct core_regset_section): Remove.
++	* s390-linux-tdep.c (struct gdbarch_tdep): Add new fields
++	have_linux_v1, have_linux_v2, and have_tdb.
++	(s390_linux32_regset_sections, s390_linux32v1_regset_sections)
++	(s390_linux32v2_regset_sections, s390_linux64_regset_sections)
++	(s390_linux64v1_regset_sections, s390_linux64v2_regset_sections)
++	(s390x_linux64_regset_sections, s390x_linux64v1_regset_sections)
++	(s390x_linux64v2_regset_sections): Remove.  Move combined logic...
++	(s390_iterate_over_regset_sections): ...here.  New function.  Use
++	new tdep fields.
++	(s390_gdbarch_init): Set new tdep fields.  Don't choose from above
++	regset section lists, but install new iterator.
++
+ 2014-09-29  Jan Kratochvil  <jan.kratochvil@redhat.com>
+ 
+ 	* solib-svr4.c (svr4_parse_libraries): Use "library-list-svr4.dtd".
+Index: gdb-7.6.1/gdb/arm-linux-tdep.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/arm-linux-tdep.c	2016-02-21 21:24:15.859813662 +0100
++++ gdb-7.6.1/gdb/arm-linux-tdep.c	2016-02-21 21:24:21.585851082 +0100
+@@ -724,21 +724,24 @@
+   return NULL;
+ }
+ 
+-/* Core file register set sections.  */
++/* Iterate over core file register note sections.  */
+ 
+-static struct core_regset_section arm_linux_fpa_regset_sections[] =
++static void
++arm_linux_iterate_over_regset_sections (struct gdbarch *gdbarch,
++					iterate_over_regset_sections_cb *cb,
++					void *cb_data,
++					const struct regcache *regcache)
+ {
+-  { ".reg", ARM_LINUX_SIZEOF_GREGSET, "general-purpose" },
+-  { ".reg2", ARM_LINUX_SIZEOF_NWFPE, "FPA floating-point" },
+-  { NULL, 0}
+-};
++  struct gdbarch_tdep *tdep = gdbarch_tdep (gdbarch);
+ 
+-static struct core_regset_section arm_linux_vfp_regset_sections[] =
+-{
+-  { ".reg", ARM_LINUX_SIZEOF_GREGSET, "general-purpose" },
+-  { ".reg-arm-vfp", ARM_LINUX_SIZEOF_VFP, "VFP floating-point" },
+-  { NULL, 0}
+-};
++  cb (".reg", ARM_LINUX_SIZEOF_GREGSET, "general-purpose", cb_data);
++
++  if (tdep->have_vfp_registers)
++    cb (".reg-arm-vfp", ARM_LINUX_SIZEOF_VFP, "VFP floating-point",
++	cb_data);
++  else if (tdep->have_fpa_registers)
++    cb (".reg2", ARM_LINUX_SIZEOF_NWFPE, "FPA floating-point", cb_data);
++}
+ 
+ /* Determine target description from core file.  */
+ 
+@@ -1266,13 +1269,10 @@
+   /* Core file support.  */
+   set_gdbarch_regset_from_core_section (gdbarch,
+ 					arm_linux_regset_from_core_section);
++  set_gdbarch_iterate_over_regset_sections
++    (gdbarch, arm_linux_iterate_over_regset_sections);
+   set_gdbarch_core_read_description (gdbarch, arm_linux_core_read_description);
+ 
+-  if (tdep->have_vfp_registers)
+-    set_gdbarch_core_regset_sections (gdbarch, arm_linux_vfp_regset_sections);
+-  else if (tdep->have_fpa_registers)
+-    set_gdbarch_core_regset_sections (gdbarch, arm_linux_fpa_regset_sections);
+-
+   set_gdbarch_get_siginfo_type (gdbarch, linux_get_siginfo_type);
+ 
+   /* Displaced stepping.  */
+Index: gdb-7.6.1/gdb/corelow.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/corelow.c	2016-02-21 21:24:15.859813662 +0100
++++ gdb-7.6.1/gdb/corelow.c	2016-02-21 21:24:21.586851089 +0100
+@@ -621,6 +621,22 @@
+ 				  bfd_section_vma (core_bfd, section)));
+ }
+ 
++/* Callback for get_core_registers that handles a single core file
++   register note section. */
++
++static void
++get_core_registers_cb (const char *sect_name, int size,
++		       const char *human_name, void *cb_data)
++{
++  struct regcache *regcache = (struct regcache *) cb_data;
++
++  if (strcmp (sect_name, ".reg") == 0)
++    get_core_register_section (regcache, sect_name, 0, human_name, 1);
++  else if (strcmp (sect_name, ".reg2") == 0)
++    get_core_register_section (regcache, sect_name, 2, human_name, 0);
++  else
++    get_core_register_section (regcache, sect_name, 3, human_name, 0);
++}
+ 
+ /* Get the registers out of a core file.  This is the machine-
+    independent part.  Fetch_core_registers is the machine-dependent
+@@ -633,8 +649,8 @@
+ get_core_registers (struct target_ops *ops,
+ 		    struct regcache *regcache, int regno)
+ {
+-  struct core_regset_section *sect_list;
+   int i;
++  struct gdbarch *gdbarch;
+ 
+   if (!(core_gdbarch && gdbarch_regset_from_core_section_p (core_gdbarch))
+       && (core_vec == NULL || core_vec->core_read_registers == NULL))
+@@ -644,23 +660,11 @@
+       return;
+     }
+ 
+-  sect_list = gdbarch_core_regset_sections (get_regcache_arch (regcache));
+-  if (sect_list)
+-    while (sect_list->sect_name != NULL)
+-      {
+-        if (strcmp (sect_list->sect_name, ".reg") == 0)
+-	  get_core_register_section (regcache, sect_list->sect_name,
+-				     0, sect_list->human_name, 1);
+-        else if (strcmp (sect_list->sect_name, ".reg2") == 0)
+-	  get_core_register_section (regcache, sect_list->sect_name,
+-				     2, sect_list->human_name, 0);
+-	else
+-	  get_core_register_section (regcache, sect_list->sect_name,
+-				     3, sect_list->human_name, 0);
+-
+-	sect_list++;
+-      }
+-
++  gdbarch = get_regcache_arch (regcache);
++  if (gdbarch_iterate_over_regset_sections_p (gdbarch))
++    gdbarch_iterate_over_regset_sections (gdbarch,
++					  get_core_registers_cb,
++					  (void *) regcache, NULL);
+   else
+     {
+       get_core_register_section (regcache,
+Index: gdb-7.6.1/gdb/gdbarch.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/gdbarch.c	2016-02-21 21:24:15.859813662 +0100
++++ gdb-7.6.1/gdb/gdbarch.c	2016-02-21 21:24:21.587851096 +0100
+@@ -266,7 +266,7 @@
+   gdbarch_register_reggroup_p_ftype *register_reggroup_p;
+   gdbarch_fetch_pointer_argument_ftype *fetch_pointer_argument;
+   gdbarch_regset_from_core_section_ftype *regset_from_core_section;
+-  struct core_regset_section * core_regset_sections;
++  gdbarch_iterate_over_regset_sections_ftype *iterate_over_regset_sections;
+   gdbarch_make_corefile_notes_ftype *make_corefile_notes;
+   gdbarch_elfcore_write_linux_prpsinfo_ftype *elfcore_write_linux_prpsinfo;
+   gdbarch_find_memory_regions_ftype *find_memory_regions;
+@@ -742,6 +742,7 @@
+   /* Skip verify of register_reggroup_p, invalid_p == 0 */
+   /* Skip verify of fetch_pointer_argument, has predicate.  */
+   /* Skip verify of regset_from_core_section, has predicate.  */
++  /* Skip verify of iterate_over_regset_sections, has predicate.  */
+   /* Skip verify of make_corefile_notes, has predicate.  */
+   /* Skip verify of elfcore_write_linux_prpsinfo, has predicate.  */
+   /* Skip verify of find_memory_regions, has predicate.  */
+@@ -927,9 +928,6 @@
+                       "gdbarch_dump: core_read_description = <%s>\n",
+                       host_address_to_string (gdbarch->core_read_description));
+   fprintf_unfiltered (file,
+-                      "gdbarch_dump: core_regset_sections = %s\n",
+-                      host_address_to_string (gdbarch->core_regset_sections));
+-  fprintf_unfiltered (file,
+                       "gdbarch_dump: gdbarch_core_xfer_shared_libraries_p() = %d\n",
+                       gdbarch_core_xfer_shared_libraries_p (gdbarch));
+   fprintf_unfiltered (file,
+@@ -1125,6 +1123,12 @@
+                       "gdbarch_dump: iterate_over_objfiles_in_search_order = <%s>\n",
+                       host_address_to_string (gdbarch->iterate_over_objfiles_in_search_order));
+   fprintf_unfiltered (file,
++                      "gdbarch_dump: gdbarch_iterate_over_regset_sections_p() = %d\n",
++                      gdbarch_iterate_over_regset_sections_p (gdbarch));
++  fprintf_unfiltered (file,
++                      "gdbarch_dump: iterate_over_regset_sections = <%s>\n",
++                      host_address_to_string (gdbarch->iterate_over_regset_sections));
++  fprintf_unfiltered (file,
+                       "gdbarch_dump: long_bit = %s\n",
+                       plongest (gdbarch->long_bit));
+   fprintf_unfiltered (file,
+@@ -3398,20 +3402,28 @@
+   gdbarch->regset_from_core_section = regset_from_core_section;
+ }
+ 
+-struct core_regset_section *
+-gdbarch_core_regset_sections (struct gdbarch *gdbarch)
++int
++gdbarch_iterate_over_regset_sections_p (struct gdbarch *gdbarch)
++{
++  gdb_assert (gdbarch != NULL);
++  return gdbarch->iterate_over_regset_sections != NULL;
++}
++
++void
++gdbarch_iterate_over_regset_sections (struct gdbarch *gdbarch, iterate_over_regset_sections_cb *cb, void *cb_data, const struct regcache *regcache)
+ {
+   gdb_assert (gdbarch != NULL);
++  gdb_assert (gdbarch->iterate_over_regset_sections != NULL);
+   if (gdbarch_debug >= 2)
+-    fprintf_unfiltered (gdb_stdlog, "gdbarch_core_regset_sections called\n");
+-  return gdbarch->core_regset_sections;
++    fprintf_unfiltered (gdb_stdlog, "gdbarch_iterate_over_regset_sections called\n");
++  gdbarch->iterate_over_regset_sections (gdbarch, cb, cb_data, regcache);
+ }
+ 
+ void
+-set_gdbarch_core_regset_sections (struct gdbarch *gdbarch,
+-                                  struct core_regset_section * core_regset_sections)
++set_gdbarch_iterate_over_regset_sections (struct gdbarch *gdbarch,
++                                          gdbarch_iterate_over_regset_sections_ftype iterate_over_regset_sections)
+ {
+-  gdbarch->core_regset_sections = core_regset_sections;
++  gdbarch->iterate_over_regset_sections = iterate_over_regset_sections;
+ }
+ 
+ int
+Index: gdb-7.6.1/gdb/gdbarch.h
+===================================================================
+--- gdb-7.6.1.orig/gdb/gdbarch.h	2016-02-21 21:24:15.859813662 +0100
++++ gdb-7.6.1/gdb/gdbarch.h	2016-02-21 21:24:21.588851102 +0100
+@@ -85,6 +85,9 @@
+ typedef int (iterate_over_objfiles_in_search_order_cb_ftype)
+   (struct objfile *objfile, void *cb_data);
+ 
++typedef void (iterate_over_regset_sections_cb)
++  (const char *sect_name, int size, const char *human_name, void *cb_data);
++
+ 
+ /* The following are pre-initialized by GDBARCH.  */
+ 
+@@ -742,10 +745,18 @@
+ extern const struct regset * gdbarch_regset_from_core_section (struct gdbarch *gdbarch, const char *sect_name, size_t sect_size);
+ extern void set_gdbarch_regset_from_core_section (struct gdbarch *gdbarch, gdbarch_regset_from_core_section_ftype *regset_from_core_section);
+ 
+-/* Supported register notes in a core file. */
+-
+-extern struct core_regset_section * gdbarch_core_regset_sections (struct gdbarch *gdbarch);
+-extern void set_gdbarch_core_regset_sections (struct gdbarch *gdbarch, struct core_regset_section * core_regset_sections);
++/* Iterate over all supported register notes in a core file.  For each
++   supported register note section, the iterator must call CB and pass
++   CB_DATA unchanged.  If REGCACHE is not NULL, the iterator can limit
++   the supported register note sections based on the current register
++   values.  Otherwise it should enumerate all supported register note
++   sections. */
++
++extern int gdbarch_iterate_over_regset_sections_p (struct gdbarch *gdbarch);
++
++typedef void (gdbarch_iterate_over_regset_sections_ftype) (struct gdbarch *gdbarch, iterate_over_regset_sections_cb *cb, void *cb_data, const struct regcache *regcache);
++extern void gdbarch_iterate_over_regset_sections (struct gdbarch *gdbarch, iterate_over_regset_sections_cb *cb, void *cb_data, const struct regcache *regcache);
++extern void set_gdbarch_iterate_over_regset_sections (struct gdbarch *gdbarch, gdbarch_iterate_over_regset_sections_ftype *iterate_over_regset_sections);
+ 
+ /* Create core file notes */
+ 
+Index: gdb-7.6.1/gdb/gdbarch.sh
+===================================================================
+--- gdb-7.6.1.orig/gdb/gdbarch.sh	2016-02-21 21:24:15.859813662 +0100
++++ gdb-7.6.1/gdb/gdbarch.sh	2016-02-21 21:24:21.588851102 +0100
+@@ -648,8 +648,13 @@
+ # name SECT_NAME and size SECT_SIZE.
+ M:const struct regset *:regset_from_core_section:const char *sect_name, size_t sect_size:sect_name, sect_size
+ 
+-# Supported register notes in a core file.
+-v:struct core_regset_section *:core_regset_sections:const char *name, int len::::::host_address_to_string (gdbarch->core_regset_sections)
++# Iterate over all supported register notes in a core file.  For each
++# supported register note section, the iterator must call CB and pass
++# CB_DATA unchanged.  If REGCACHE is not NULL, the iterator can limit
++# the supported register note sections based on the current register
++# values.  Otherwise it should enumerate all supported register note
++# sections.
++M:void:iterate_over_regset_sections:iterate_over_regset_sections_cb *cb, void *cb_data, const struct regcache *regcache:cb, cb_data, regcache
+ 
+ # Create core file notes
+ M:char *:make_corefile_notes:bfd *obfd, int *note_size:obfd, note_size
+@@ -1135,6 +1140,9 @@
+ 
+ typedef int (iterate_over_objfiles_in_search_order_cb_ftype)
+   (struct objfile *objfile, void *cb_data);
++
++typedef void (iterate_over_regset_sections_cb)
++  (const char *sect_name, int size, const char *human_name, void *cb_data);
+ EOF
+ 
+ # function typedef's
+Index: gdb-7.6.1/gdb/linux-tdep.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/linux-tdep.c	2016-02-21 21:24:15.859813662 +0100
++++ gdb-7.6.1/gdb/linux-tdep.c	2016-02-21 21:24:21.589851109 +0100
+@@ -1409,6 +1409,57 @@
+   return note_data;
+ }
+ 
++/* Structure for passing information from
++   linux_collect_thread_registers via an iterator to
++   linux_collect_regset_section_cb. */
++
++struct linux_collect_regset_section_cb_data
++{
++  struct gdbarch *gdbarch;
++  const struct regcache *regcache;
++  bfd *obfd;
++  char *note_data;
++  int *note_size;
++  unsigned long lwp;
++  enum gdb_signal stop_signal;
++  int abort_iteration;
++};
++
++/* Callback for iterate_over_regset_sections that records a single
++   regset in the corefile note section.  */
++
++static void
++linux_collect_regset_section_cb (const char *sect_name, int size,
++				 const char *human_name, void *cb_data)
++{
++  const struct regset *regset;
++  char *buf;
++  struct linux_collect_regset_section_cb_data *data = cb_data;
++
++  if (data->abort_iteration)
++    return;
++
++  regset = gdbarch_regset_from_core_section (data->gdbarch, sect_name, size);
++  gdb_assert (regset && regset->collect_regset);
++
++  buf = xmalloc (size);
++  regset->collect_regset (regset, data->regcache, -1, buf, size);
++
++  /* PRSTATUS still needs to be treated specially.  */
++  if (strcmp (sect_name, ".reg") == 0)
++    data->note_data = (char *) elfcore_write_prstatus
++      (data->obfd, data->note_data, data->note_size, data->lwp,
++       gdb_signal_to_host (data->stop_signal), buf);
++  else
++    data->note_data = (char *) elfcore_write_register_note
++      (data->obfd, data->note_data, data->note_size,
++       sect_name, buf, size);
++  xfree (buf);
++
++  if (data->note_data == NULL)
++    data->abort_iteration = 1;
++}
++
+ /* Records the thread's register state for the corefile note
+    section.  */
+ 
+@@ -1419,47 +1470,25 @@
+ 				enum gdb_signal stop_signal)
+ {
+   struct gdbarch *gdbarch = get_regcache_arch (regcache);
+-  struct core_regset_section *sect_list;
+-  unsigned long lwp;
++  struct linux_collect_regset_section_cb_data data;
+ 
+-  sect_list = gdbarch_core_regset_sections (gdbarch);
+-  gdb_assert (sect_list);
++  data.gdbarch = gdbarch;
++  data.regcache = regcache;
++  data.obfd = obfd;
++  data.note_data = note_data;
++  data.note_size = note_size;
++  data.stop_signal = stop_signal;
++  data.abort_iteration = 0;
+ 
+   /* For remote targets the LWP may not be available, so use the TID.  */
+-  lwp = ptid_get_lwp (ptid);
+-  if (!lwp)
+-    lwp = ptid_get_tid (ptid);
+-
+-  while (sect_list->sect_name != NULL)
+-    {
+-      const struct regset *regset;
+-      char *buf;
+-
+-      regset = gdbarch_regset_from_core_section (gdbarch,
+-						 sect_list->sect_name,
+-						 sect_list->size);
+-      gdb_assert (regset && regset->collect_regset);
+-
+-      buf = xmalloc (sect_list->size);
+-      regset->collect_regset (regset, regcache, -1, buf, sect_list->size);
+-
+-      /* PRSTATUS still needs to be treated specially.  */
+-      if (strcmp (sect_list->sect_name, ".reg") == 0)
+-	note_data = (char *) elfcore_write_prstatus
+-			       (obfd, note_data, note_size, lwp,
+-				gdb_signal_to_host (stop_signal), buf);
+-      else
+-	note_data = (char *) elfcore_write_register_note
+-			       (obfd, note_data, note_size,
+-				sect_list->sect_name, buf, sect_list->size);
+-      xfree (buf);
+-      sect_list++;
+-
+-      if (!note_data)
+-	return NULL;
+-    }
+-
+-  return note_data;
++  data.lwp = ptid_get_lwp (ptid);
++  if (!data.lwp)
++    data.lwp = ptid_get_tid (ptid);
++
++  gdbarch_iterate_over_regset_sections (gdbarch,
++					linux_collect_regset_section_cb,
++					&data, regcache);
++  return data.note_data;
+ }
+ 
+ /* Fetch the siginfo data for the current thread, if it exists.  If
+@@ -1839,7 +1868,7 @@
+      converted to gdbarch_core_regset_sections, we no longer need to fall back
+      to the target method at this point.  */
+ 
+-  if (!gdbarch_core_regset_sections (gdbarch))
++  if (!gdbarch_iterate_over_regset_sections_p (gdbarch))
+     return target_make_corefile_notes (obfd, note_size);
+   else
+     return linux_make_corefile_notes (gdbarch, obfd, note_size,
+Index: gdb-7.6.1/gdb/ppc-linux-tdep.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/ppc-linux-tdep.c	2016-02-21 21:24:15.859813662 +0100
++++ gdb-7.6.1/gdb/ppc-linux-tdep.c	2016-02-21 21:24:21.590851115 +0100
+@@ -260,54 +260,6 @@
+ 				      readbuf, writebuf);
+ }
+ 
+-static struct core_regset_section ppc_linux_vsx_regset_sections[] =
+-{
+-  { ".reg", 48 * 4, "general-purpose" },
+-  { ".reg2", 264, "floating-point" },
+-  { ".reg-ppc-vmx", 544, "ppc Altivec" },
+-  { ".reg-ppc-vsx", 256, "POWER7 VSX" },
+-  { NULL, 0}
+-};
+-
+-static struct core_regset_section ppc_linux_vmx_regset_sections[] =
+-{
+-  { ".reg", 48 * 4, "general-purpose" },
+-  { ".reg2", 264, "floating-point" },
+-  { ".reg-ppc-vmx", 544, "ppc Altivec" },
+-  { NULL, 0}
+-};
+-
+-static struct core_regset_section ppc_linux_fp_regset_sections[] =
+-{
+-  { ".reg", 48 * 4, "general-purpose" },
+-  { ".reg2", 264, "floating-point" },
+-  { NULL, 0}
+-};
+-
+-static struct core_regset_section ppc64_linux_vsx_regset_sections[] =
+-{
+-  { ".reg", 48 * 8, "general-purpose" },
+-  { ".reg2", 264, "floating-point" },
+-  { ".reg-ppc-vmx", 544, "ppc Altivec" },
+-  { ".reg-ppc-vsx", 256, "POWER7 VSX" },
+-  { NULL, 0}
+-};
+-
+-static struct core_regset_section ppc64_linux_vmx_regset_sections[] =
+-{
+-  { ".reg", 48 * 8, "general-purpose" },
+-  { ".reg2", 264, "floating-point" },
+-  { ".reg-ppc-vmx", 544, "ppc Altivec" },
+-  { NULL, 0}
+-};
+-
+-static struct core_regset_section ppc64_linux_fp_regset_sections[] =
+-{
+-  { ".reg", 48 * 8, "general-purpose" },
+-  { ".reg2", 264, "floating-point" },
+-  { NULL, 0}
+-};
+-
+ /* PLT stub in executable.  */
+ static struct ppc_insn_pattern powerpc32_plt_stub[] =
+   {
+@@ -589,6 +541,28 @@
+   return NULL;
+ }
+ 
++/* Iterate over supported core file register note sections. */
++
++static void
++ppc_linux_iterate_over_regset_sections (struct gdbarch *gdbarch,
++					iterate_over_regset_sections_cb *cb,
++					void *cb_data,
++					const struct regcache *regcache)
++{
++  struct gdbarch_tdep *tdep = gdbarch_tdep (gdbarch);
++  int have_altivec = tdep->ppc_vr0_regnum != -1;
++  int have_vsx = tdep->ppc_vsr0_upper_regnum != -1;
++
++  cb (".reg", 48 * tdep->wordsize, "general-purpose", cb_data);
++  cb (".reg2", 264, "floating-point", cb_data);
++
++  if (have_altivec)
++    cb (".reg-ppc-vmx", 544, "ppc Altivec", cb_data);
++
++  if (have_vsx)
++    cb (".reg-ppc-vsx", 256, "POWER7 VSX", cb_data);
++}
++
+ static void
+ ppc_linux_sigtramp_cache (struct frame_info *this_frame,
+ 			  struct trad_frame_cache *this_cache,
+@@ -1790,19 +1764,6 @@
+       else
+ 	set_gdbarch_gcore_bfd_target (gdbarch, "elf32-powerpc");
+ 
+-      /* Supported register sections.  */
+-      if (tdesc_find_feature (info.target_desc,
+-			      "org.gnu.gdb.power.vsx"))
+-	set_gdbarch_core_regset_sections (gdbarch,
+-					  ppc_linux_vsx_regset_sections);
+-      else if (tdesc_find_feature (info.target_desc,
+-			       "org.gnu.gdb.power.altivec"))
+-	set_gdbarch_core_regset_sections (gdbarch,
+-					  ppc_linux_vmx_regset_sections);
+-      else
+-	set_gdbarch_core_regset_sections (gdbarch,
+-					  ppc_linux_fp_regset_sections);
+-
+       if (powerpc_so_ops.in_dynsym_resolve_code == NULL)
+ 	{
+ 	  powerpc_so_ops = svr4_so_ops;
+@@ -1854,19 +1815,6 @@
+ 	set_gdbarch_gcore_bfd_target (gdbarch, "elf64-powerpcle");
+       else
+ 	set_gdbarch_gcore_bfd_target (gdbarch, "elf64-powerpc");
+-
+-      /* Supported register sections.  */
+-      if (tdesc_find_feature (info.target_desc,
+-			      "org.gnu.gdb.power.vsx"))
+-	set_gdbarch_core_regset_sections (gdbarch,
+-					  ppc64_linux_vsx_regset_sections);
+-      else if (tdesc_find_feature (info.target_desc,
+-			       "org.gnu.gdb.power.altivec"))
+-	set_gdbarch_core_regset_sections (gdbarch,
+-					  ppc64_linux_vmx_regset_sections);
+-      else
+-	set_gdbarch_core_regset_sections (gdbarch,
+-					  ppc64_linux_fp_regset_sections);
+     }
+ 
+   /* PPC32 uses a different prpsinfo32 compared to most other Linux
+@@ -1878,6 +1826,8 @@
+   set_gdbarch_regset_from_core_section (gdbarch,
+ 					ppc_linux_regset_from_core_section);
+   set_gdbarch_core_read_description (gdbarch, ppc_linux_core_read_description);
++  set_gdbarch_iterate_over_regset_sections (gdbarch,
++					    ppc_linux_iterate_over_regset_sections);
+ 
+   /* Enable TLS support.  */
+   set_gdbarch_fetch_tls_load_module_address (gdbarch,
+Index: gdb-7.6.1/gdb/regset.h
+===================================================================
+--- gdb-7.6.1.orig/gdb/regset.h	2016-02-21 21:24:15.859813662 +0100
++++ gdb-7.6.1/gdb/regset.h	2016-02-21 21:24:21.590851115 +0100
+@@ -23,14 +23,6 @@
+ struct gdbarch;
+ struct regcache;
+ 
+-/* Data structure for the supported register notes in a core file.  */
+-struct core_regset_section
+-{
+-  const char *sect_name;
+-  int size;
+-  const char *human_name;
+-};
+-
+ /* Data structure describing a register set.  */
+ 
+ typedef void (supply_regset_ftype) (const struct regset *, struct regcache *,
+Index: gdb-7.6.1/gdb/s390-tdep.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/s390-tdep.c	2016-02-21 21:24:15.859813662 +0100
++++ gdb-7.6.1/gdb/s390-tdep.c	2016-02-21 21:24:21.591851122 +0100
+@@ -84,6 +84,10 @@
+ 
+   const struct regset *fpregset;
+   int sizeof_fpregset;
++
++  int have_linux_v1;
++  int have_linux_v2;
++  int have_tdb;
+ };
+ 
+ 
+@@ -691,84 +695,6 @@
+   s390_collect_regset
+ };
+ 
+-static struct core_regset_section s390_linux32_regset_sections[] =
+-{
+-  { ".reg", s390_sizeof_gregset, "general-purpose" },
+-  { ".reg2", s390_sizeof_fpregset, "floating-point" },
+-  { NULL, 0}
+-};
+-
+-static struct core_regset_section s390_linux32v1_regset_sections[] =
+-{
+-  { ".reg", s390_sizeof_gregset, "general-purpose" },
+-  { ".reg2", s390_sizeof_fpregset, "floating-point" },
+-  { ".reg-s390-last-break", 8, "s390 last-break address" },
+-  { NULL, 0}
+-};
+-
+-static struct core_regset_section s390_linux32v2_regset_sections[] =
+-{
+-  { ".reg", s390_sizeof_gregset, "general-purpose" },
+-  { ".reg2", s390_sizeof_fpregset, "floating-point" },
+-  { ".reg-s390-last-break", 8, "s390 last-break address" },
+-  { ".reg-s390-system-call", 4, "s390 system-call" },
+-  { NULL, 0}
+-};
+-
+-static struct core_regset_section s390_linux64_regset_sections[] =
+-{
+-  { ".reg", s390_sizeof_gregset, "general-purpose" },
+-  { ".reg2", s390_sizeof_fpregset, "floating-point" },
+-  { ".reg-s390-high-gprs", 16*4, "s390 GPR upper halves" },
+-  { NULL, 0}
+-};
+-
+-static struct core_regset_section s390_linux64v1_regset_sections[] =
+-{
+-  { ".reg", s390_sizeof_gregset, "general-purpose" },
+-  { ".reg2", s390_sizeof_fpregset, "floating-point" },
+-  { ".reg-s390-high-gprs", 16*4, "s390 GPR upper halves" },
+-  { ".reg-s390-last-break", 8, "s930 last-break address" },
+-  { NULL, 0}
+-};
+-
+-static struct core_regset_section s390_linux64v2_regset_sections[] =
+-{
+-  { ".reg", s390_sizeof_gregset, "general-purpose" },
+-  { ".reg2", s390_sizeof_fpregset, "floating-point" },
+-  { ".reg-s390-high-gprs", 16*4, "s390 GPR upper halves" },
+-  { ".reg-s390-last-break", 8, "s930 last-break address" },
+-  { ".reg-s390-system-call", 4, "s390 system-call" },
+-  { ".reg-s390-tdb", s390_sizeof_tdbregset, "s390 TDB" },
+-  { NULL, 0}
+-};
+-
+-static struct core_regset_section s390x_linux64_regset_sections[] =
+-{
+-  { ".reg", s390x_sizeof_gregset, "general-purpose" },
+-  { ".reg2", s390_sizeof_fpregset, "floating-point" },
+-  { NULL, 0}
+-};
+-
+-static struct core_regset_section s390x_linux64v1_regset_sections[] =
+-{
+-  { ".reg", s390x_sizeof_gregset, "general-purpose" },
+-  { ".reg2", s390_sizeof_fpregset, "floating-point" },
+-  { ".reg-s390-last-break", 8, "s930 last-break address" },
+-  { NULL, 0}
+-};
+-
+-static struct core_regset_section s390x_linux64v2_regset_sections[] =
+-{
+-  { ".reg", s390x_sizeof_gregset, "general-purpose" },
+-  { ".reg2", s390_sizeof_fpregset, "floating-point" },
+-  { ".reg-s390-last-break", 8, "s930 last-break address" },
+-  { ".reg-s390-system-call", 4, "s390 system-call" },
+-  { ".reg-s390-tdb", s390_sizeof_tdbregset, "s390 TDB" },
+-  { NULL, 0}
+-};
+-
+-
+ /* Return the appropriate register set for the core section identified
+    by SECT_NAME and SECT_SIZE.  */
+ static const struct regset *
+@@ -799,6 +725,38 @@
+   return NULL;
+ }
+ 
++/* Iterate over supported core file register note sections. */
++
++static void
++s390_iterate_over_regset_sections (struct gdbarch *gdbarch,
++				   iterate_over_regset_sections_cb *cb,
++				   void *cb_data,
++				   const struct regcache *regcache)
++{
++  struct gdbarch_tdep *tdep = gdbarch_tdep (gdbarch);
++
++  cb (".reg", tdep->sizeof_gregset, "general-purpose", cb_data);
++  cb (".reg2", s390_sizeof_fpregset, "floating-point", cb_data);
++
++  if (tdep->abi == ABI_LINUX_S390 && tdep->gpr_full_regnum != -1)
++    cb (".reg-s390-high-gprs", 16 * 4, "s390 GPR upper halves", cb_data);
++
++  if (tdep->have_linux_v1)
++    cb (".reg-s390-last-break", 8, "s930 last-break address", cb_data);
++
++  if (tdep->have_linux_v2)
++    cb (".reg-s390-system-call", 4, "s390 system-call", cb_data);
++
++  /* If regcache is set, we are in "write" (gcore) mode.  In this
++     case, don't iterate over the TDB unless its registers are
++     available.  */
++  if (tdep->have_tdb
++      && (regcache == NULL
++	  || REG_VALID == regcache_register_status (regcache,
++						    S390_TDB_DWORD0_REGNUM)))
++    cb (".reg-s390-tdb", s390_sizeof_tdbregset, "s390 TDB", cb_data);
++}
++
+ static const struct target_desc *
+ s390_core_read_description (struct gdbarch *gdbarch,
+ 			    struct target_ops *target, bfd *abfd)
+@@ -3031,6 +2989,7 @@
+   int have_upper = 0;
+   int have_linux_v1 = 0;
+   int have_linux_v2 = 0;
++  int have_tdb = 0;
+   int first_pseudo_reg, last_pseudo_reg;
+   static const char *const stap_register_prefixes[] = { "%", NULL };
+   static const char *const stap_register_indirection_prefixes[] = { "(",
+@@ -3175,6 +3134,7 @@
+ 	    valid_p &= tdesc_numbered_register (feature, tdesc_data,
+ 						S390_TDB_DWORD0_REGNUM + i,
+ 						tdb_regs[i]);
++	  have_tdb = 1;
+ 	}
+ 
+       if (!valid_p)
+@@ -3204,6 +3164,9 @@
+   /* Otherwise create a new gdbarch for the specified machine type.  */
+   tdep = XCALLOC (1, struct gdbarch_tdep);
+   tdep->abi = tdep_abi;
++  tdep->have_linux_v1 = have_linux_v1;
++  tdep->have_linux_v2 = have_linux_v2;
++  tdep->have_tdb = have_tdb;
+   gdbarch = gdbarch_alloc (&info, tdep);
+ 
+   set_gdbarch_believe_pcc_promotion (gdbarch, 0);
+@@ -3234,6 +3197,8 @@
+   set_gdbarch_regset_from_core_section (gdbarch,
+                                         s390_regset_from_core_section);
+   set_gdbarch_core_read_description (gdbarch, s390_core_read_description);
++  set_gdbarch_iterate_over_regset_sections (gdbarch,
++					    s390_iterate_over_regset_sections);
+   set_gdbarch_cannot_store_register (gdbarch, s390_cannot_store_register);
+   set_gdbarch_write_pc (gdbarch, s390_write_pc);
+   set_gdbarch_pseudo_register_read (gdbarch, s390_pseudo_register_read);
+@@ -3301,31 +3266,6 @@
+       set_gdbarch_addr_bits_remove (gdbarch, s390_addr_bits_remove);
+       set_solib_svr4_fetch_link_map_offsets
+ 	(gdbarch, svr4_ilp32_fetch_link_map_offsets);
+-
+-      if (have_upper)
+-	{
+-	  if (have_linux_v2)
+-	    set_gdbarch_core_regset_sections (gdbarch,
+-					      s390_linux64v2_regset_sections);
+-	  else if (have_linux_v1)
+-	    set_gdbarch_core_regset_sections (gdbarch,
+-					      s390_linux64v1_regset_sections);
+-	  else
+-	    set_gdbarch_core_regset_sections (gdbarch,
+-					      s390_linux64_regset_sections);
+-	}
+-      else
+-	{
+-	  if (have_linux_v2)
+-	    set_gdbarch_core_regset_sections (gdbarch,
+-					      s390_linux32v2_regset_sections);
+-	  else if (have_linux_v1)
+-	    set_gdbarch_core_regset_sections (gdbarch,
+-					      s390_linux32v1_regset_sections);
+-	  else
+-	    set_gdbarch_core_regset_sections (gdbarch,
+-					      s390_linux32_regset_sections);
+-	}
+       break;
+ 
+     case ABI_LINUX_ZSERIES:
+@@ -3345,16 +3285,6 @@
+                                                     s390_address_class_type_flags_to_name);
+       set_gdbarch_address_class_name_to_type_flags (gdbarch,
+                                                     s390_address_class_name_to_type_flags);
+-
+-      if (have_linux_v2)
+-	set_gdbarch_core_regset_sections (gdbarch,
+-					  s390x_linux64v2_regset_sections);
+-      else if (have_linux_v1)
+-	set_gdbarch_core_regset_sections (gdbarch,
+-					  s390x_linux64v1_regset_sections);
+-      else
+-	set_gdbarch_core_regset_sections (gdbarch,
+-					  s390x_linux64_regset_sections);
+       break;
+     }
+ 
+Index: gdb-7.6.1/gdb/amd64-linux-tdep.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/amd64-linux-tdep.c	2016-02-21 21:41:37.020617839 +0100
++++ gdb-7.6.1/gdb/amd64-linux-tdep.c	2016-02-21 21:41:44.948669651 +0100
+@@ -51,15 +51,6 @@
+ #include "record-full.h"
+ #include "linux-record.h"
+ 
+-/* Supported register note sections.  */
+-static struct core_regset_section amd64_linux_regset_sections[] =
+-{
+-  { ".reg", 27 * 8, "general-purpose" },
+-  { ".reg2", 512, "floating-point" },
+-  { ".reg-xstate", I386_XSTATE_MAX_SIZE, "XSAVE extended state" },
+-  { NULL, 0 }
+-};
+-
+ /* Mapping between the general-purpose registers in `struct user'
+    format and GDB's register cache layout.  */
+ 
+@@ -1376,6 +1367,19 @@
+     }
+ }
+ 
++/* Iterate over core file register note sections.  */
++
++static void
++amd64_linux_iterate_over_regset_sections (struct gdbarch *gdbarch,
++					  iterate_over_regset_sections_cb *cb,
++					  void *cb_data,
++					  const struct regcache *regcache)
++{
++  cb (".reg", 27 * 8, "general-purpose", cb_data);
++  cb (".reg2", 512, "floating-point", cb_data);
++  cb (".reg-xstate", I386_XSTATE_MAX_SIZE, "XSAVE extended state", cb_data);
++}
++
+ static void
+ amd64_linux_init_abi_common(struct gdbarch_info info, struct gdbarch *gdbarch)
+ {
+@@ -1410,8 +1414,9 @@
+   /* GNU/Linux uses the dynamic linker included in the GNU C Library.  */
+   set_gdbarch_skip_solib_resolver (gdbarch, glibc_skip_solib_resolver);
+ 
+-  /* Install supported register note sections.  */
+-  set_gdbarch_core_regset_sections (gdbarch, amd64_linux_regset_sections);
++  /* Iterate over core file register note sections.  */
++  set_gdbarch_iterate_over_regset_sections
++    (gdbarch, amd64_linux_iterate_over_regset_sections);
+ 
+   set_gdbarch_core_read_description (gdbarch,
+ 				     amd64_linux_core_read_description);
+Index: gdb-7.6.1/gdb/i386-linux-tdep.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/i386-linux-tdep.c	2016-02-21 21:41:37.020617839 +0100
++++ gdb-7.6.1/gdb/i386-linux-tdep.c	2016-02-21 21:41:44.948669651 +0100
+@@ -52,28 +52,6 @@
+ #include "features/i386/i386-mmx-linux.c"
+ #include "features/i386/i386-avx-linux.c"
+ 
+-/* Supported register note sections.  */
+-static struct core_regset_section i386_linux_regset_sections[] =
+-{
+-  { ".reg", 68, "general-purpose" },
+-  { ".reg2", 108, "floating-point" },
+-  { NULL, 0 }
+-};
+-
+-static struct core_regset_section i386_linux_sse_regset_sections[] =
+-{
+-  { ".reg", 68, "general-purpose" },
+-  { ".reg-xfp", 512, "extended floating-point" },
+-  { NULL, 0 }
+-};
+-
+-static struct core_regset_section i386_linux_avx_regset_sections[] =
+-{
+-  { ".reg", 68, "general-purpose" },
+-  { ".reg-xstate", I386_XSTATE_MAX_SIZE, "XSAVE extended state" },
+-  { NULL, 0 }
+-};
+-
+ /* Return non-zero, when the register is in the corresponding register
+    group.  Put the LINUX_ORIG_EAX register in the system group.  */
+ static int
+@@ -661,6 +639,26 @@
+     return tdesc_i386_mmx_linux;
+ }
+ 
++/* Iterate over core file register note sections.  */
++
++static void
++i386_linux_iterate_over_regset_sections (struct gdbarch *gdbarch,
++					 iterate_over_regset_sections_cb *cb,
++					 void *cb_data,
++					 const struct regcache *regcache)
++{
++  struct gdbarch_tdep *tdep = gdbarch_tdep (gdbarch);
++
++  cb (".reg", 68, "general-purpose", cb_data);
++
++  if (tdep->xcr0 & I386_XSTATE_AVX)
++    cb (".reg-xstate", I386_XSTATE_MAX_SIZE, "XSAVE extended state", cb_data);
++  else if (tdep->xcr0 & I386_XSTATE_SSE)
++    cb (".reg-xfp", 512, "extended floating-point", cb_data);
++  else
++    cb (".reg2", 108, "floating-point", cb_data);
++}
++
+ /* Linux kernel shows PC value after the 'int $0x80' instruction even if
+    inferior is still inside the syscall.  On next PTRACE_SINGLESTEP it will
+    finish the syscall but PC will not change.
+@@ -939,14 +937,9 @@
+   set_gdbarch_fetch_tls_load_module_address (gdbarch,
+                                              svr4_fetch_objfile_link_map);
+ 
+-  /* Install supported register note sections.  */
+-  if (tdesc_find_feature (tdesc, "org.gnu.gdb.i386.avx"))
+-    set_gdbarch_core_regset_sections (gdbarch, i386_linux_avx_regset_sections);
+-  else if (tdesc_find_feature (tdesc, "org.gnu.gdb.i386.sse"))
+-    set_gdbarch_core_regset_sections (gdbarch, i386_linux_sse_regset_sections);
+-  else
+-    set_gdbarch_core_regset_sections (gdbarch, i386_linux_regset_sections);
+-
++  /* Core file support.  */
++  set_gdbarch_iterate_over_regset_sections
++    (gdbarch, i386_linux_iterate_over_regset_sections);
+   set_gdbarch_core_read_description (gdbarch,
+ 				     i386_linux_core_read_description);
+ 

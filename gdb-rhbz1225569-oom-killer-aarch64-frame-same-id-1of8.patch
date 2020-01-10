@@ -1,0 +1,257 @@
+commit 1ec56e88aa9b052ab10b806d82fbdbc8d153d977
+Author: Pedro Alves <palves@redhat.com>
+Date:   Fri Nov 22 13:17:46 2013 +0000
+
+    Eliminate dwarf2_frame_cache recursion, don't unwind from the dwarf2 sniffer (move dwarf2_tailcall_sniffer_first elsewhere).
+    
+    Two rationales, same patch.
+    
+    TL;DR 1:
+    
+     dwarf2_frame_cache recursion is evil.  dwarf2_frame_cache calls
+     dwarf2_tailcall_sniffer_first which then recurses into
+     dwarf2_frame_cache.
+    
+    TL;DR 2:
+    
+     An unwinder trying to unwind is evil.  dwarf2_frame_sniffer calls
+     dwarf2_frame_cache which calls dwarf2_tailcall_sniffer_first which
+     then tries to unwind the PC of the previous frame.
+    
+    Avoid all that by deferring dwarf2_tailcall_sniffer_first until it's
+    really necessary.
+    
+    Rationale 1
+    ===========
+    
+    A frame sniffer should not try to unwind, because that bypasses all
+    the validation checks done by get_prev_frame.  The UNWIND_SAME_ID
+    scenario is one such case where GDB is currently broken because (in
+    part) of this (the next patch adds a test that would fail without
+    this).
+    
+    GDB goes into an infinite loop in value_fetch_lazy, here:
+    
+          while (VALUE_LVAL (new_val) == lval_register && value_lazy (new_val))
+    	{
+    	  frame = frame_find_by_id (VALUE_FRAME_ID (new_val));
+    ...
+    	  new_val = get_frame_register_value (frame, regnum);
+    	}
+    
+    (top-gdb) bt
+    #0  value_fetch_lazy (val=0x11516d0) at ../../src/gdb/value.c:3510
+    #1  0x0000000000584bd8 in value_optimized_out (value=0x11516d0) at ../../src/gdb/value.c:1096
+    #2  0x00000000006fe7a1 in frame_register_unwind (frame=0x1492600, regnum=16, optimizedp=0x7fffffffcdec, unavailablep=0x7fffffffcde8, lvalp=0x7fffffffcdd8, addrp=
+        0x7fffffffcde0, realnump=0x7fffffffcddc, bufferp=0x7fffffffce10 "@\316\377\377\377\177") at ../../src/gdb/frame.c:940
+    #3  0x00000000006fea3a in frame_unwind_register (frame=0x1492600, regnum=16, buf=0x7fffffffce10 "@\316\377\377\377\177") at ../../src/gdb/frame.c:990
+    #4  0x0000000000473b9b in i386_unwind_pc (gdbarch=0xf54660, next_frame=0x1492600) at ../../src/gdb/i386-tdep.c:1771
+    #5  0x0000000000601dfa in gdbarch_unwind_pc (gdbarch=0xf54660, next_frame=0x1492600) at ../../src/gdb/gdbarch.c:2870
+    #6  0x0000000000693db5 in dwarf2_tailcall_sniffer_first (this_frame=0x1492600, tailcall_cachep=0x14926f0, entry_cfa_sp_offsetp=0x7fffffffcf00)
+        at ../../src/gdb/dwarf2-frame-tailcall.c:389
+    #7  0x0000000000690928 in dwarf2_frame_cache (this_frame=0x1492600, this_cache=0x1492618) at ../../src/gdb/dwarf2-frame.c:1245
+    #8  0x0000000000690f46 in dwarf2_frame_sniffer (self=0x8e4980, this_frame=0x1492600, this_cache=0x1492618) at ../../src/gdb/dwarf2-frame.c:1423
+    #9  0x000000000070203b in frame_unwind_find_by_frame (this_frame=0x1492600, this_cache=0x1492618) at ../../src/gdb/frame-unwind.c:112
+    #10 0x00000000006fd681 in get_frame_id (fi=0x1492600) at ../../src/gdb/frame.c:408
+    #11 0x00000000007006c2 in get_prev_frame_1 (this_frame=0xdc1860) at ../../src/gdb/frame.c:1826
+    #12 0x0000000000700b7a in get_prev_frame (this_frame=0xdc1860) at ../../src/gdb/frame.c:2056
+    #13 0x0000000000514588 in frame_info_to_frame_object (frame=0xdc1860) at ../../src/gdb/python/py-frame.c:322
+    #14 0x000000000051784c in bootstrap_python_frame_filters (frame=0xdc1860, frame_low=0, frame_high=-1) at ../../src/gdb/python/py-framefilter.c:1396
+    #15 0x0000000000517a6f in apply_frame_filter (frame=0xdc1860, flags=7, args_type=CLI_SCALAR_VALUES, out=0xed7a90, frame_low=0, frame_high=-1)
+        at ../../src/gdb/python/py-framefilter.c:1492
+    #16 0x00000000005e77b0 in backtrace_command_1 (count_exp=0x0, show_locals=0, no_filters=0, from_tty=1) at ../../src/gdb/stack.c:1777
+    #17 0x00000000005e7c0f in backtrace_command (arg=0x0, from_tty=1) at ../../src/gdb/stack.c:1891
+    #18 0x00000000004e37a7 in do_cfunc (c=0xda4fa0, args=0x0, from_tty=1) at ../../src/gdb/cli/cli-decode.c:107
+    #19 0x00000000004e683c in cmd_func (cmd=0xda4fa0, args=0x0, from_tty=1) at ../../src/gdb/cli/cli-decode.c:1882
+    #20 0x00000000006f35ed in execute_command (p=0xcc66c2 "", from_tty=1) at ../../src/gdb/top.c:468
+    #21 0x00000000005f8853 in command_handler (command=0xcc66c0 "bt") at ../../src/gdb/event-top.c:435
+    #22 0x00000000005f8e12 in command_line_handler (rl=0xfe05f0 "@") at ../../src/gdb/event-top.c:632
+    #23 0x000000000074d2c6 in rl_callback_read_char () at ../../src/readline/callback.c:220
+    #24 0x00000000005f8375 in rl_callback_read_char_wrapper (client_data=0x0) at ../../src/gdb/event-top.c:164
+    #25 0x00000000005f876a in stdin_event_handler (error=0, client_data=0x0) at ../../src/gdb/event-top.c:375
+    #26 0x00000000005f72fa in handle_file_event (data=...) at ../../src/gdb/event-loop.c:768
+    #27 0x00000000005f67a3 in process_event () at ../../src/gdb/event-loop.c:342
+    #28 0x00000000005f686a in gdb_do_one_event () at ../../src/gdb/event-loop.c:406
+    #29 0x00000000005f68bb in start_event_loop () at ../../src/gdb/event-loop.c:431
+    #30 0x00000000005f83a7 in cli_command_loop (data=0x0) at ../../src/gdb/event-top.c:179
+    #31 0x00000000005eeed3 in current_interp_command_loop () at ../../src/gdb/interps.c:327
+    #32 0x00000000005ef8ff in captured_command_loop (data=0x0) at ../../src/gdb/main.c:267
+    #33 0x00000000005ed2f6 in catch_errors (func=0x5ef8e4 <captured_command_loop>, func_args=0x0, errstring=0x8b6554 "", mask=RETURN_MASK_ALL)
+        at ../../src/gdb/exceptions.c:524
+    #34 0x00000000005f0d21 in captured_main (data=0x7fffffffd9e0) at ../../src/gdb/main.c:1067
+    #35 0x00000000005ed2f6 in catch_errors (func=0x5efb9b <captured_main>, func_args=0x7fffffffd9e0, errstring=0x8b6554 "", mask=RETURN_MASK_ALL)
+        at ../../src/gdb/exceptions.c:524
+    #36 0x00000000005f0d57 in gdb_main (args=0x7fffffffd9e0) at ../../src/gdb/main.c:1076
+    #37 0x000000000045bb6a in main (argc=4, argv=0x7fffffffdae8) at ../../src/gdb/gdb.c:34
+    (top-gdb)
+    
+    GDB is trying to unwind the PC register of the previous frame (frame
+    #5 above), starting from the frame being sniffed (the THIS frame).
+    But the THIS frame's unwinder says the PC of the previous frame is
+    actually the same as the previous's frame's next frame (which is the
+    same frame we started with, the THIS frame), therefore it returns an
+    lval_register lazy value with frame set to THIS frame.  And so the
+    value_fetch_lazy loop never ends.
+    
+    
+    Rationale 2
+    ===========
+    
+    As an experiment, I tried making dwarf2-frame.c:read_addr_from_reg use
+    address_from_register.  That caused a bunch of regressions, but it
+    actually took me a long while to figure out what was going on.  Turns
+    out dwarf2-frame.c:read_addr_from_reg is called while computing the
+    frame's CFA, from within dwarf2_frame_cache.  address_from_register
+    wants to create a register with frame_id set to the frame being
+    constructed.  To create the frame id, we again call dwarf2_frame_cache,
+    which given:
+    
+    static struct dwarf2_frame_cache *
+    dwarf2_frame_cache (struct frame_info *this_frame, void **this_cache)
+    {
+    ...
+      if (*this_cache)
+        return *this_cache;
+    
+    returns an incomplete object to the caller:
+    static void
+    dwarf2_frame_this_id (struct frame_info *this_frame, void **this_cache,
+    		      struct frame_id *this_id)
+    {
+      struct dwarf2_frame_cache *cache =
+        dwarf2_frame_cache (this_frame, this_cache);
+    ...
+     (*this_id) = frame_id_build (cache->cfa, get_frame_func (this_frame));
+    }
+    
+    As cache->cfa is still 0 (we were trying to compute it!), and
+    get_frame_id recalls this id from here on, we end up with a broken
+    frame id in recorded for this frame.  Later, when inspecting locals,
+    the dwarf machinery needs to know the selected frame's base, which
+    calls get_frame_base:
+    
+    CORE_ADDR
+    get_frame_base (struct frame_info *fi)
+    {
+      return get_frame_id (fi).stack_addr;
+    }
+    
+    which as seen above then returns 0 ...
+    
+    So I gave up using address_from_register.
+    
+    But, the pain of investigating this made me want to have GDB itself
+    assert that recursion never happens here.  So I wrote a patch to do
+    that.  But, it triggers on current mainline, because
+    dwarf2_tailcall_sniffer_first, called from dwarf2_frame_cache, unwinds
+    the this_frame.
+    
+    A sniffer shouldn't be trying to unwind, exactly because of this sort
+    of tricky issue.  The patch defers calling
+    dwarf2_tailcall_sniffer_first until it's really necessary, in
+    dwarf2_frame_prev_register (thus actually outside the sniffer path).
+    As this makes the call to dwarf2_frame_sniffer in dwarf2_frame_cache
+    unnecessary again, the patch removes that too.
+    
+    Tested on x86_64 Fedora 17.
+    
+    gdb/
+    2013-11-22  Pedro Alves  <palves@redhat.com>
+    
+    	PR 16155
+    	* dwarf2-frame.c (struct dwarf2_frame_cache)
+    	<checked_tailcall_bottom, entry_cfa_sp_offset,
+    	entry_cfa_sp_offset_p>: New fields.
+    	(dwarf2_frame_cache): Adjust to use the new cache fields instead
+    	of locals.  Don't call dwarf2_tailcall_sniffer_first here.
+    	(dwarf2_frame_prev_register): Call it here, but only once.
+
+Index: gdb-7.6.1/gdb/dwarf2-frame.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/dwarf2-frame.c
++++ gdb-7.6.1/gdb/dwarf2-frame.c
+@@ -984,12 +984,22 @@ struct dwarf2_frame_cache
+   /* The .text offset.  */
+   CORE_ADDR text_offset;
+ 
++  /* True if we already checked whether this frame is the bottom frame
++     of a virtual tail call frame chain.  */
++  int checked_tailcall_bottom;
++
+   /* If not NULL then this frame is the bottom frame of a TAILCALL_FRAME
+      sequence.  If NULL then it is a normal case with no TAILCALL_FRAME
+      involved.  Non-bottom frames of a virtual tail call frames chain use
+      dwarf2_tailcall_frame_unwind unwinder so this field does not apply for
+      them.  */
+   void *tailcall_cache;
++
++  /* The number of bytes to subtract from TAILCALL_FRAME frames frame
++     base to get the SP, to simulate the return address pushed on the
++     stack.  */
++  LONGEST entry_cfa_sp_offset;
++  int entry_cfa_sp_offset_p;
+ };
+ 
+ /* A cleanup that sets a pointer to NULL.  */
+@@ -1014,8 +1024,6 @@ dwarf2_frame_cache (struct frame_info *t
+   struct dwarf2_fde *fde;
+   volatile struct gdb_exception ex;
+   CORE_ADDR entry_pc;
+-  LONGEST entry_cfa_sp_offset;
+-  int entry_cfa_sp_offset_p = 0;
+   const gdb_byte *instr;
+ 
+   if (*this_cache)
+@@ -1080,8 +1088,8 @@ dwarf2_frame_cache (struct frame_info *t
+ 	  && (gdbarch_dwarf2_reg_to_regnum (gdbarch, fs->regs.cfa_reg)
+ 	      == gdbarch_sp_regnum (gdbarch)))
+ 	{
+-	  entry_cfa_sp_offset = fs->regs.cfa_offset;
+-	  entry_cfa_sp_offset_p = 1;
++	  cache->entry_cfa_sp_offset = fs->regs.cfa_offset;
++	  cache->entry_cfa_sp_offset_p = 1;
+ 	}
+     }
+   else
+@@ -1230,13 +1238,6 @@ incomplete CFI data; unspecified registe
+     cache->undefined_retaddr = 1;
+ 
+   do_cleanups (old_chain);
+-
+-  /* Try to find a virtual tail call frames chain with bottom (callee) frame
+-     starting at THIS_FRAME.  */
+-  dwarf2_tailcall_sniffer_first (this_frame, &cache->tailcall_cache,
+-				 (entry_cfa_sp_offset_p
+-				  ? &entry_cfa_sp_offset : NULL));
+-
+   discard_cleanups (reset_cache_cleanup);
+   return cache;
+ }
+@@ -1282,6 +1283,16 @@ dwarf2_frame_prev_register (struct frame
+   CORE_ADDR addr;
+   int realnum;
+ 
++  /* Check whether THIS_FRAME is the bottom frame of a virtual tail
++     call frame chain.  */
++  if (!cache->checked_tailcall_bottom)
++    {
++      cache->checked_tailcall_bottom = 1;
++      dwarf2_tailcall_sniffer_first (this_frame, &cache->tailcall_cache,
++				     (cache->entry_cfa_sp_offset_p
++				      ? &cache->entry_cfa_sp_offset : NULL));
++    }
++
+   /* Non-bottom frames of a virtual tail call frames chain use
+      dwarf2_tailcall_frame_unwind unwinder so this code does not apply for
+      them.  If dwarf2_tailcall_prev_register_first does not have specific value
+@@ -1408,10 +1419,6 @@ dwarf2_frame_sniffer (const struct frame
+   if (self->type != NORMAL_FRAME)
+     return 0;
+ 
+-  /* Preinitializa the cache so that TAILCALL_FRAME can find the record by
+-     dwarf2_tailcall_sniffer_first.  */
+-  dwarf2_frame_cache (this_frame, this_cache);
+-
+   return 1;
+ }
+ 

@@ -1,0 +1,31 @@
+commit 2c3f079f58204594bc271b919a643e9f2813aa12
+Author: Alan Modra <amodra@gmail.com>
+Date:   Tue Dec 3 15:01:20 2013 +1030
+
+    PowerPC64 linking of --just-symbols objects (klibc)
+    
+    With -mcmodel=medium we can't assume that a -R object doesn't use
+    toc-relative addressing if there's no toc.  Lots of things are
+    accessed via r2, not just the toc/got section.  Also, testing for
+    .opd is plain wrong for ELFv2.
+    
+    	* elf64-ppc.c (ppc64_elf_link_just_syms): Remove .got check.
+    	Handle ELFv2.
+
+Index: gdb-7.6.1/bfd/elf64-ppc.c
+===================================================================
+--- gdb-7.6.1.orig/bfd/elf64-ppc.c
++++ gdb-7.6.1/bfd/elf64-ppc.c
+@@ -4887,10 +4887,8 @@ ppc64_elf_link_just_syms (asection *sec,
+       && (sec->owner->flags & (EXEC_P | DYNAMIC)) != 0
+       && is_ppc64_elf (sec->owner))
+     {
+-      asection *got = bfd_get_section_by_name (sec->owner, ".got");
+-      if (got != NULL
+-	  && got->size >= elf_backend_got_header_size
+-	  && bfd_get_section_by_name (sec->owner, ".opd") != NULL)
++      if (abiversion (sec->owner) >= 2
++	  || bfd_get_section_by_name (sec->owner, ".opd") != NULL)
+ 	sec->has_toc_reloc = 1;
+     }
+   _bfd_elf_link_just_syms (sec, info);

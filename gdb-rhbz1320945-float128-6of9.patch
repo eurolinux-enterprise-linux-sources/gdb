@@ -1,0 +1,114 @@
+commit c413c44801e449f1f0b9828b81770e752b8219af
+Author: Ulrich Weigand <ulrich.weigand@de.ibm.com>
+Date:   Tue Sep 6 17:30:13 2016 +0200
+
+    Remove TYPE_NOSIGN "char" hack
+    
+    init_type (and arch_integer_type) currently use a special hack to set the
+    TYPE_NOSIGN flag if the type name is exactly "char".  This commit moves the
+    hack up to the callers of those routines.
+    
+    The special case currently can hit only for types created from dwarf2read,
+    but read_base_type actually implements the "char" check itself, so it is
+    redundant to do it in init_type as well.  (Note that stabsread.c and the
+    other type readers always pass NULL as name to init_type, so the special
+    case can never hit for those.)
+    
+    A few other cases create pre-definded types with a hard-coded name of "char";
+    the commit simply moves setting the TYPE_NOSIGN flag to those places.
+    
+    No functional change intended.
+    
+    gdb/ChangeLog:
+    
+            * gdbtypes.c (init_type): Remove "char" special case.
+            (arch_integer_type): Likewise.
+            (gdbtypes_post_init): Set TYPE_NOSIGN for "char" type.
+            (objfile_type): Likewise.
+            * mdebugread.c (basic_type): Likewise.
+            * stabsread.c (rs6000_builtin_type): Likewise.
+    
+    Signed-off-by: Ulrich Weigand <ulrich.weigand@de.ibm.com>
+
+### a/gdb/ChangeLog
+### b/gdb/ChangeLog
+## -1,5 +1,14 @@
+ 2016-09-05  Ulrich Weigand  <uweigand@de.ibm.com>
+ 
++	* gdbtypes.c (init_type): Remove "char" special case.
++	(arch_integer_type): Likewise.
++	(gdbtypes_post_init): Set TYPE_NOSIGN for "char" type.
++	(objfile_type): Likewise.
++	* mdebugread.c (basic_type): Likewise.
++	* stabsread.c (rs6000_builtin_type): Likewise.
++
++2016-09-05  Ulrich Weigand  <uweigand@de.ibm.com>
++
+ 	* gdbtypes.h (enum type_flag_value): Remove.
+ 	Remove references to TYPE_FLAG_... in comments throughout.
+ 	* gdbtypes.c (recursive_dump_type): Do not print TYPE_FLAG_... 
+Index: gdb-7.6.1/gdb/gdbtypes.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/gdbtypes.c	2017-03-11 21:26:51.526852141 +0100
++++ gdb-7.6.1/gdb/gdbtypes.c	2017-03-11 21:27:01.268920712 +0100
+@@ -2137,11 +2137,6 @@
+ 
+   TYPE_NAME (type) = name;
+ 
+-  /* C++ fancies.  */
+-
+-  if (name && strcmp (name, "char") == 0)
+-    TYPE_NOSIGN (type) = 1;
+-
+   return type;
+ }
+ 
+@@ -4060,8 +4055,6 @@
+   t = arch_type (gdbarch, TYPE_CODE_INT, bit / TARGET_CHAR_BIT, name);
+   if (unsigned_p)
+     TYPE_UNSIGNED (t) = 1;
+-  if (name && strcmp (name, "char") == 0)
+-    TYPE_NOSIGN (t) = 1;
+ 
+   return t;
+ }
+@@ -4305,6 +4298,7 @@
+   builtin_type->builtin_char
+     = arch_integer_type (gdbarch, TARGET_CHAR_BIT,
+ 			 !gdbarch_char_signed (gdbarch), "char");
++  TYPE_NOSIGN (builtin_type->builtin_char) = 1;
+   builtin_type->builtin_signed_char
+     = arch_integer_type (gdbarch, TARGET_CHAR_BIT,
+ 			 0, "signed char");
+@@ -4448,6 +4442,7 @@
+   objfile_type->builtin_char
+     = init_integer_type (objfile, TARGET_CHAR_BIT,
+ 			 !gdbarch_char_signed (gdbarch), "char");
++  TYPE_NOSIGN (objfile_type->builtin_char) = 1;
+   objfile_type->builtin_signed_char
+     = init_integer_type (objfile, TARGET_CHAR_BIT,
+ 			 0, "signed char");
+Index: gdb-7.6.1/gdb/mdebugread.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/mdebugread.c	2017-03-11 21:26:51.527852149 +0100
++++ gdb-7.6.1/gdb/mdebugread.c	2017-03-11 21:27:01.269920719 +0100
+@@ -1380,6 +1380,7 @@
+ 
+     case btChar:
+       tp = init_integer_type (objfile, 8, 0, "char");
++      TYPE_NOSIGN (tp) = 1;
+       break;
+ 
+     case btUChar:
+Index: gdb-7.6.1/gdb/stabsread.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/stabsread.c	2017-03-11 21:26:51.529852163 +0100
++++ gdb-7.6.1/gdb/stabsread.c	2017-03-11 21:27:01.271920733 +0100
+@@ -2102,6 +2102,7 @@
+       break;
+     case 2:
+       rettype = init_integer_type (objfile, 8, 0, "char");
++      TYPE_NOSIGN (rettype) = 1;
+       break;
+     case 3:
+       rettype = init_integer_type (objfile, 16, 0, "short");

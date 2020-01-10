@@ -1,0 +1,219 @@
+http://sourceware.org/ml/gdb-patches/2015-02/msg00730.html
+Subject: [PATCH 2/8] Teach GDB about targets that can tell whether a trap is a breakpoint event
+
+The moribund locations heuristics are problematic.  This patch teaches
+GDB about targets that can reliably tell whether a trap was caused by
+a software or hardware breakpoint, and thus don't need moribund
+locations, thus bypassing all the problems that mechanism has.
+
+The non-stop-fair-events.exp test is frequently failing currently.
+E.g., see https://sourceware.org/ml/gdb-testers/2015-q1/msg03148.html.
+
+The root cause is a fundamental problem with moribund locations.  For
+example, the stepped_breakpoint logic added by af48d08f breaks in this
+case (which is what happens with that test):
+
+ - Step thread A, no breakpoint is set at PC.
+
+ - The kernel doesn't schedule thread A yet.
+
+ - Insert breakpoint at A's PC, for some reason (e.g., a step-resume
+   breakpoint for thread B).
+
+ - Kernel finally schedules thread A.
+
+ - thread A's stepped_breakpoint flag is not set, even though it now
+   stepped a breakpoint instruction.
+
+ - adjust_pc_after_break gets the PC wrong, because PC == PREV_PC, but
+   stepped_breakpoint is not set.
+
+We needed the stepped_breakpoint logic to workaround moribund
+locations, because otherwise adjust_pc_after_break could apply an
+adjustment when it shouldn't just because there _used_ to be a
+breakpoint at PC (a moribund breakpoint location).  For example, on
+x86, that's wrong if the thread really hasn't executed an int3, but
+instead executed some other 1-byte long instruction.  Getting the PC
+adjustment wrong of course leads to the inferior executing the wrong
+instruction.
+
+Other problems with moribund locations are:
+
+ - if a true SIGTRAP happens to be raised when the program is
+   executing the PC that used to have a breakpoint, GDB will assume
+   that is a trap for a breakpoint that has recently been removed, and
+   thus we miss reporting the random signal to the user.
+
+ - to minimize that, we get rid of moribund location after a while.
+   That while is defined as just a certain number of events being
+   processed.  That number of events sometimes passes by before a
+   delayed breakpoint is processed, and GDB confuses the trap for a
+   random signal, thus reporting the random trap.  Once the user
+   resumes the thread, the program crashes because the PC was not
+   adjusted...
+
+The fix for all this is to bite the bullet and get rid of heuristics
+and instead rely on the target knowing accurately what caused the
+SIGTRAP.  The target/kernel/stub is in the best position to know what
+that, because it can e.g. consult priviledged CPU flags GDB has no
+access to, or by knowing which exception vector entry was called when
+the instruction trapped, etc.  Most debug APIs I've seen to date
+report breakpoint hits as a distinct event in some fashion.  For
+example, on the Linux kernel, whether a breakpoint was executed is
+exposed to userspace in the si_code field of the SIGTRAP's siginfo.
+On Windows, the debug API reports a EXCEPTION_BREAKPOINT exception
+code.
+
+We needed to keep around deleted breakpoints in an on-the-side list
+(the moribund locations) for two main reasons:
+
+  - Know that a SIGTRAP actually is a delayed event for a hit of a
+    breakpoint that was removed before the event was processed, and
+    thus should not be reported as a random signal.
+
+  - So we still do the decr_pc_after_break adjustment in that case, so
+    that the thread is resumed at the correct address.
+
+In the new model, if GDB processes an event the target tells is a
+breakpoint trap, and GDB doesn't find the corresponding breakpoint in
+its breakpoint tables, it means that event is a delayed event for a
+breakpoint that has since been removed, and thus the event should be
+ignored.
+
+For the decr_pc_after_after issue, it ends up being much simpler that
+on targets that can reliably tell whether a breakpoint trapped, for
+the breakpoint trap to present the PC already adjusted.  Proper
+multi-threading support already implies that targets needs to be doing
+decr_pc_after_break adjustment themselves, otherwise for example, in
+all-stop if two threads hit a breakpoint simultaneously, and the user
+does "info threads", he'll see the non-event thread that hit the
+breakpoint stopped at the wrong PC.
+
+This way (target adjusts) also ends up eliminating the need for some
+awkward re-incrementing of the PC in the record-full and Linux targets
+that we do today, and the need for the target_decr_pc_after_break
+hook.
+
+If the target always adjusts, then there's a case where GDB needs to
+re-increment the PC.  Say, on x86, an "int3" instruction that was
+explicitly written in the program traps.  In this case, GDB should
+report a random SIGTRAP signal to the user, with the PC pointing at
+the instruction past the int3, just like if GDB was not debugging the
+program.  The user may well decide to pass the SIGTRAP to the program
+because the program being debugged has a SIGTRAP handler that handles
+its own breakpoints, and expects the PC to be unadjusted.
+
+Tested on x86-64 Fedora 20.
+
+gdb/ChangeLog:
+2015-02-25  Pedro Alves  <palves@redhat.com>
+
+	* breakpoint.c (need_moribund_for_location_type): New function.
+	(bpstat_stop_status): Don't skipping checking moribund locations
+	of breakpoint types which the target tell caused a stop.
+	(program_breakpoint_here_p): New function, factored out from ...
+	(bp_loc_is_permanent): ... this.
+	(update_global_location_list): Don't create a moribund location if
+	the target supports reporting stops of the type of the removed
+	breakpoint.
+	* breakpoint.h (program_breakpoint_here_p): New declaration.
+	* infrun.c (adjust_pc_after_break): Return early if the target has
+	already adjusted the PC.  Add comments.
+	(handle_signal_stop): If nothing explains a signal, and the target
+	tells us the stop was caused by a software breakpoint, check if
+	there's a breakpoint instruction in the memory.  If so, adjust the
+	PC before presenting the stop to the user.  Otherwise, ignore the
+	trap.  If nothing explains a signal, and the target tells us the
+	stop was caused by a hardware breakpoint, ignore the trap.
+	* target.h (struct target_ops) <to_stopped_by_sw_breakpoint,
+	to_supports_stopped_by_sw_breakpoint, to_stopped_by_hw_breakpoint,
+	to_supports_stopped_by_hw_breakpoint>: New fields.
+	(target_stopped_by_sw_breakpoint)
+	(target_supports_stopped_by_sw_breakpoint)
+	(target_stopped_by_hw_breakpoint)
+	(target_supports_stopped_by_hw_breakpoint): Define.
+	* target-delegates.c: Regenerate.
+---
+ gdb/breakpoint.c       |  91 ++++++++++++++++++++++++------------
+ gdb/breakpoint.h       |   5 ++
+ gdb/infrun.c           |  70 +++++++++++++++++++++++++++-
+ gdb/target-delegates.c | 124 +++++++++++++++++++++++++++++++++++++++++++++++++
+ gdb/target.h           |  44 ++++++++++++++++++
+ 5 files changed, 303 insertions(+), 31 deletions(-)
+
+Index: gdb-7.6.1/gdb/target.h
+===================================================================
+--- gdb-7.6.1.orig/gdb/target.h	2016-03-13 22:01:58.833963789 +0100
++++ gdb-7.6.1/gdb/target.h	2016-03-13 22:01:59.950971809 +0100
+@@ -462,6 +462,16 @@
+     void (*to_files_info) (struct target_ops *);
+     int (*to_insert_breakpoint) (struct gdbarch *, struct bp_target_info *);
+     int (*to_remove_breakpoint) (struct gdbarch *, struct bp_target_info *);
++
++    /* Returns true if the target stopped for a hardware breakpoint.
++       Likewise, if the target supports hardware breakpoints, this
++       method is necessary for correct background execution / non-stop
++       mode operation.  Even though hardware breakpoints do not
++       require PC adjustment, GDB needs to be able to tell whether the
++       hardware breakpoint event is a delayed event for a breakpoint
++       that is already gone and should thus be ignored.  */
++    int (*to_stopped_by_hw_breakpoint) (struct target_ops *);
++
+     int (*to_can_use_hw_breakpoint) (int, int, int);
+     int (*to_ranged_break_num_registers) (struct target_ops *);
+     int (*to_insert_hw_breakpoint) (struct gdbarch *, struct bp_target_info *);
+@@ -1548,6 +1558,9 @@
+ #define target_stopped_by_watchpoint \
+    (*current_target.to_stopped_by_watchpoint)
+ 
++#define target_stopped_by_hw_breakpoint()				\
++  ((*current_target.to_stopped_by_hw_breakpoint) (&current_target))
++
+ /* Non-zero if we have steppable watchpoints  */
+ 
+ #define target_have_steppable_watchpoint \
+Index: gdb-7.6.1/gdb/infrun.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/infrun.c	2016-03-13 22:01:58.704962863 +0100
++++ gdb-7.6.1/gdb/infrun.c	2016-03-13 22:17:33.735674697 +0100
+@@ -4295,6 +4295,18 @@
+ 	ecs->event_thread->suspend.stop_signal = GDB_SIGNAL_TRAP;
+     }
+ 
++  /* Maybe this was a trap for a hardware breakpoint/watchpoint that
++     has since been removed.  */
++  if (ecs->random_signal && target_stopped_by_hw_breakpoint())
++    {
++      /* A delayed hardware breakpoint event.  Ignore the trap.  */
++      if (debug_infrun)
++	fprintf_unfiltered (gdb_stdlog,
++			    "infrun: delayed hardware breakpoint/watchpoint "
++			    "trap, ignoring\n");
++      ecs->random_signal = 0;
++    }
++
+ process_event_stop_test:
+ 
+   /* Re-fetch current thread's frame in case we did a
+Index: gdb-7.6.1/gdb/target.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/target.c	2016-03-13 22:01:58.832963782 +0100
++++ gdb-7.6.1/gdb/target.c	2016-03-13 22:17:20.367578754 +0100
+@@ -726,6 +726,7 @@
+       /* Do not inherit to_memory_map.  */
+       /* Do not inherit to_flash_erase.  */
+       /* Do not inherit to_flash_done.  */
++      INHERIT (to_stopped_by_hw_breakpoint, t);
+     }
+ #undef INHERIT
+ 
+@@ -968,6 +969,9 @@
+ 	    (int (*) (void))
+ 	    return_zero);
+   de_fault (to_execution_direction, default_execution_direction);
++  de_fault (to_stopped_by_hw_breakpoint,
++	    (int (*) (struct target_ops *))
++	    return_zero);
+ 
+ #undef de_fault
+ 

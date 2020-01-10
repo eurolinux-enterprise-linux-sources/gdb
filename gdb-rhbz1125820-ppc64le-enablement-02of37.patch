@@ -1,0 +1,34 @@
+commit 49926cd0c84887c581110fb2a471b21ff19048d2
+Author: Alan Modra <amodra@gmail.com>
+Date:   Thu Apr 25 13:22:52 2013 +0000
+
+    bfd/
+    	* config.bfd: Add powerpc64le-linux.
+    gas/
+    	* configure.in: Allow little-endian linux.
+    	* configure: Regenerate.
+    gold/
+    	* configure.tgt: Add powerpcle and powerpc64le.
+    ld/
+    	* Makefile.am (ALL_EMULATION_SOURCES): Add eelf32lppclinux.c.
+    	(eelf32lppclinux.c): New rule.
+    	* Makefile.in: Regenerate.
+    	* configure.tgt: Merge powerpc-linux and other powerpc-elf targets
+    	with corresponding little-endian targets.
+    	* emulparams/elf32lppc.sh: Update comment.
+    	* emulparams/elf32lppclinux.sh: New.
+
+Index: gdb-7.6.1/bfd/config.bfd
+===================================================================
+--- gdb-7.6.1.orig/bfd/config.bfd
++++ gdb-7.6.1/bfd/config.bfd
+@@ -1242,7 +1242,8 @@ case "${targ}" in
+     targ_selvecs="bfd_elf64_powerpcle_vec bfd_elf32_powerpc_vec bfd_elf32_powerpcle_vec rs6000coff_vec rs6000coff64_vec aix5coff64_vec"
+     want64=true
+     ;;
+-  powerpc64le-*-elf* | powerpcle-*-elf64*)
++  powerpc64le-*-elf* | powerpcle-*-elf64* | powerpc64le-*-linux* | \
++  powerpc64le-*-*bsd*)
+     targ_defvec=bfd_elf64_powerpcle_vec
+     targ_selvecs="bfd_elf64_powerpc_vec bfd_elf32_powerpcle_vec bfd_elf32_powerpc_vec rs6000coff_vec rs6000coff64_vec aix5coff64_vec"
+     want64=true

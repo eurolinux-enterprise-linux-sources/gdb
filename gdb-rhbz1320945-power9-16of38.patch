@@ -1,0 +1,30 @@
+commit dc302c00611b6973fbc55e9fdd643ad24c370bd1
+Author: Peter Bergner <bergner@vnet.ibm.com>
+Date:   Thu Jun 4 20:27:03 2015 -0500
+
+    Add hwsync extended mnemonic.
+    
+    This commit adds a new extended menmonic for "sync 0" (same as "sync").
+    The ISA documentation doesn't explicitly mention hwsync as an extended
+    mnemonic (yet), but it does mention "heavyweight sync" and "hwsync" as
+    the operation that gets performed when the sync's L field is 0.
+    This is only enabled for POWER4 and later.
+    
+    opcodes/
+            * ppc-opc.c: (powerpc_opcodes) <hwsync>: New extended mnemonic.
+    
+    gas/testsuite/
+            * gas/ppc/a2.d: Fixup test case due to new extended mnemonic.
+            * gas/ppc/power4.s <hwsync, lwsync, ptesync, sync>: Add tests.
+            * gas/ppc/power4.d: Likewise.
+
+--- a/opcodes/ppc-opc.c
++++ b/opcodes/ppc-opc.c
+@@ -5465,6 +5465,7 @@ const struct powerpc_opcode powerpc_opcodes[] = {
+ {"lswi",	X(31,597),	X_MASK,  PPCCOM|PPCVLE, E500|E500MC,	{RT, RAX, NBI}},
+ {"lsi",		X(31,597),	X_MASK,      PWRCOM,	PPCNONE,	{RT, RA0, NB}},
+ 
++{"hwsync",	XSYNC(31,598,0), 0xffffffff, POWER4,	BOOKE|PPC476,	{0}},
+ {"lwsync",	XSYNC(31,598,1), 0xffffffff, PPC,	E500,		{0}},
+ {"ptesync",	XSYNC(31,598,2), 0xffffffff, PPC64,	PPCNONE,	{0}},
+ {"sync",	X(31,598),	XSYNCLE_MASK,E6500,	PPCNONE,	{LS, ESYNC}},

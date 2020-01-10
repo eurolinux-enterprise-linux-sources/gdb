@@ -1,0 +1,215 @@
+commit 49f190bcb7f074ea2e27d4e967e4fae9ed7dafb6
+Author: Ulrich Weigand <ulrich.weigand@de.ibm.com>
+Date:   Tue Sep 6 17:31:03 2016 +0200
+
+    Add missing format for built-in floating-point types
+    
+    Many callers of init_float_type and arch_float_type still pass a NULL
+    floatformat.  This commit changes those callers where the floatformat
+    that is supposed to be use is obvious.  There are two categories where
+    this is the case:
+    
+    - A number of built-in types are intended to match the platform ABI
+      floating-point types (i.e. types that use gdbarch_float_bit etc.).
+      Those places should use the platform ABI floating-point formats
+      defined via gdbarch_float_format etc.
+    
+    - A number of language built-in types should simply use IEEE floating-
+      point formats, since the language actually defines that this is the
+      format that must be used to implement floating-point types for this
+      language.  (This affects Java, Go, and Rust.)  The same applies for
+      to the predefined "RS/6000" stabs floating-point built-in types.
+    
+    gdb/ChangeLog:
+    
+            * ada-lang.c (ada_language_arch_info): Use gdbarch-provided
+            platform ABI floating-point formats for built-in types.
+            * d-lang.c (build_d_types): Likewise.
+            * f-lang.c (build_fortran_types): Likewise.
+            * m2-lang.c (build_m2_types): Likewise.
+            * mdebugread.c (basic_type): Likewise.
+    
+            * go-lang.c (build_go_types): Use IEEE floating-point formats
+            for language built-in types as mandanted by the language.
+            * jv-lang.c (build_java_types): Likewise.
+            * rust-lang.c (rust_language_arch_info): Likewise.
+            * stabsread.c (rs6000_builtin_type): Likewise.
+    
+    Signed-off-by: Ulrich Weigand <ulrich.weigand@de.ibm.com>
+
+### a/gdb/ChangeLog
+### b/gdb/ChangeLog
+## -1,5 +1,20 @@
+ 2016-09-05  Ulrich Weigand  <uweigand@de.ibm.com>
+ 
++	* ada-lang.c (ada_language_arch_info): Use gdbarch-provided
++	platform ABI floating-point formats for built-in types.
++	* d-lang.c (build_d_types): Likewise.
++	* f-lang.c (build_fortran_types): Likewise.
++	* m2-lang.c (build_m2_types): Likewise.
++	* mdebugread.c (basic_type): Likewise.
++
++	* go-lang.c (build_go_types): Use IEEE floating-point formats
++	for language built-in types as mandanted by the language.
++	* jv-lang.c (build_java_types): Likewise.
++	* rust-lang.c (rust_language_arch_info): Likewise.
++	* stabsread.c (rs6000_builtin_type): Likewise.
++
++2016-09-05  Ulrich Weigand  <uweigand@de.ibm.com>
++
+ 	* gdbtypes.c (init_type): Remove "char" special case.
+ 	(arch_integer_type): Likewise.
+ 	(gdbtypes_post_init): Set TYPE_NOSIGN for "char" type.
+Index: gdb-7.6.1/gdb/ada-lang.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/ada-lang.c	2017-03-11 21:30:58.630560198 +0100
++++ gdb-7.6.1/gdb/ada-lang.c	2017-03-11 21:31:01.661580871 +0100
+@@ -12666,16 +12666,16 @@
+     = arch_integer_type (gdbarch, TARGET_CHAR_BIT, 0, "character");
+   lai->primitive_type_vector [ada_primitive_type_float]
+     = arch_float_type (gdbarch, gdbarch_float_bit (gdbarch),
+-		       "float", NULL);
++		       "float", gdbarch_float_format (gdbarch));
+   lai->primitive_type_vector [ada_primitive_type_double]
+     = arch_float_type (gdbarch, gdbarch_double_bit (gdbarch),
+-		       "long_float", NULL);
++		       "long_float", gdbarch_double_format (gdbarch));
+   lai->primitive_type_vector [ada_primitive_type_long_long]
+     = arch_integer_type (gdbarch, gdbarch_long_long_bit (gdbarch),
+ 			 0, "long_long_integer");
+   lai->primitive_type_vector [ada_primitive_type_long_double]
+     = arch_float_type (gdbarch, gdbarch_long_double_bit (gdbarch),
+-		       "long_long_float", NULL);
++		       "long_long_float", gdbarch_long_double_format (gdbarch));
+   lai->primitive_type_vector [ada_primitive_type_natural]
+     = arch_integer_type (gdbarch, gdbarch_int_bit (gdbarch),
+ 			 0, "natural");
+Index: gdb-7.6.1/gdb/f-lang.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/f-lang.c	2017-03-11 21:30:58.631560204 +0100
++++ gdb-7.6.1/gdb/f-lang.c	2017-03-11 21:31:01.662580878 +0100
+@@ -312,13 +312,13 @@
+ 
+   builtin_f_type->builtin_real
+     = arch_float_type (gdbarch, gdbarch_float_bit (gdbarch),
+-		       "real", NULL);
++		       "real", gdbarch_float_format (gdbarch));
+   builtin_f_type->builtin_real_s8
+     = arch_float_type (gdbarch, gdbarch_double_bit (gdbarch),
+-		       "real*8", NULL);
++		       "real*8", gdbarch_double_format (gdbarch));
+   builtin_f_type->builtin_real_s16
+     = arch_float_type (gdbarch, gdbarch_long_double_bit (gdbarch),
+-		       "real*16", NULL);
++		       "real*16", gdbarch_long_double_format (gdbarch));
+ 
+   builtin_f_type->builtin_complex_s8
+     = arch_complex_type (gdbarch, "complex*8",
+Index: gdb-7.6.1/gdb/go-lang.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/go-lang.c	2017-03-11 21:30:58.632560211 +0100
++++ gdb-7.6.1/gdb/go-lang.c	2017-03-11 21:31:01.662580878 +0100
+@@ -634,9 +634,9 @@
+   builtin_go_type->builtin_uint64
+     = arch_integer_type (gdbarch, 64, 1, "uint64");
+   builtin_go_type->builtin_float32
+-    = arch_float_type (gdbarch, 32, "float32", NULL);
++    = arch_float_type (gdbarch, 32, "float32", floatformats_ieee_single);
+   builtin_go_type->builtin_float64
+-    = arch_float_type (gdbarch, 64, "float64", NULL);
++    = arch_float_type (gdbarch, 64, "float64", floatformats_ieee_double);
+   builtin_go_type->builtin_complex64
+     = arch_complex_type (gdbarch, "complex64",
+ 			 builtin_go_type->builtin_float32);
+Index: gdb-7.6.1/gdb/jv-lang.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/jv-lang.c	2017-03-11 21:30:58.632560211 +0100
++++ gdb-7.6.1/gdb/jv-lang.c	2017-03-11 21:31:01.662580878 +0100
+@@ -1220,9 +1220,9 @@
+   builtin_java_type->builtin_char
+     = arch_character_type (gdbarch, 16, 1, "char");
+   builtin_java_type->builtin_float
+-    = arch_float_type (gdbarch, 32, "float", NULL);
++    = arch_float_type (gdbarch, 32, "float", floatformats_ieee_single);
+   builtin_java_type->builtin_double
+-    = arch_float_type (gdbarch, 64, "double", NULL);
++    = arch_float_type (gdbarch, 64, "double", floatformats_ieee_double);
+   builtin_java_type->builtin_void
+     = arch_type (gdbarch, TYPE_CODE_VOID, 1, "void");
+ 
+Index: gdb-7.6.1/gdb/m2-lang.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/m2-lang.c	2017-03-11 21:30:58.633560218 +0100
++++ gdb-7.6.1/gdb/m2-lang.c	2017-03-11 21:31:01.662580878 +0100
+@@ -406,7 +406,8 @@
+   builtin_m2_type->builtin_card
+     = arch_integer_type (gdbarch, gdbarch_int_bit (gdbarch), 1, "CARDINAL");
+   builtin_m2_type->builtin_real
+-    = arch_float_type (gdbarch, gdbarch_float_bit (gdbarch), "REAL", NULL);
++    = arch_float_type (gdbarch, gdbarch_float_bit (gdbarch), "REAL",
++		       gdbarch_float_format (gdbarch));
+   builtin_m2_type->builtin_char
+     = arch_character_type (gdbarch, TARGET_CHAR_BIT, 1, "CHAR");
+   builtin_m2_type->builtin_bool
+Index: gdb-7.6.1/gdb/mdebugread.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/mdebugread.c	2017-03-11 21:30:58.634560225 +0100
++++ gdb-7.6.1/gdb/mdebugread.c	2017-03-11 21:31:01.664580891 +0100
+@@ -1413,12 +1413,12 @@
+ 
+     case btFloat:
+       tp = init_float_type (objfile, gdbarch_float_bit (gdbarch),
+-			    "float", NULL);
++			    "float", gdbarch_float_format (gdbarch));
+       break;
+ 
+     case btDouble:
+       tp = init_float_type (objfile, gdbarch_double_bit (gdbarch),
+-			    "double", NULL);
++			    "double", gdbarch_double_format (gdbarch));
+       break;
+ 
+     case btComplex:
+Index: gdb-7.6.1/gdb/stabsread.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/stabsread.c	2017-03-11 21:30:58.636560239 +0100
++++ gdb-7.6.1/gdb/stabsread.c	2017-03-11 21:31:01.665580898 +0100
+@@ -2133,17 +2133,20 @@
+       break;
+     case 12:
+       /* IEEE single precision (32 bit).  */
+-      rettype = init_float_type (objfile, 32, "float", NULL);
++      rettype = init_float_type (objfile, 32, "float",
++				 floatformats_ieee_single);
+       break;
+     case 13:
+       /* IEEE double precision (64 bit).  */
+-      rettype = init_float_type (objfile, 64, "double", NULL);
++      rettype = init_float_type (objfile, 64, "double",
++				 floatformats_ieee_double);
+       break;
+     case 14:
+       /* This is an IEEE double on the RS/6000, and different machines with
+          different sizes for "long double" should use different negative
+          type numbers.  See stabs.texinfo.  */
+-      rettype = init_float_type (objfile, 64, "long double", NULL);
++      rettype = init_float_type (objfile, 64, "long double",
++				 floatformats_ieee_double);
+       break;
+     case 15:
+       rettype = init_integer_type (objfile, 32, 0, "integer");
+@@ -2152,10 +2155,12 @@
+       rettype = init_boolean_type (objfile, 32, 1, "boolean");
+       break;
+     case 17:
+-      rettype = init_float_type (objfile, 32, "short real", NULL);
++      rettype = init_float_type (objfile, 32, "short real",
++				 floatformats_ieee_single);
+       break;
+     case 18:
+-      rettype = init_float_type (objfile, 64, "real", NULL);
++      rettype = init_float_type (objfile, 64, "real",
++				 floatformats_ieee_double);
+       break;
+     case 19:
+       rettype = init_type (objfile, TYPE_CODE_ERROR, 0, "stringptr");

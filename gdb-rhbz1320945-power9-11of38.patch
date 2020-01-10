@@ -1,0 +1,437 @@
+commit cd21f5daad4335b50366b838664ade64bec29957
+Author: Nick Clifton <nickc@redhat.com>
+Date:   Thu Jan 15 16:22:55 2015 +0000
+
+    Fix memory access violations triggered by running objdump on fuzzed binaries.
+    
+            PR binutils/17512
+            * elf-m10300.c (mn10300_info_to_howto): Replace assertion with an
+            error message.  Never return an invalid howto pointer.
+            * elf32-cr16.c (cr16_info_to_howto): Likewise.
+            * elf32-crx.c (elf_crx_info_to_howto): Likewise.
+            * elf32-i370.c (i370_elf_info_to_howto): Likewise.
+            * elf32-mcore.c (mcore_elf_info_to_howto): Likewise.
+            * elf32-microblaze.c (microblaze_elf_info_to_howto): Likewise.
+            * elf32-mips.c (mips_elf32_rtype_to_howto): Likewise.
+            * elf32-pj.c (pj_elf_info_to_howto): Likewise.
+            * elf32-ppc.c (ppc_elf_info_to_howto): Likewise.
+            * elf32-spu.c (spu_elf_info_to_howto): Likewise.
+            * elf32-v850.c (v850_elf_info_to_howto_rela): Likewise.
+            * elf32-vax.c (rtype_to_howto): Likewise.
+            * elf64-alpha.c (elf64_alpha_info_to_howto): Likewise.
+            * elf64-mips.c (mips_elf64_rtype_to_howto): Likewise.
+            * elfn32-mips.c (sh_elf_info_to_howto): Likewise.
+            * elf32-sh.c (sh_elf_info_to_howto): Likewise.
+            (sh_elf_reloc): Check that the reloc is in range.
+            * reloc.c (bfd_perform_relocation): Check that the section is big
+            enough for the entire reloc.
+            (bfd_generic_get_relocated_section_contents): Report unexpected
+            return values from perform_reloc.
+
+### a/bfd/ChangeLog
+### b/bfd/ChangeLog
+## -1,5 +1,31 @@
+ 2015-01-15  Nick Clifton  <nickc@redhat.com>
+ 
++	PR binutils/17512
++	* elf-m10300.c (mn10300_info_to_howto): Replace assertion with an
++	error message.  Never return an invalid howto pointer.
++	* elf32-cr16.c (cr16_info_to_howto): Likewise.
++	* elf32-crx.c (elf_crx_info_to_howto): Likewise.
++	* elf32-i370.c (i370_elf_info_to_howto): Likewise.
++	* elf32-mcore.c (mcore_elf_info_to_howto): Likewise.
++	* elf32-microblaze.c (microblaze_elf_info_to_howto): Likewise.
++	* elf32-mips.c (mips_elf32_rtype_to_howto): Likewise.
++	* elf32-pj.c (pj_elf_info_to_howto): Likewise.
++	* elf32-ppc.c (ppc_elf_info_to_howto): Likewise.
++	* elf32-spu.c (spu_elf_info_to_howto): Likewise.
++	* elf32-v850.c (v850_elf_info_to_howto_rela): Likewise.
++	* elf32-vax.c (rtype_to_howto): Likewise.
++	* elf64-alpha.c (elf64_alpha_info_to_howto): Likewise.
++	* elf64-mips.c (mips_elf64_rtype_to_howto): Likewise.
++	* elfn32-mips.c (sh_elf_info_to_howto): Likewise.
++	* elf32-sh.c (sh_elf_info_to_howto): Likewise.
++	(sh_elf_reloc): Check that the reloc is in range.
++	* reloc.c (bfd_perform_relocation): Check that the section is big
++	enough for the entire reloc.
++	(bfd_generic_get_relocated_section_contents): Report unexpected
++	return values from perform_reloc.
++
++2015-01-15  Nick Clifton  <nickc@redhat.com>
++
+ 	* elf32-msp430.c (msp430_elf_relax_section): Skip unhandled
+ 	relocs.  Include PC-relative adjustment for R_MSP430X_ABS16
+ 	relaxation.
+--- a/bfd/elf-m10300.c
++++ b/bfd/elf-m10300.c
+@@ -806,7 +806,13 @@ mn10300_info_to_howto (bfd *abfd ATTRIBUTE_UNUSED,
+   unsigned int r_type;
+ 
+   r_type = ELF32_R_TYPE (dst->r_info);
+-  BFD_ASSERT (r_type < (unsigned int) R_MN10300_MAX);
++  if (r_type >= R_MN10300_MAX)
++    {
++      (*_bfd_error_handler) (_("%A: unrecognised MN10300 reloc number: %d"),
++			     abfd, r_type);
++      bfd_set_error (bfd_error_bad_value);
++      r_type = R_MN10300_NONE;
++    }
+   cache_ptr->howto = elf_mn10300_howto_table + r_type;
+ }
+ 
+--- a/bfd/elf32-cr16.c
++++ b/bfd/elf32-cr16.c
+@@ -673,7 +673,13 @@ elf_cr16_info_to_howto (bfd *abfd ATTRIBUTE_UNUSED, arelent *cache_ptr,
+ {
+   unsigned int r_type = ELF32_R_TYPE (dst->r_info);
+ 
+-  BFD_ASSERT (r_type < (unsigned int) R_CR16_MAX);
++  if (r_type >= R_CR16_MAX)
++    {
++      (*_bfd_error_handler) (_("%A: unrecognised CR16 reloc number: %d"),
++			     abfd, r_type);
++      bfd_set_error (bfd_error_bad_value);
++      r_type = R_CR16_NONE;
++    }
+   cache_ptr->howto = cr16_elf_howto_table + r_type;
+ }
+ 
+--- a/bfd/elf32-crx.c
++++ b/bfd/elf32-crx.c
+@@ -423,7 +423,13 @@ elf_crx_info_to_howto (bfd *abfd ATTRIBUTE_UNUSED, arelent *cache_ptr,
+ 		       Elf_Internal_Rela *dst)
+ {
+   unsigned int r_type = ELF32_R_TYPE (dst->r_info);
+-  BFD_ASSERT (r_type < (unsigned int) R_CRX_MAX);
++  if (r_type >= R_CRX_MAX)
++    {
++      (*_bfd_error_handler) (_("%A: unrecognised CRX reloc number: %d"),
++			     abfd, r_type);
++      bfd_set_error (bfd_error_bad_value);
++      r_type = R_CRX_NONE;
++    }
+   cache_ptr->howto = &crx_elf_howto_table[r_type];
+ }
+ 
+--- a/bfd/elf32-i370.c
++++ b/bfd/elf32-i370.c
+@@ -294,12 +294,21 @@ i370_elf_info_to_howto (bfd *abfd ATTRIBUTE_UNUSED,
+ 			arelent *cache_ptr,
+ 			Elf_Internal_Rela *dst)
+ {
++  unsigned int r_type;
++
+   if (!i370_elf_howto_table[ R_I370_ADDR31 ])
+     /* Initialize howto table.  */
+     i370_elf_howto_init ();
+ 
+-  BFD_ASSERT (ELF32_R_TYPE (dst->r_info) < (unsigned int) R_I370_max);
+-  cache_ptr->howto = i370_elf_howto_table[ELF32_R_TYPE (dst->r_info)];
++  r_type = ELF32_R_TYPE (dst->r_info);
++  if (r_type >= R_I370_max)
++    {
++      (*_bfd_error_handler) (_("%A: unrecognised I370 reloc number: %d"),
++			     abfd, r_type);
++      bfd_set_error (bfd_error_bad_value);
++      r_type = R_I370_NONE;
++    }
++  cache_ptr->howto = i370_elf_howto_table[r_type];
+ }
+ 
+ /* Hack alert --  the following several routines look generic to me ...
+--- a/bfd/elf32-mcore.c
++++ b/bfd/elf32-mcore.c
+@@ -340,13 +340,22 @@ mcore_elf_info_to_howto (bfd * abfd ATTRIBUTE_UNUSED,
+ 			 arelent * cache_ptr,
+ 			 Elf_Internal_Rela * dst)
+ {
++  unsigned int r_type;
++
+   if (! mcore_elf_howto_table [R_MCORE_PCRELIMM8BY4])
+     /* Initialize howto table if needed.  */
+     mcore_elf_howto_init ();
+ 
+-  BFD_ASSERT (ELF32_R_TYPE (dst->r_info) < (unsigned int) R_MCORE_max);
++  r_type = ELF32_R_TYPE (dst->r_info);
++  if (r_type >= R_MCORE_max)
++    {
++      (*_bfd_error_handler) (_("%A: unrecognised MCore reloc number: %d"),
++			     abfd, r_type);
++      bfd_set_error (bfd_error_bad_value);
++      r_type = R_MCORE_NONE;
++    }
+ 
+-  cache_ptr->howto = mcore_elf_howto_table [ELF32_R_TYPE (dst->r_info)];
++  cache_ptr->howto = mcore_elf_howto_table [r_type];
+ }
+ 
+ /* The RELOCATE_SECTION function is called by the ELF backend linker
+--- a/bfd/elf32-microblaze.c
++++ b/bfd/elf32-microblaze.c
+@@ -643,13 +643,22 @@ microblaze_elf_info_to_howto (bfd * abfd ATTRIBUTE_UNUSED,
+ 			      arelent * cache_ptr,
+ 			      Elf_Internal_Rela * dst)
+ {
++  unsigned int r_type;
++
+   if (!microblaze_elf_howto_table [R_MICROBLAZE_32])
+     /* Initialize howto table if needed.  */
+     microblaze_elf_howto_init ();
+ 
+-  BFD_ASSERT (ELF32_R_TYPE (dst->r_info) < (unsigned int) R_MICROBLAZE_max);
++  r_type = ELF32_R_TYPE (dst->r_info);
++  if (r_type >= R_MICROBLAZE_max)
++    {
++      (*_bfd_error_handler) (_("%A: unrecognised MicroBlaze reloc number: %d"),
++			     abfd, r_type);
++      bfd_set_error (bfd_error_bad_value);
++      r_type = R_MICROBLAZE_NONE;
++    }
+ 
+-  cache_ptr->howto = microblaze_elf_howto_table [ELF32_R_TYPE (dst->r_info)];
++  cache_ptr->howto = microblaze_elf_howto_table [r_type];
+ }
+ 
+ /* Microblaze ELF local labels start with 'L.' or '$L', not '.L'.  */
+--- a/bfd/elf32-mips.c
++++ b/bfd/elf32-mips.c
+@@ -2204,7 +2204,12 @@ mips_elf32_rtype_to_howto (unsigned int r_type,
+ 	return &elf_micromips_howto_table_rel[r_type - R_MICROMIPS_min];
+       if (r_type >= R_MIPS16_min && r_type < R_MIPS16_max)
+         return &elf_mips16_howto_table_rel[r_type - R_MIPS16_min];
+-      BFD_ASSERT (r_type < (unsigned int) R_MIPS_max);
++      if (r_type >= (unsigned int) R_MIPS_max)
++	{
++	  (*_bfd_error_handler) (_("Unrecognised MIPS reloc number: %d"), r_type);
++	  bfd_set_error (bfd_error_bad_value);
++	  r_type = R_MIPS_NONE;
++	}
+       return &elf_mips_howto_table_rel[r_type];
+     }
+ }
+--- a/bfd/elf32-pj.c
++++ b/bfd/elf32-pj.c
+@@ -319,7 +319,13 @@ pj_elf_info_to_howto (bfd *abfd ATTRIBUTE_UNUSED,
+ 
+   r = ELF32_R_TYPE (dst->r_info);
+ 
+-  BFD_ASSERT (r < (unsigned int) R_PJ_max);
++  if (r >= R_PJ_max)
++    {
++      (*_bfd_error_handler) (_("%A: unrecognised PicoJava reloc number: %d"),
++			     abfd, r);
++      bfd_set_error (bfd_error_bad_value);
++      r = R_PJ_NONE;
++    }
+ 
+   cache_ptr->howto = &pj_elf_howto_table[r];
+ }
+--- a/bfd/elf32-ppc.c
++++ b/bfd/elf32-ppc.c
+@@ -2019,19 +2019,28 @@ ppc_elf_info_to_howto (bfd *abfd ATTRIBUTE_UNUSED,
+ 		       arelent *cache_ptr,
+ 		       Elf_Internal_Rela *dst)
+ {
++  unsigned int r_type;
++
+   /* Initialize howto table if not already done.  */
+   if (!ppc_elf_howto_table[R_PPC_ADDR32])
+     ppc_elf_howto_init ();
+ 
+-  BFD_ASSERT (ELF32_R_TYPE (dst->r_info) < (unsigned int) R_PPC_max);
+-  cache_ptr->howto = ppc_elf_howto_table[ELF32_R_TYPE (dst->r_info)];
++  r_type = ELF32_R_TYPE (dst->r_info);
++  if (r_type >= R_PPC_max)
++    {
++      (*_bfd_error_handler) (_("%A: unrecognised PPC reloc number: %d"),
++			     abfd, r_type);
++      bfd_set_error (bfd_error_bad_value);
++      r_type = R_PPC_NONE;
++    }
++  cache_ptr->howto = ppc_elf_howto_table[r_type];
+ 
+   /* Just because the above assert didn't trigger doesn't mean that
+      ELF32_R_TYPE (dst->r_info) is necessarily a valid relocation.  */
+   if (!cache_ptr->howto)
+     {
+       (*_bfd_error_handler) (_("%B: invalid relocation type %d"),
+-                             abfd, ELF32_R_TYPE (dst->r_info));
++                             abfd, r_type);
+       bfd_set_error (bfd_error_bad_value);
+ 
+       cache_ptr->howto = ppc_elf_howto_table[R_PPC_NONE];
+--- a/bfd/elf32-sh.c
++++ b/bfd/elf32-sh.c
+@@ -255,6 +255,13 @@ sh_elf_reloc (bfd *abfd, arelent *reloc_entry, asymbol *symbol_in,
+       && bfd_is_und_section (symbol_in->section))
+     return bfd_reloc_undefined;
+ 
++  /* PR 17512: file: 9891ca98.  */
++  if (addr > bfd_get_section_limit (abfd, input_section)
++      - bfd_get_reloc_size (reloc_entry->howto)
++      || bfd_get_reloc_size (reloc_entry->howto)
++      > bfd_get_section_limit (abfd, input_section))
++    return bfd_reloc_outofrange;
++
+   if (bfd_is_com_section (symbol_in->section))
+     sym_value = 0;
+   else
+@@ -474,13 +481,19 @@ sh_elf_info_to_howto (bfd *abfd, arelent *cache_ptr, Elf_Internal_Rela *dst)
+ 
+   r = ELF32_R_TYPE (dst->r_info);
+ 
+-  BFD_ASSERT (r < (unsigned int) R_SH_max);
+-  BFD_ASSERT (r < R_SH_FIRST_INVALID_RELOC || r > R_SH_LAST_INVALID_RELOC);
+-  BFD_ASSERT (r < R_SH_FIRST_INVALID_RELOC_2 || r > R_SH_LAST_INVALID_RELOC_2);
+-  BFD_ASSERT (r < R_SH_FIRST_INVALID_RELOC_3 || r > R_SH_LAST_INVALID_RELOC_3);
+-  BFD_ASSERT (r < R_SH_FIRST_INVALID_RELOC_4 || r > R_SH_LAST_INVALID_RELOC_4);
+-  BFD_ASSERT (r < R_SH_FIRST_INVALID_RELOC_5 || r > R_SH_LAST_INVALID_RELOC_5);
+-  BFD_ASSERT (r < R_SH_FIRST_INVALID_RELOC_6 || r > R_SH_LAST_INVALID_RELOC_6);
++  if (r >= R_SH_max
++      || (r >= R_SH_FIRST_INVALID_RELOC   && r <= R_SH_LAST_INVALID_RELOC)
++      || (r >= R_SH_FIRST_INVALID_RELOC_2 && r <= R_SH_LAST_INVALID_RELOC_2)
++      || (r >= R_SH_FIRST_INVALID_RELOC_3 && r <= R_SH_LAST_INVALID_RELOC_3)
++      || (r >= R_SH_FIRST_INVALID_RELOC_4 && r <= R_SH_LAST_INVALID_RELOC_4)
++      || (r >= R_SH_FIRST_INVALID_RELOC_5 && r <= R_SH_LAST_INVALID_RELOC_5)
++      || (r >= R_SH_FIRST_INVALID_RELOC_6 && r <= R_SH_LAST_INVALID_RELOC_6))
++    {
++      (*_bfd_error_handler) (_("%A: unrecognised SH reloc number: %d"),
++			     abfd, r);
++      bfd_set_error (bfd_error_bad_value);
++      r = R_SH_NONE;
++    }
+ 
+   cache_ptr->howto = get_howto_table (abfd) + r;
+ }
+--- a/bfd/elf32-spu.c
++++ b/bfd/elf32-spu.c
+@@ -151,7 +151,14 @@ spu_elf_info_to_howto (bfd *abfd ATTRIBUTE_UNUSED,
+   enum elf_spu_reloc_type r_type;
+ 
+   r_type = (enum elf_spu_reloc_type) ELF32_R_TYPE (dst->r_info);
+-  BFD_ASSERT (r_type < R_SPU_max);
++  /* PR 17512: file: 90c2a92e.  */
++  if (r_type >= R_SPU_max)
++    {
++      (*_bfd_error_handler) (_("%A: unrecognised SPU reloc number: %d"),
++			     abfd, r_type);
++      bfd_set_error (bfd_error_bad_value);
++      r_type = R_SPU_NONE;
++    }
+   cache_ptr->howto = &elf_howto_table[(int) r_type];
+ }
+ 
+--- a/bfd/elf32-v850.c
++++ b/bfd/elf32-v850.c
+@@ -1914,7 +1914,11 @@ v850_elf_info_to_howto_rela (bfd *abfd ATTRIBUTE_UNUSED,
+   unsigned int r_type;
+ 
+   r_type = ELF32_R_TYPE (dst->r_info);
+-  BFD_ASSERT (r_type < (unsigned int) R_V850_max);
++  if (r_type >= (unsigned int) R_V850_max)
++    {
++      _bfd_error_handler (_("%A: invalid V850 reloc number: %d"), abfd, r_type);
++      r_type = 0;
++    }
+   cache_ptr->howto = &v850_elf_howto_table[r_type];
+ }
+ 
+--- a/bfd/elf32-vax.c
++++ b/bfd/elf32-vax.c
+@@ -283,8 +283,17 @@ static void
+ rtype_to_howto (bfd *abfd ATTRIBUTE_UNUSED, arelent *cache_ptr,
+ 		Elf_Internal_Rela *dst)
+ {
+-  BFD_ASSERT (ELF32_R_TYPE(dst->r_info) < (unsigned int) R_VAX_max);
+-  cache_ptr->howto = &howto_table[ELF32_R_TYPE(dst->r_info)];
++  unsigned int r_type;
++
++  r_type = ELF32_R_TYPE (dst->r_info);
++  if (r_type >= R_VAX_max)
++    {
++      (*_bfd_error_handler) (_("%A: unrecognised VAX reloc number: %d"),
++			     abfd, r_type);
++      bfd_set_error (bfd_error_bad_value);
++      r_type = R_VAX_NONE;
++    }
++  cache_ptr->howto = &howto_table[r_type];
+ }
+ 
+ #define elf_info_to_howto rtype_to_howto
+--- a/bfd/elf64-alpha.c
++++ b/bfd/elf64-alpha.c
+@@ -1105,7 +1105,14 @@ elf64_alpha_info_to_howto (bfd *abfd ATTRIBUTE_UNUSED, arelent *cache_ptr,
+ 			   Elf_Internal_Rela *dst)
+ {
+   unsigned r_type = ELF64_R_TYPE(dst->r_info);
+-  BFD_ASSERT (r_type < (unsigned int) R_ALPHA_max);
++
++  if (r_type >= R_ALPHA_max)
++    {
++      (*_bfd_error_handler) (_("%A: unrecognised Alpha reloc number: %d"),
++			     abfd, r_type);
++      bfd_set_error (bfd_error_bad_value);
++      r_type = R_ALPHA_NONE;
++    }
+   cache_ptr->howto = &elf64_alpha_howto_table[r_type];
+ }
+ 
+--- a/bfd/elf64-mips.c
++++ b/bfd/elf64-mips.c
+@@ -3585,7 +3585,12 @@ mips_elf64_rtype_to_howto (unsigned int r_type, bfd_boolean rela_p)
+ 	  else
+ 	    return &mips16_elf64_howto_table_rel[r_type - R_MIPS16_min];
+ 	}
+-      BFD_ASSERT (r_type < (unsigned int) R_MIPS_max);
++      if (r_type >= R_MIPS_max)
++	{
++	  (*_bfd_error_handler) (_("unrecognised MIPS reloc number: %d"), r_type);
++	  bfd_set_error (bfd_error_bad_value);
++	  r_type = R_MIPS_NONE;
++	}
+       if (rela_p)
+ 	return &mips_elf64_howto_table_rela[r_type];
+       else
+--- a/bfd/elfn32-mips.c
++++ b/bfd/elfn32-mips.c
+@@ -3403,7 +3403,12 @@ mips_elf_n32_rtype_to_howto (unsigned int r_type, bfd_boolean rela_p)
+ 	  else
+ 	    return &elf_mips16_howto_table_rel[r_type - R_MIPS16_min];
+ 	}
+-      BFD_ASSERT (r_type < (unsigned int) R_MIPS_max);
++      if (r_type >= R_MIPS_max)
++	{
++	  (*_bfd_error_handler) (_("unrecognised MIPS reloc number: %d"), r_type);
++	  bfd_set_error (bfd_error_bad_value);
++	  r_type = R_MIPS_NONE;
++	}
+       if (rela_p)
+ 	return &elf_mips_howto_table_rela[r_type];
+       else
+--- a/bfd/reloc.c
++++ b/bfd/reloc.c
+@@ -623,7 +623,10 @@ bfd_perform_relocation (bfd *abfd,
+       /* PR 17512: file: c146ab8b.
+ 	 PR 17512: file: 46dff27f.
+ 	 Include the size of the reloc in the test for out of range addresses.  */
+-      - bfd_get_reloc_size (howto))
++      - bfd_get_reloc_size (howto)
++      /* PR 17512: file: 38e53ebf
++	 Add make sure that there is enough room for the relocation to be applied.  */
++      || bfd_get_reloc_size (howto) > bfd_get_section_limit (abfd, input_section))
+     return bfd_reloc_outofrange;
+ 
+   /* Work out which section the relocation is targeted at and the
+@@ -7691,7 +7694,11 @@ bfd_generic_get_relocated_section_contents (bfd *abfd,
+ 		  goto error_return;
+ 
+ 		default:
+-		  abort ();
++		  /* PR 17512; file: 90c2a92e.
++		     Report unexpected results, without aborting.  */
++		  link_info->callbacks->einfo
++		    (_("%X%P: %B(%A): relocation \"%R\" returns an unrecognized value %x\n"),
++		     abfd, input_section, * parent, r);
+ 		  break;
+ 		}
+ 

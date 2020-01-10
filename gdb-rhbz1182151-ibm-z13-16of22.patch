@@ -1,0 +1,346 @@
+commit 417c80f9e456477935cdc74461d35630dfdbfdff
+Author: Andreas Arnez <arnez@linux.vnet.ibm.com>
+Date:   Mon Apr 27 11:38:47 2015 +0200
+
+    S390: Vector ABI support
+    
+    With the S390 vector ABI, vector registers are used for passing vector
+    arguments and for returning a vector.  Support this ABI in inferior
+    function calls and when setting or retrieving a function's return
+    value.
+    
+    gdb/ChangeLog:
+    
+    	* s390-linux-tdep.c: Include "elf/s390.h" and "elf-bfd.h".
+    	(enum s390_vector_abi_kind): New enum.
+    	(struct gdbarch_tdep)<vector_abi>: New field.
+    	(s390_effective_inner_type): Add parameter min_size.  Stop
+    	unwrapping if the inner type is smaller than min_size.
+    	(s390_function_arg_float): Adjust call to
+    	s390_effective_inner_type.
+    	(s390_function_arg_vector): New function.
+    	(s390_function_arg_integer): Adjust comment.
+    	(struct s390_arg_state)<vr>: New field.
+    	(s390_handle_arg): Add parameter 'is_unnamed'.  Pass vector
+    	arguments according to vector ABI when appropriate.
+    	(s390_push_dummy_call): Initialize the argument state's field
+    	'vr'.  Adjust calls to s390_handle_arg.
+    	(s390_register_return_value): Handle vector return values.
+    	(s390_return_value): Apply the "register" return value convention
+    	to a vector when appropriate.
+    	(s390_gdbarch_init): Initialize tdep->vector_abi.
+    	* NEWS: Announce S390 vector ABI support.
+
+### a/gdb/ChangeLog
+### b/gdb/ChangeLog
+## -1,5 +1,27 @@
+ 2015-04-27  Andreas Arnez  <arnez@linux.vnet.ibm.com>
+ 
++	* s390-linux-tdep.c: Include "elf/s390.h" and "elf-bfd.h".
++	(enum s390_vector_abi_kind): New enum.
++	(struct gdbarch_tdep)<vector_abi>: New field.
++	(s390_effective_inner_type): Add parameter min_size.  Stop
++	unwrapping if the inner type is smaller than min_size.
++	(s390_function_arg_float): Adjust call to
++	s390_effective_inner_type.
++	(s390_function_arg_vector): New function.
++	(s390_function_arg_integer): Adjust comment.
++	(struct s390_arg_state)<vr>: New field.
++	(s390_handle_arg): Add parameter 'is_unnamed'.  Pass vector
++	arguments according to vector ABI when appropriate.
++	(s390_push_dummy_call): Initialize the argument state's field
++	'vr'.  Adjust calls to s390_handle_arg.
++	(s390_register_return_value): Handle vector return values.
++	(s390_return_value): Apply the "register" return value convention
++	to a vector when appropriate.
++	(s390_gdbarch_init): Initialize tdep->vector_abi.
++	* NEWS: Announce S390 vector ABI support.
++
++2015-04-27  Andreas Arnez  <arnez@linux.vnet.ibm.com>
++
+ 	* s390-linux-tdep.c (s390_return_value_convention): Remove
+ 	function.  Inline its logic...
+ 	(s390_return_value): ...here.  Instead, move the handling of the
+Index: gdb-7.6.1/gdb/NEWS
+===================================================================
+--- gdb-7.6.1.orig/gdb/NEWS	2016-02-21 22:34:07.599040574 +0100
++++ gdb-7.6.1/gdb/NEWS	2016-02-21 22:34:13.476086880 +0100
+@@ -21,6 +21,8 @@
+ * GDB now supports access to vector registers on S/390 GNU/Linux
+   targets.
+ 
++* GDB now supports the vector ABI on S/390 GNU/Linux targets.
++
+ * GDB now honors the content of the file /proc/PID/coredump_filter
+   (PID is the process ID) on GNU/Linux systems.  This file can be used
+   to specify the types of memory mappings that will be included in a
+Index: gdb-7.6.1/gdb/s390-tdep.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/s390-tdep.c	2016-02-21 22:34:07.599040574 +0100
++++ gdb-7.6.1/gdb/s390-tdep.c	2016-02-21 22:35:45.273797475 +0100
+@@ -52,7 +52,9 @@
+ #include "user-regs.h"
+ #include "cli/cli-utils.h"
+ #include <ctype.h>
+-#include <elf.h>
++//#include <elf.h> // Conflicts with "elf-bfd.h".
++#include "elf/s390.h"
++#include "elf-bfd.h"
+ 
+ #include "features/s390-linux32.c"
+ #include "features/s390-linux32v1.c"
+@@ -70,6 +72,12 @@
+ #include "features/s390x-vx-linux64.c"
+ #include "features/s390x-tevx-linux64.c"
+ 
++enum s390_vector_abi_kind
++{
++  S390_VECTOR_ABI_NONE,
++  S390_VECTOR_ABI_128
++};
++
+ /* The tdep structure.  */
+ 
+ struct gdbarch_tdep
+@@ -77,6 +85,9 @@
+   /* ABI version.  */
+   enum { ABI_LINUX_S390, ABI_LINUX_ZSERIES } abi;
+ 
++  /* Vector ABI.  */
++  enum s390_vector_abi_kind vector_abi;
++
+   /* Pseudo register numbers.  */
+   int gpr_full_regnum;
+   int pc_regnum;
+@@ -2552,14 +2563,24 @@
+      float x;
+      struct { float x };
+      struct { struct { float x; } x; };
+-     struct { struct { struct { float x; } x; } x; };  */
++     struct { struct { struct { float x; } x; } x; };
++
++   However, if an inner type is smaller than MIN_SIZE, abort the
++   unwrapping.  */
+ 
+ static struct type *
+-s390_effective_inner_type (struct type *type)
++s390_effective_inner_type (struct type *type, unsigned int min_size)
+ {
+   while (TYPE_CODE (type) == TYPE_CODE_STRUCT
+ 	 && TYPE_NFIELDS (type) == 1)
+-    type = check_typedef (TYPE_FIELD_TYPE (type, 0));
++    {
++      struct type *inner = check_typedef (TYPE_FIELD_TYPE (type, 0));
++
++      if (TYPE_LENGTH (inner) < min_size)
++	break;
++      type = inner;
++    }
++
+   return type;
+ }
+ 
+@@ -2576,12 +2597,26 @@
+ 
+   /* A struct containing just a float or double is passed like a float
+      or double.  */
+-  type = s390_effective_inner_type (type);
++  type = s390_effective_inner_type (type, 0);
+ 
+   return (TYPE_CODE (type) == TYPE_CODE_FLT
+ 	  || TYPE_CODE (type) == TYPE_CODE_DECFLOAT);
+ }
+ 
++/* Return non-zero if TYPE should be passed like a vector.  */
++
++static int
++s390_function_arg_vector (struct type *type)
++{
++  if (TYPE_LENGTH (type) > 16)
++    return 0;
++
++  /* Structs containing just a vector are passed like a vector.  */
++  type = s390_effective_inner_type (type, TYPE_LENGTH (type));
++
++  return TYPE_CODE (type) == TYPE_CODE_ARRAY && TYPE_VECTOR (type);
++}
++
+ /* Determine whether N is a power of two.  */
+ 
+ static int
+@@ -2591,8 +2626,8 @@
+ }
+ 
+ /* For an argument whose type is TYPE and which is not passed like a
+-   float, return non-zero if it should be passed like "int" or "long
+-   long".  */
++   float or vector, return non-zero if it should be passed like "int"
++   or "long long".  */
+ 
+ static int
+ s390_function_arg_integer (struct type *type)
+@@ -2622,9 +2657,9 @@
+   {
+     /* Register cache, or NULL, if we are in "preparation mode".  */
+     struct regcache *regcache;
+-    /* Next available general/floating-point register for argument
+-       passing.  */
+-    int gr, fr;
++    /* Next available general/floating-point/vector register for
++       argument passing.  */
++    int gr, fr, vr;
+     /* Current pointer to copy area (grows downwards).  */
+     CORE_ADDR copy;
+     /* Current pointer to parameter area (grows upwards).  */
+@@ -2639,7 +2674,7 @@
+ static void
+ s390_handle_arg (struct s390_arg_state *as, struct value *arg,
+ 		 struct gdbarch_tdep *tdep, int word_size,
+-		 enum bfd_endian byte_order)
++		 enum bfd_endian byte_order, int is_unnamed)
+ {
+   struct type *type = check_typedef (value_type (arg));
+   ULONGEST length = TYPE_LENGTH (type);
+@@ -2671,6 +2706,28 @@
+ 			  length);
+ 	}
+     }
++  else if (tdep->vector_abi == S390_VECTOR_ABI_128
++	   && s390_function_arg_vector (type))
++    {
++      static const char use_vr[] = {24, 26, 28, 30, 25, 27, 29, 31};
++
++      if (!is_unnamed && as->vr < ARRAY_SIZE (use_vr))
++	{
++	  int regnum = S390_V24_REGNUM + use_vr[as->vr] - 24;
++
++	  if (write_mode)
++	    regcache_cooked_write_part (as->regcache, regnum,
++					0, length,
++					value_contents (arg));
++	  as->vr++;
++	}
++      else
++	{
++	  if (write_mode)
++	    write_memory (as->argp, value_contents (arg), length);
++	  as->argp = align_up (as->argp + length, word_size);
++	}
++    }
+   else if (s390_function_arg_integer (type) && length <= word_size)
+     {
+       ULONGEST val;
+@@ -2783,10 +2840,15 @@
+   int i;
+   struct s390_arg_state arg_state, arg_prep;
+   CORE_ADDR param_area_start, new_sp;
++  struct type *ftype = check_typedef (value_type (function));
++
++  if (TYPE_CODE (ftype) == TYPE_CODE_PTR)
++    ftype = check_typedef (TYPE_TARGET_TYPE (ftype));
+ 
+   arg_prep.copy = sp;
+   arg_prep.gr = struct_return ? 3 : 2;
+   arg_prep.fr = 0;
++  arg_prep.vr = 0;
+   arg_prep.argp = 0;
+   arg_prep.regcache = NULL;
+ 
+@@ -2796,7 +2858,8 @@
+   /* Update arg_state.copy with the start of the reference-to-copy area
+      and arg_state.argp with the size of the parameter area.  */
+   for (i = 0; i < nargs; i++)
+-    s390_handle_arg (&arg_state, args[i], tdep, word_size, byte_order);
++    s390_handle_arg (&arg_state, args[i], tdep, word_size, byte_order,
++		     TYPE_VARARGS (ftype) && i >= TYPE_NFIELDS (ftype));
+ 
+   param_area_start = align_down (arg_state.copy - arg_state.argp, 8);
+ 
+@@ -2822,7 +2885,8 @@
+ 
+   /* Write all parameters.  */
+   for (i = 0; i < nargs; i++)
+-    s390_handle_arg (&arg_state, args[i], tdep, word_size, byte_order);
++    s390_handle_arg (&arg_state, args[i], tdep, word_size, byte_order,
++		     TYPE_VARARGS (ftype) && i >= TYPE_NFIELDS (ftype));
+ 
+   /* Store return PSWA.  In 31-bit mode, keep addressing mode bit.  */
+   if (word_size == 4)
+@@ -2888,6 +2952,16 @@
+ 	regcache_cooked_read_part (regcache, S390_F0_REGNUM,
+ 				   0, length, out);
+     }
++  else if (code == TYPE_CODE_ARRAY)
++    {
++      /* Vector: left-aligned in v24.  */
++      if (in != NULL)
++	regcache_cooked_write_part (regcache, S390_V24_REGNUM,
++				    0, length, in);
++      else
++	regcache_cooked_read_part (regcache, S390_V24_REGNUM,
++				   0, length, out);
++    }
+   else if (length <= word_size)
+     {
+       /* Integer: zero- or sign-extended in r2.  */
+@@ -2939,10 +3013,15 @@
+     {
+     case TYPE_CODE_STRUCT:
+     case TYPE_CODE_UNION:
+-    case TYPE_CODE_ARRAY:
+     case TYPE_CODE_COMPLEX:
+       rvc = RETURN_VALUE_STRUCT_CONVENTION;
+       break;
++    case TYPE_CODE_ARRAY:
++      rvc = (gdbarch_tdep (gdbarch)->vector_abi == S390_VECTOR_ABI_128
++	     && TYPE_LENGTH (type) <= 16 && TYPE_VECTOR (type))
++	? RETURN_VALUE_REGISTER_CONVENTION
++	: RETURN_VALUE_STRUCT_CONVENTION;
++      break;
+     default:
+       rvc = TYPE_LENGTH (type) <= 8
+ 	? RETURN_VALUE_REGISTER_CONVENTION
+@@ -3038,6 +3117,7 @@
+   struct gdbarch *gdbarch;
+   struct gdbarch_tdep *tdep;
+   int tdep_abi;
++  enum s390_vector_abi_kind vector_abi;
+   int have_upper = 0;
+   int have_linux_v1 = 0;
+   int have_linux_v2 = 0;
+@@ -3220,6 +3300,18 @@
+ 	}
+     }
+ 
++  /* Determine vector ABI.  */
++  vector_abi = S390_VECTOR_ABI_NONE;
++#ifdef HAVE_ELF
++  if (have_vx
++      && info.abfd != NULL
++      && info.abfd->format == bfd_object
++      && bfd_get_flavour (info.abfd) == bfd_target_elf_flavour
++      && bfd_elf_get_obj_attr_int (info.abfd, OBJ_ATTR_GNU,
++				   Tag_GNU_S390_ABI_Vector) == 2)
++    vector_abi = S390_VECTOR_ABI_128;
++#endif
++
+   /* Find a candidate among extant architectures.  */
+   for (arches = gdbarch_list_lookup_by_info (arches, &info);
+        arches != NULL;
+@@ -3230,6 +3322,8 @@
+ 	continue;
+       if (tdep->abi != tdep_abi)
+ 	continue;
++      if (tdep->vector_abi != vector_abi)
++	continue;
+       if ((tdep->gpr_full_regnum != -1) != have_upper)
+ 	continue;
+       if (tdesc_data != NULL)
+@@ -3240,6 +3334,7 @@
+   /* Otherwise create a new gdbarch for the specified machine type.  */
+   tdep = XCALLOC (1, struct gdbarch_tdep);
+   tdep->abi = tdep_abi;
++  tdep->vector_abi = vector_abi;
+   tdep->have_linux_v1 = have_linux_v1;
+   tdep->have_linux_v2 = have_linux_v2;
+   tdep->have_tdb = have_tdb;

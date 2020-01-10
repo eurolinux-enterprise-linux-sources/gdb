@@ -1,0 +1,284 @@
+  Message-ID: <54BD2C4B.7010102@gmail.com>
+  Date: Tue, 20 Jan 2015 00:09:47 +0800
+  From: Wei-cheng Wang <cole945 at gmail dot com>
+  To: Joel Brobecker <brobecker at adacore dot com>
+  CC: Ulrich Weigand <uweigand at de dot ibm dot com>, gdb-patches at sourceware dot org
+  Subject: Re: [PATCH 2/3 v4] Process record support for PowerPC
+
+  On 2015/1/19 下午 03:48, Joel Brobecker wrote:
+  >> Using %s+paddress instead of %lx+long in this patch.
+  > The change looks fine to me, but there is no ChangeLog.
+
+  Hi Joel,
+
+  ChangeLog is in my last mail.  Re-post below for your review.
+
+  2015-01-18  Wei-cheng Wang  <cole945@gmail.com>
+
+	      * rs6000-tdep.c (ppc_process_record_op4, ppc_process_record_op19,
+	      ppc_process_record_op31, ppc_process_record_op59,
+	      ppc_process_record_op60, ppc_process_record_op63,
+	      ppc_process_record): Fix -Wformat warning.
+	      * rs6000-tdep.c (rs6000_epilogue_frame_cache, ppc_process_record_op60):
+	      Remove unused variables.
+
+  > Also, I ended glancing at some of the patches you recently pushed,
+  > and noticed that you added a lot of new functions for which there
+  > is no introductory comment describing the function's behavior and
+  > arguments. It is now mandatory that all new functions, no matter
+  > how trivial, have such introductory comment. Would you mind going
+  > back over your patches, and send a patch that adds the missing
+  > comments, please?
+
+  I've added the missing comments.  See below.
+
+  Thanks,
+  Wei-cheng
+
+
+  2015-01-18  Wei-cheng Wang  <cole945@gmail.com>
+
+	      * ppc-linux-tdep.c (ppc_skip_trampoline_code,
+	      ppc_canonicalize_syscall, ppc_linux_syscall_record,
+	      ppc_linux_record_signal, ppc_init_linux_record_tdep): Add comments.
+	      * ppc64-tdep.c (ppc64_skip_trampoline_code): Likewise.
+	      * rs6000-tdep.c (rs6000_epilogue_frame_cache,
+	      rs6000_epilogue_frame_this_id, rs6000_epilogue_frame_prev_register,
+	      rs6000_epilogue_frame_sniffer, ppc_record_vsr, ppc_process_record_op4,
+	      ppc_process_record_op19, ppc_process_record_op31,
+	      ppc_process_record_op59, ppc_process_record_op60,
+	      ppc_process_record_op63): Likewise.
+
+commit ddeca1dffbe346eea03b893bf3c5bc46e4439e93
+Author: Wei-cheng Wang <cole945@gmail.com>
+Date:   Mon Jan 19 23:34:07 2015 +0800
+
+    Add missing comments in rs6000-tdep.c, ppc64-tdep.c and ppc-linux-tdep.c.
+    
+    gdb/ChangeLog:
+    
+    	* ppc-linux-tdep.c (ppc_skip_trampoline_code,
+    	ppc_canonicalize_syscall, ppc_linux_syscall_record,
+    	ppc_linux_record_signal, ppc_init_linux_record_tdep): Add comments.
+    	* ppc64-tdep.c (ppc64_skip_trampoline_code): Likewise.
+    	* rs6000-tdep.c (rs6000_epilogue_frame_cache,
+    	rs6000_epilogue_frame_this_id, rs6000_epilogue_frame_prev_register,
+    	rs6000_epilogue_frame_sniffer, ppc_record_vsr, ppc_process_record_op4,
+    	ppc_process_record_op19, ppc_process_record_op31,
+    	ppc_process_record_op59, ppc_process_record_op60,
+    	ppc_process_record_op63): Likewise.
+
+Index: gdb-7.6.1/gdb/ppc64-tdep.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/ppc64-tdep.c
++++ gdb-7.6.1/gdb/ppc64-tdep.c
+@@ -449,7 +449,10 @@ ppc64_standard_linkage4_target (struct f
+ 
+ 
+ /* Given that we've begun executing a call trampoline at PC, return
+-   the entry point of the function the trampoline will go to.  */
++   the entry point of the function the trampoline will go to.
++
++   When the execution direction is EXEC_REVERSE, scan backward to
++   check whether we are in the middle of a PLT stub.  */
+ 
+ CORE_ADDR
+ ppc64_skip_trampoline_code (struct frame_info *frame, CORE_ADDR pc)
+Index: gdb-7.6.1/gdb/ppc-linux-tdep.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/ppc-linux-tdep.c
++++ gdb-7.6.1/gdb/ppc-linux-tdep.c
+@@ -353,7 +353,12 @@ powerpc_linux_in_dynsym_resolve_code (CO
+   return 0;
+ }
+ 
+-/* Follow PLT stub to actual routine.  */
++/* Follow PLT stub to actual routine.
++
++   When the execution direction is EXEC_REVERSE, scan backward to
++   check whether we are in the middle of a PLT stub.  Currently,
++   we only look-behind at most 4 instructions (the max length of PLT
++   stub sequence.  */
+ 
+ static CORE_ADDR
+ ppc_skip_trampoline_code (struct frame_info *frame, CORE_ADDR pc)
+@@ -839,11 +844,16 @@ ppc_linux_get_syscall_number (struct gdb
+ static struct linux_record_tdep ppc_linux_record_tdep;
+ static struct linux_record_tdep ppc64_linux_record_tdep;
+ 
++/* ppc_canonicalize_syscall maps from the native PowerPC Linux set of
++   syscall ids into a canonical set of syscall ids used by process
++   record.  (See arch/powerpc/include/uapi/asm/unistd.h in kernel tree.)
++   Return -1 if this system call is not supported by process record.
++   Otherwise, return the syscall number for preocess reocrd of given
++   SYSCALL.  */
++
+ static enum gdb_syscall
+ ppc_canonicalize_syscall (int syscall)
+ {
+-  /* See arch/powerpc/include/uapi/asm/unistd.h */
+-
+   if (syscall <= 165)
+     return syscall;
+   else if (syscall >= 167 && syscall <= 190)	/* Skip query_module 166 */
+@@ -869,6 +879,9 @@ ppc_canonicalize_syscall (int syscall)
+   return -1;
+ }
+ 
++/* Record registers which might be clobbered during system call.
++   Return 0 if successful.  */
++
+ static int
+ ppc_linux_syscall_record (struct regcache *regcache)
+ {
+@@ -949,6 +962,9 @@ ppc_linux_syscall_record (struct regcach
+   return 0;
+ }
+ 
++/* Record registers which might be clobbered during signal handling.
++   Return 0 if successful.  */
++
+ static int
+ ppc_linux_record_signal (struct gdbarch *gdbarch, struct regcache *regcache,
+ 			 enum gdb_signal signal)
+@@ -1470,7 +1486,9 @@ static const struct frame_unwind ppu2spu
+   ppu2spu_prev_arch,
+ };
+ 
+-/* Initialize linux_record_tdep if not initialized yet.  */
++/* Initialize linux_record_tdep if not initialized yet.
++   WORDSIZE is 4 or 8 for 32- or 64-bit PowerPC Linux respectively.
++   Sizes of data structures are initialized accordingly.  */
+ 
+ static void
+ ppc_init_linux_record_tdep (struct linux_record_tdep *record_tdep,
+Index: gdb-7.6.1/gdb/rs6000-tdep.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/rs6000-tdep.c
++++ gdb-7.6.1/gdb/rs6000-tdep.c
+@@ -3398,6 +3398,9 @@ static const struct frame_unwind rs6000_
+   default_frame_sniffer
+ };
+ 
++/* Allocate and initialize a frame cache for an epilogue frame.
++   SP is restored and prev-PC is stored in LR.  */
++
+ static struct rs6000_frame_cache *
+ rs6000_epilogue_frame_cache (struct frame_info *this_frame, void **this_cache)
+ {
+@@ -3434,6 +3437,9 @@ rs6000_epilogue_frame_cache (struct fram
+   return cache;
+ }
+ 
++/* Implementation of frame_unwind.this_id, as defined in frame_unwind.h.
++   Return the frame ID of an epilogue frame.  */
++
+ static void
+ rs6000_epilogue_frame_this_id (struct frame_info *this_frame,
+ 			       void **this_cache, struct frame_id *this_id)
+@@ -3449,6 +3455,9 @@ rs6000_epilogue_frame_this_id (struct fr
+     (*this_id) = frame_id_build (info->base, pc);
+ }
+ 
++/* Implementation of frame_unwind.prev_register, as defined in frame_unwind.h.
++   Return the register value of REGNUM in previous frame.  */
++
+ static struct value *
+ rs6000_epilogue_frame_prev_register (struct frame_info *this_frame,
+ 				     void **this_cache, int regnum)
+@@ -3458,6 +3467,9 @@ rs6000_epilogue_frame_prev_register (str
+   return trad_frame_get_prev_register (this_frame, info->saved_regs, regnum);
+ }
+ 
++/* Implementation of frame_unwind.sniffer, as defined in frame_unwind.h.
++   Check whether this an epilogue frame.  */
++
+ static int
+ rs6000_epilogue_frame_sniffer (const struct frame_unwind *self,
+ 			       struct frame_info *this_frame,
+@@ -3471,6 +3483,9 @@ rs6000_epilogue_frame_sniffer (const str
+     return 0;
+ }
+ 
++/* Frame unwinder for epilogue frame.  This is required for reverse step-over
++   a function without debug information.  */
++
+ static const struct frame_unwind rs6000_epilogue_frame_unwind =
+ {
+   NORMAL_FRAME,
+@@ -3717,7 +3732,9 @@ bfd_uses_spe_extensions (bfd *abfd)
+ #define PPC_XT(insn)	((PPC_TX (insn) << 5) | PPC_T (insn))
+ #define PPC_XER_NB(xer)	(xer & 0x7f)
+ 
+-/* Record Vector-Scalar Registers.  */
++/* Record Vector-Scalar Registers.
++   For VSR less than 32, it's represented by an FPR and an VSR-upper register.
++   Otherwise, it's just a VR register.  Record them accordingly.  */
+ 
+ static int
+ ppc_record_vsr (struct regcache *regcache, struct gdbarch_tdep *tdep, int vsr)
+@@ -3742,11 +3759,12 @@ ppc_record_vsr (struct regcache *regcach
+   return 0;
+ }
+ 
+-/* Parse instructions of primary opcode-4.  */
++/* Parse and record instructions primary opcode-4 at ADDR.
++   Return 0 if successful.  */
+ 
+ static int
+ ppc_process_record_op4 (struct gdbarch *gdbarch, struct regcache *regcache,
+-			   CORE_ADDR addr, uint32_t insn)
++			CORE_ADDR addr, uint32_t insn)
+ {
+   struct gdbarch_tdep *tdep = gdbarch_tdep (gdbarch);
+   int ext = PPC_FIELD (insn, 21, 11);
+@@ -4010,7 +4028,8 @@ ppc_process_record_op4 (struct gdbarch *
+   return -1;
+ }
+ 
+-/* Parse instructions of primary opcode-19.  */
++/* Parse and record instructions of primary opcode-19 at ADDR.
++   Return 0 if successful.  */
+ 
+ static int
+ ppc_process_record_op19 (struct gdbarch *gdbarch, struct regcache *regcache,
+@@ -4053,7 +4072,8 @@ ppc_process_record_op19 (struct gdbarch
+   return -1;
+ }
+ 
+-/* Parse instructions of primary opcode-31.  */
++/* Parse and record instructions of primary opcode-31 at ADDR.
++   Return 0 if successful.  */
+ 
+ static int
+ ppc_process_record_op31 (struct gdbarch *gdbarch, struct regcache *regcache,
+@@ -4531,7 +4551,8 @@ UNKNOWN_OP:
+   return -1;
+ }
+ 
+-/* Parse instructions of primary opcode-59.  */
++/* Parse and record instructions of primary opcode-59 at ADDR.
++   Return 0 if successful.  */
+ 
+ static int
+ ppc_process_record_op59 (struct gdbarch *gdbarch, struct regcache *regcache,
+@@ -4623,7 +4644,8 @@ ppc_process_record_op59 (struct gdbarch
+   return -1;
+ }
+ 
+-/* Parse instructions of primary opcode-60.  */
++/* Parse and record instructions of primary opcode-60 at ADDR.
++   Return 0 if successful.  */
+ 
+ static int
+ ppc_process_record_op60 (struct gdbarch *gdbarch, struct regcache *regcache,
+@@ -4905,7 +4927,8 @@ ppc_process_record_op60 (struct gdbarch
+   return -1;
+ }
+ 
+-/* Parse instructions of primary opcode-63.  */
++/* Parse and record instructions of primary opcode-63 at ADDR.
++   Return 0 if successful.  */
+ 
+ static int
+ ppc_process_record_op63 (struct gdbarch *gdbarch, struct regcache *regcache,

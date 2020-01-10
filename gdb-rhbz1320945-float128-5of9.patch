@@ -1,0 +1,350 @@
+commit a9ff5f12cff6cd06f74ecf387ac5468984c94c6f
+Author: Ulrich Weigand <ulrich.weigand@de.ibm.com>
+Date:   Tue Sep 6 17:29:15 2016 +0200
+
+    Remove obsolete TYPE_FLAG_... values
+    
+    Now that init_type no longer takes a FLAGS argument, there is no user of
+    the TYPE_FLAGS_... enum values left.  This commit removes them (and all
+    references to them in comments as well).
+    
+    This is mostly a no-op, except for a change to the Python type printer,
+    which attempted to use them before.  (As best as I can tell, this wasn't
+    really needed anyway, since it was only used to pretty-print type
+    *instance* flags, which only use the instance flags.)
+    
+    gdb/ChangeLog:
+    
+            * gdbtypes.h (enum type_flag_value): Remove.
+            Remove references to TYPE_FLAG_... in comments throughout.
+            * gdbtypes.c (recursive_dump_type): Do not print TYPE_FLAG_...
+            flags, print the corresponding TYPE_... access macro names.
+            Remove references to TYPE_FLAG_... in comments throughout.
+            * infcall.c: Remove references to TYPE_FLAG_... in comments.
+            * valprint.c: Likewise.
+            * gdb-gdb.py (class TypeFlag): No longer consider TYPE_FLAG_...
+            values, only TYPE_INSTANCE_FLAG_... values.
+            (class TypeFlagsPrinter): Likewise.
+    
+    gdb/testsuite/ChangeLog:
+    
+            * gdb.cp/hang.exp: Remove reference to TYPE_FLAG_STUB in comment.
+    
+    Signed-off-by: Ulrich Weigand <ulrich.weigand@de.ibm.com>
+
+### a/gdb/ChangeLog
+### b/gdb/ChangeLog
+## -1,5 +1,18 @@
+ 2016-09-05  Ulrich Weigand  <uweigand@de.ibm.com>
+ 
++	* gdbtypes.h (enum type_flag_value): Remove.
++	Remove references to TYPE_FLAG_... in comments throughout.
++	* gdbtypes.c (recursive_dump_type): Do not print TYPE_FLAG_... 
++	flags, print the corresponding TYPE_... access macro names.
++	Remove references to TYPE_FLAG_... in comments throughout.
++	* infcall.c: Remove references to TYPE_FLAG_... in comments.
++	* valprint.c: Likewise.
++	* gdb-gdb.py (class TypeFlag): No longer consider TYPE_FLAG_...
++	values, only TYPE_INSTANCE_FLAG_... values.
++	(class TypeFlagsPrinter): Likewise.
++
++2016-09-05  Ulrich Weigand  <uweigand@de.ibm.com>
++
+ 	* gdbtypes.h (init_type): Remove FLAGS argument.  Move OBJFILE
+ 	argument to first position.
+ 	(init_integer_type): New prototype.
+Index: gdb-7.6.1/gdb/gdb-gdb.py
+===================================================================
+--- gdb-7.6.1.orig/gdb/gdb-gdb.py	2017-03-11 21:20:00.381958270 +0100
++++ gdb-7.6.1/gdb/gdb-gdb.py	2017-03-11 21:22:11.333879984 +0100
+@@ -24,29 +24,26 @@
+ 
+     In the GDB sources, struct type has a component called instance_flags
+     in which the value is the addition of various flags.  These flags are
+-    defined by two enumerates: type_flag_value, and type_instance_flag_value.
+-    This class helps us recreate a list with all these flags that is
+-    easy to manipulate and sort.  Because all flag names start with either
+-    TYPE_FLAG_ or TYPE_INSTANCE_FLAG_, a short_name attribute is provided
+-    that strips this prefix.
++    defined by the enumerates type_instance_flag_value.  This class helps us
++    recreate a list with all these flags that is easy to manipulate and sort.
++    Because all flag names start with TYPE_INSTANCE_FLAG_, a short_name
++    attribute is provided that strips this prefix.
+ 
+     ATTRIBUTES
+-      name:  The enumeration name (eg: "TYPE_FLAG_UNSIGNED").
++      name:  The enumeration name (eg: "TYPE_INSTANCE_FLAG_CONST").
+       value: The associated value.
+       short_name: The enumeration name, with the suffix stripped.
+     """
+     def __init__(self, name, value):
+         self.name = name
+         self.value = value
+-        self.short_name = name.replace("TYPE_FLAG_", '')
+-        if self.short_name == name:
+-            self.short_name = name.replace("TYPE_INSTANCE_FLAG_", '')
++        self.short_name = name.replace("TYPE_INSTANCE_FLAG_", '')
+     def __cmp__(self, other):
+         """Sort by value order."""
+         return self.value.__cmp__(other.value)
+ 
+-# A list of all existing TYPE_FLAGS_* and TYPE_INSTANCE_FLAGS_*
+-# enumerations, stored as TypeFlags objects.  Lazy-initialized.
++# A list of all existing TYPE_INSTANCE_FLAGS_* enumerations,
++# stored as TypeFlags objects.  Lazy-initialized.
+ TYPE_FLAGS = None
+ 
+ class TypeFlagsPrinter:
+@@ -86,24 +83,13 @@
+         global TYPE_FLAGS
+         TYPE_FLAGS = []
+         try:
+-            flags = gdb.lookup_type("enum type_flag_value")
+-        except:
+-            print "Warning: Cannot find enum type_flag_value type."
+-            print "         `struct type' pretty-printer will be degraded"
+-            return
+-        try:
+             iflags = gdb.lookup_type("enum type_instance_flag_value")
+         except:
+             print "Warning: Cannot find enum type_instance_flag_value type."
+             print "         `struct type' pretty-printer will be degraded"
+             return
+-        # Note: TYPE_FLAG_MIN is a duplicate of TYPE_FLAG_UNSIGNED,
+-        # so exclude it from the list we are building.
+         TYPE_FLAGS = [TypeFlag(field.name, field.enumval)
+-                      for field in flags.fields()
+-                      if field.name != 'TYPE_FLAG_MIN']
+-        TYPE_FLAGS += [TypeFlag(field.name, field.enumval)
+-                       for field in iflags.fields()]
++                      for field in iflags.fields()]
+         TYPE_FLAGS.sort()
+ 
+ class StructTypePrettyPrinter:
+Index: gdb-7.6.1/gdb/gdbtypes.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/gdbtypes.c	2017-03-11 21:20:02.353972150 +0100
++++ gdb-7.6.1/gdb/gdbtypes.c	2017-03-11 21:24:10.766720620 +0100
+@@ -3426,73 +3426,73 @@
+ 		    TYPE_INSTANCE_FLAGS (type));
+   if (TYPE_CONST (type))
+     {
+-      puts_filtered (" TYPE_FLAG_CONST");
++      puts_filtered (" TYPE_CONST");
+     }
+   if (TYPE_VOLATILE (type))
+     {
+-      puts_filtered (" TYPE_FLAG_VOLATILE");
++      puts_filtered (" TYPE_VOLATILE");
+     }
+   if (TYPE_CODE_SPACE (type))
+     {
+-      puts_filtered (" TYPE_FLAG_CODE_SPACE");
++      puts_filtered (" TYPE_CODE_SPACE");
+     }
+   if (TYPE_DATA_SPACE (type))
+     {
+-      puts_filtered (" TYPE_FLAG_DATA_SPACE");
++      puts_filtered (" TYPE_DATA_SPACE");
+     }
+   if (TYPE_ADDRESS_CLASS_1 (type))
+     {
+-      puts_filtered (" TYPE_FLAG_ADDRESS_CLASS_1");
++      puts_filtered (" TYPE_ADDRESS_CLASS_1");
+     }
+   if (TYPE_ADDRESS_CLASS_2 (type))
+     {
+-      puts_filtered (" TYPE_FLAG_ADDRESS_CLASS_2");
++      puts_filtered (" TYPE_ADDRESS_CLASS_2");
+     }
+   if (TYPE_RESTRICT (type))
+     {
+-      puts_filtered (" TYPE_FLAG_RESTRICT");
++      puts_filtered (" TYPE_RESTRICT");
+     }
+   puts_filtered ("\n");
+ 
+   printfi_filtered (spaces, "flags");
+   if (TYPE_UNSIGNED (type))
+     {
+-      puts_filtered (" TYPE_FLAG_UNSIGNED");
++      puts_filtered (" TYPE_UNSIGNED");
+     }
+   if (TYPE_NOSIGN (type))
+     {
+-      puts_filtered (" TYPE_FLAG_NOSIGN");
++      puts_filtered (" TYPE_NOSIGN");
+     }
+   if (TYPE_STUB (type))
+     {
+-      puts_filtered (" TYPE_FLAG_STUB");
++      puts_filtered (" TYPE_STUB");
+     }
+   if (TYPE_TARGET_STUB (type))
+     {
+-      puts_filtered (" TYPE_FLAG_TARGET_STUB");
++      puts_filtered (" TYPE_TARGET_STUB");
+     }
+   if (TYPE_STATIC (type))
+     {
+-      puts_filtered (" TYPE_FLAG_STATIC");
++      puts_filtered (" TYPE_STATIC");
+     }
+   if (TYPE_PROTOTYPED (type))
+     {
+-      puts_filtered (" TYPE_FLAG_PROTOTYPED");
++      puts_filtered (" TYPE_PROTOTYPED");
+     }
+   if (TYPE_INCOMPLETE (type))
+     {
+-      puts_filtered (" TYPE_FLAG_INCOMPLETE");
++      puts_filtered (" TYPE_INCOMPLETE");
+     }
+   if (TYPE_VARARGS (type))
+     {
+-      puts_filtered (" TYPE_FLAG_VARARGS");
++      puts_filtered (" TYPE_VARARGS");
+     }
+   /* This is used for things like AltiVec registers on ppc.  Gcc emits
+      an attribute for the array type, which tells whether or not we
+      have a vector, instead of a regular array.  */
+   if (TYPE_VECTOR (type))
+     {
+-      puts_filtered (" TYPE_FLAG_VECTOR");
++      puts_filtered (" TYPE_VECTOR");
+     }
+   if (TYPE_FIXED_INSTANCE (type))
+     {
+Index: gdb-7.6.1/gdb/gdbtypes.h
+===================================================================
+--- gdb-7.6.1.orig/gdb/gdbtypes.h	2017-03-11 21:20:00.385958298 +0100
++++ gdb-7.6.1/gdb/gdbtypes.h	2017-03-11 21:26:19.829629038 +0100
+@@ -160,35 +160,8 @@
+ 
+ #define TYPE_CODE_CLASS TYPE_CODE_STRUCT
+ 
+-/* Some constants representing each bit field in the main_type.  See
+-   the bit-field-specific macros, below, for documentation of each
+-   constant in this enum.  These enum values are only used with
+-   init_type.  Note that the values are chosen not to conflict with
+-   type_instance_flag_value; this lets init_type error-check its
+-   input.  */
+-
+-enum type_flag_value
+-{
+-  TYPE_FLAG_UNSIGNED = (1 << 8),
+-  TYPE_FLAG_NOSIGN = (1 << 9),
+-  TYPE_FLAG_STUB = (1 << 10),
+-  TYPE_FLAG_TARGET_STUB = (1 << 11),
+-  TYPE_FLAG_STATIC = (1 << 12),
+-  TYPE_FLAG_PROTOTYPED = (1 << 13),
+-  TYPE_FLAG_INCOMPLETE = (1 << 14),
+-  TYPE_FLAG_VARARGS = (1 << 15),
+-  TYPE_FLAG_VECTOR = (1 << 16),
+-  TYPE_FLAG_FIXED_INSTANCE = (1 << 17),
+-  TYPE_FLAG_STUB_SUPPORTED = (1 << 18),
+-  TYPE_FLAG_GNU_IFUNC = (1 << 19),
+-
+-  /* Used for error-checking.  */
+-  TYPE_FLAG_MIN = TYPE_FLAG_UNSIGNED
+-};
+-
+ /* Some bits for the type's instance_flags word.  See the macros below
+-   for documentation on each bit.  Note that if you add a value here,
+-   you must update the enum type_flag_value as well.  */
++   for documentation on each bit.  */
+ enum type_instance_flag_value
+ {
+   TYPE_INSTANCE_FLAG_CONST = (1 << 0),
+@@ -202,7 +175,7 @@
+ };
+ 
+ /* Unsigned integer type.  If this is not set for a TYPE_CODE_INT, the
+-   type is signed (unless TYPE_FLAG_NOSIGN (below) is set).  */
++   type is signed (unless TYPE_NOSIGN (below) is set).  */
+ 
+ #define TYPE_UNSIGNED(t)	(TYPE_MAIN_TYPE (t)->flag_unsigned)
+ 
+@@ -383,11 +356,11 @@
+    architecture's two (or more) address spaces, but this is an extension
+    of the architecture's model.
+ 
+-   If TYPE_FLAG_INST is set, an object of the corresponding type
++   If TYPE_INSTANCE_FLAG_CODE_SPACE is set, an object of the corresponding type
+    resides in instruction memory, even if its address (in the extended
+    flat address space) does not reflect this.
+ 
+-   Similarly, if TYPE_FLAG_DATA is set, then an object of the 
++   Similarly, if TYPE_INSTANCE_FLAG_DATA_SPACE is set, then an object of the
+    corresponding type resides in the data memory space, even if
+    this is not indicated by its (flat address space) address.
+ 
+@@ -403,7 +376,7 @@
+ /* Address class flags.  Some environments provide for pointers whose
+    size is different from that of a normal pointer or address types
+    where the bits are interpreted differently than normal addresses.  The
+-   TYPE_FLAG_ADDRESS_CLASS_n flags may be used in target specific
++   TYPE_ADDRESS_CLASS_n flags may be used in target specific
+    ways to represent these different types of address classes.  */
+ #define TYPE_ADDRESS_CLASS_1(t) (TYPE_INSTANCE_FLAGS(t) \
+                                  & TYPE_INSTANCE_FLAG_ADDRESS_CLASS_1)
+@@ -529,7 +502,7 @@
+ 
+      This is used for printing only, except by poorly designed C++ code.
+      For looking up a name, look for a symbol in the STRUCT_DOMAIN.
+-     One more legitimate use is that if TYPE_FLAG_STUB is set, this is
++     One more legitimate use is that if TYPE_STUB is set, this is
+      the name to use to look for definitions in other files.  */
+ 
+   const char *tag_name;
+Index: gdb-7.6.1/gdb/infcall.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/infcall.c	2017-03-11 21:20:00.386958305 +0100
++++ gdb-7.6.1/gdb/infcall.c	2017-03-11 21:20:02.355972164 +0100
+@@ -58,10 +58,9 @@
+ 
+    Unfortunately, on certain older platforms, the debug info doesn't
+    indicate reliably how each function was defined.  A function type's
+-   TYPE_FLAG_PROTOTYPED flag may be clear, even if the function was
+-   defined in prototype style.  When calling a function whose
+-   TYPE_FLAG_PROTOTYPED flag is clear, GDB consults this flag to
+-   decide what to do.
++   TYPE_PROTOTYPED flag may be clear, even if the function was defined
++   in prototype style.  When calling a function whose TYPE_PROTOTYPED
++   flag is clear, GDB consults this flag to decide what to do.
+ 
+    For modern targets, it is proper to assume that, if the prototype
+    flag is clear, that can be trusted: `float' arguments should be
+Index: gdb-7.6.1/gdb/testsuite/gdb.cp/hang.exp
+===================================================================
+--- gdb-7.6.1.orig/gdb/testsuite/gdb.cp/hang.exp	2017-03-11 21:20:00.386958305 +0100
++++ gdb-7.6.1/gdb/testsuite/gdb.cp/hang.exp	2017-03-11 21:20:02.356972171 +0100
+@@ -58,8 +58,8 @@
+ #
+ # Since `hang2.o''s psymtab lists `hang1.o' as a dependency, GDB first
+ # reads `hang1.o''s symbols.  When GDB sees `(1,3)=xsB:', it creates a
+-# type object for `struct B', sets its TYPE_FLAG_STUB flag, and
+-# records it as type number `(1,3)'.
++# type object for `struct B', sets its TYPE_STUB flag, and records it
++# as type number `(1,3)'.
+ #
+ # When GDB finds the definition of `struct C::B', since the stabs
+ # don't indicate that the type is nested within C, it treats it as
+Index: gdb-7.6.1/gdb/valprint.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/valprint.c	2017-03-11 21:20:00.387958312 +0100
++++ gdb-7.6.1/gdb/valprint.c	2017-03-11 21:20:02.356972171 +0100
+@@ -661,10 +661,9 @@
+       break;
+ 
+     case TYPE_CODE_UNDEF:
+-      /* This happens (without TYPE_FLAG_STUB set) on systems which
+-         don't use dbx xrefs (NO_DBX_XREFS in gcc) if a file has a
+-         "struct foo *bar" and no complete type for struct foo in that
+-         file.  */
++      /* This happens (without TYPE_STUB set) on systems which don't use
++         dbx xrefs (NO_DBX_XREFS in gcc) if a file has a "struct foo *bar"
++         and no complete type for struct foo in that file.  */
+       fprintf_filtered (stream, _("<incomplete type>"));
+       break;
+ 

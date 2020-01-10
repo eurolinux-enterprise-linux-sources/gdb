@@ -1,0 +1,86 @@
+https://sourceware.org/ml/gdb-patches/2014-09/msg00156.html
+Message-Id: <1409947102-32166-1-git-send-email-emachado@linux.vnet.ibm.com>
+
+commit 2e4bb98a0e52acbb2da4ae441b89a568af26adf8
+Author: Edjunior Barbosa Machado <emachado@linux.vnet.ibm.com>
+Date:   Mon Sep 8 13:37:23 2014 -0300
+
+    Fix ppc_collect/supply_ptrace_register() routines
+    
+    This patch fixes the routines to collect and supply ptrace registers on ppc64le
+    gdbserver. Originally written for big endian arch, they were causing several
+    issues on little endian. With this fix, the number of unexpected failures in
+    the testsuite dropped from 263 to 72 on ppc64le.
+    
+    gdb/gdbserver/ChangeLog
+    
+    	* linux-ppc-low.c (ppc_collect_ptrace_register): Adjust routine to take
+    	endianness into account.
+    	(ppc_supply_ptrace_register): Likewise.
+
+Index: gdb-7.6.1/gdb/gdbserver/linux-ppc-low.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/gdbserver/linux-ppc-low.c
++++ gdb-7.6.1/gdb/gdbserver/linux-ppc-low.c
+@@ -170,25 +170,52 @@ ppc_cannot_fetch_register (int regno)
+ static void
+ ppc_collect_ptrace_register (struct regcache *regcache, int regno, char *buf)
+ {
+-  int size = register_size (regno);
+-
+   memset (buf, 0, sizeof (long));
+ 
+-  if (size < sizeof (long))
+-    collect_register (regcache, regno, buf + sizeof (long) - size);
++  if (__BYTE_ORDER == __LITTLE_ENDIAN)
++    {
++      /* Little-endian values always sit at the left end of the buffer.  */
++      collect_register (regcache, regno, buf);
++    }
++  else if (__BYTE_ORDER == __BIG_ENDIAN)
++    {
++      /* Big-endian values sit at the right end of the buffer.  In case of
++         registers whose sizes are smaller than sizeof (long), we must use a
++         padding to access them correctly.  */
++      int size = register_size (regno);
++
++      if (size < sizeof (long))
++	collect_register (regcache, regno, buf + sizeof (long) - size);
++      else
++	collect_register (regcache, regno, buf);
++    }
+   else
+-    collect_register (regcache, regno, buf);
++    perror_with_name ("Unexpected byte order");
+ }
+ 
+ static void
+ ppc_supply_ptrace_register (struct regcache *regcache,
+ 			    int regno, const char *buf)
+ {
+-  int size = register_size (regno);
+-  if (size < sizeof (long))
+-    supply_register (regcache, regno, buf + sizeof (long) - size);
++  if (__BYTE_ORDER == __LITTLE_ENDIAN)
++    {
++      /* Little-endian values always sit at the left end of the buffer.  */
++      supply_register (regcache, regno, buf);
++    }
++  else if (__BYTE_ORDER == __BIG_ENDIAN)
++    {
++      /* Big-endian values sit at the right end of the buffer.  In case of
++         registers whose sizes are smaller than sizeof (long), we must use a
++         padding to access them correctly.  */
++      int size = register_size (regno);
++
++      if (size < sizeof (long))
++	supply_register (regcache, regno, buf + sizeof (long) - size);
++      else
++	supply_register (regcache, regno, buf);
++    }
+   else
+-    supply_register (regcache, regno, buf);
++    perror_with_name ("Unexpected byte order");
+ }
+ 
+ 

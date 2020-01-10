@@ -1,0 +1,127 @@
+  <https://sourceware.org/ml/gdb-patches/2014-09/msg00398.html>
+  Message-Id: <1410525085-29172-1-git-send-email-emachado@linux.vnet.ibm.com>
+
+commit 9d9bf2df89db515958b429a1aeb1db38884ba488
+Author: Edjunior Barbosa Machado <emachado@linux.vnet.ibm.com>
+Date:   Fri Sep 12 09:20:25 2014 -0300
+
+    PR tdep/17379: Fix internal-error when stack pointer is invalid.
+    
+    The problem is that rs6000_frame_cache attempts to read the stack backchain via
+    read_memory_unsigned_integer, which throws an exception if the stack pointer is
+    invalid.  With this patch, it calls safe_read_memory_integer instead, which
+    doesn't throw an exception and allows for safe handling of that situation.
+    
+    gdb/ChangeLog
+    2014-09-12  Edjunior Barbosa Machado  <emachado@linux.vnet.ibm.com>
+    	    Ulrich Weigand  <uweigand@de.ibm.com>
+    
+    	PR tdep/17379
+    	* rs6000-tdep.c (rs6000_frame_cache): Use safe_read_memory_integer
+    	instead of read_memory_unsigned_integer.
+    
+    gdb/testcase/ChangeLog
+    2014-09-12  Edjunior Barbosa Machado  <emachado@linux.vnet.ibm.com>
+    
+    	PR tdep/17379
+    	* gdb.arch/powerpc-stackless.S: New file.
+    	* gdb.arch/powerpc-stackless.exp: New file.
+
+Index: gdb-7.6.1/gdb/rs6000-tdep.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/rs6000-tdep.c
++++ gdb-7.6.1/gdb/rs6000-tdep.c
+@@ -3241,9 +3241,14 @@ rs6000_frame_cache (struct frame_info *t
+     }
+ 
+   if (!fdata.frameless)
+-    /* Frameless really means stackless.  */
+-    cache->base
+-      = read_memory_unsigned_integer (cache->base, wordsize, byte_order);
++    {
++      /* Frameless really means stackless.  */
++      LONGEST backchain;
++
++      if (safe_read_memory_integer (cache->base, wordsize,
++				    byte_order, &backchain))
++        cache->base = (CORE_ADDR) backchain;
++    }
+ 
+   trad_frame_set_value (cache->saved_regs,
+ 			gdbarch_sp_regnum (gdbarch), cache->base);
+Index: gdb-7.6.1/gdb/testsuite/gdb.arch/powerpc-stackless.S
+===================================================================
+--- /dev/null
++++ gdb-7.6.1/gdb/testsuite/gdb.arch/powerpc-stackless.S
+@@ -0,0 +1,24 @@
++/* This testcase is part of GDB, the GNU debugger.
++
++   Copyright 2014 Free Software Foundation, Inc.
++
++   This program is free software; you can redistribute it and/or modify
++   it under the terms of the GNU General Public License as published by
++   the Free Software Foundation; either version 3 of the License, or
++   (at your option) any later version.
++
++   This program is distributed in the hope that it will be useful,
++   but WITHOUT ANY WARRANTY; without even the implied warranty of
++   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++   GNU General Public License for more details.
++
++   You should have received a copy of the GNU General Public License
++   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
++
++#include <ppc-asm.h>
++
++FUNC_START(main)
++        li      sp,0
++        mtlr    sp
++        blr
++FUNC_END(main)
+Index: gdb-7.6.1/gdb/testsuite/gdb.arch/powerpc-stackless.exp
+===================================================================
+--- /dev/null
++++ gdb-7.6.1/gdb/testsuite/gdb.arch/powerpc-stackless.exp
+@@ -0,0 +1,42 @@
++# Copyright 2014 Free Software Foundation, Inc.
++
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License
++# along with this program.  If not, see <http://www.gnu.org/licenses/>.
++
++# Testcase for PR tdep/17379.
++
++if {![istarget "powerpc*-*-*"]} then {
++    verbose "Skipping powerpc-stackless.exp"
++    return
++}
++
++standard_testfile .S
++
++if { [prepare_for_testing $testfile.exp $testfile $srcfile] } {
++    untested powerpc-stackless.exp
++    return -1
++}
++
++# Run until SIGSEGV.
++gdb_run_cmd
++
++set test "run until SIGSEGV"
++gdb_test_multiple "" $test {
++    -re "Program received signal SIGSEGV.*$gdb_prompt $" {
++  pass $test
++    }
++}
++
++# Ensure that 'info registers' works properly and does not generate
++# an internal-error.
++gdb_test "info registers" "r0.*" "info registers"

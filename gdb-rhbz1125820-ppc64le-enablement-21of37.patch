@@ -1,0 +1,28 @@
+commit fa0079ea727e512d592fff1241a82a0a2f628903
+Author: Ulrich Weigand <ulrich.weigand@de.ibm.com>
+Date:   Tue Jan 28 17:49:13 2014 +0100
+
+    Fix typo in ppc64_standard_linkage7
+    
+    The ppc64_standard_linkage7 pattern added by Alan's recent patch:
+    https://sourceware.org/ml/gdb-patches/2013-11/msg00274.html
+    contains a typo: the ELFv2 TOC slot offset is 24, not 40.
+    This was correct in the comment, but not the actual code.
+    
+    ChangeLog:
+    
+    	* ppc64-tdep.c (ppc64_standard_linkage7): Fix typo.
+
+Index: gdb-7.6.1/gdb/ppc64-tdep.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/ppc64-tdep.c
++++ gdb-7.6.1/gdb/ppc64-tdep.c
+@@ -289,7 +289,7 @@ static struct ppc_insn_pattern ppc64_sta
+ static struct ppc_insn_pattern ppc64_standard_linkage7[] =
+   {
+     /* std r2, 24(r1) <optional> */
+-    { -1, insn_ds (62, 2, 1, 40, 0), 1 },
++    { -1, insn_ds (62, 2, 1, 24, 0), 1 },
+ 
+     /* ld r12, <any>(r2) */
+     { insn_ds (-1, -1, -1, 0, -1), insn_ds (58, 12, 2, 0, 0), 0 },

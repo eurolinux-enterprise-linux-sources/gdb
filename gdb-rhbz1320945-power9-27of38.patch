@@ -1,0 +1,62 @@
+commit afa8d4054b8e0b1384f2d07f1c15163c0699d660
+Author: Peter Bergner <bergner@vnet.ibm.com>
+Date:   Mon Jan 11 11:54:58 2016 -0600
+
+    Delete opcodes that have been removed from ISA 3.0.
+    
+    opcodes/
+            * ppc-opc.c <xscmpnedp>: Delete.
+            <xvcmpnedp>: Likewise.
+            <xvcmpnedp.>: Likewise.
+            <xvcmpnesp>: Likewise.
+            <xvcmpnesp.>: Likewise.
+    
+    gas/
+            * testsuite/gas/ppc/power9.d <xscmpnedp, xvcmpnedp, xvcmpnedp.,
+            xvcmpnesp, xvcmpnesp.>: Delete tests.
+            * testsuite/gas/ppc/power9.s: Likewise.
+            * testsuite/gas/ppc/vsx3.d: Likewise.
+            * testsuite/gas/ppc/vsx3.s: Likewise.
+
+### a/opcodes/ChangeLog
+### b/opcodes/ChangeLog
+## -1,3 +1,11 @@
++2016-01-11  Peter Bergner <bergner@vnet.ibm.com>
++
++	* ppc-opc.c <xscmpnedp>: Delete.
++	<xvcmpnedp>: Likewise.
++	<xvcmpnedp.>: Likewise.
++	<xvcmpnesp>: Likewise.
++	<xvcmpnesp.>: Likewise.
++
+ 2016-01-08  Andreas Schwab  <schwab@linux-m68k.org>
+ 
+ 	PR gas/13050
+--- a/opcodes/ppc-opc.c
++++ b/opcodes/ppc-opc.c
+@@ -6496,7 +6496,6 @@ const struct powerpc_opcode powerpc_opcodes[] = {
+ {"xsdivsp",	XX3(60,24),	XX3_MASK,    PPCVSX2,	PPCNONE,	{XT6, XA6, XB6}},
+ {"xsmsubmsp",	XX3(60,25),	XX3_MASK,    PPCVSX2,	PPCNONE,	{XT6, XA6, XB6}},
+ {"xxperm",	XX3(60,26),	XX3_MASK,    PPCVSX3,	PPCNONE,	{XT6, XA6, XB6}},
+-{"xscmpnedp",	XX3(60,27),	XX3_MASK,    PPCVSX3,	PPCNONE,	{XT6, XA6, XB6}},
+ {"xsadddp",	XX3(60,32),	XX3_MASK,    PPCVSX,	PPCNONE,	{XT6, XA6, XB6}},
+ {"xsmaddadp",	XX3(60,33),	XX3_MASK,    PPCVSX,	PPCNONE,	{XT6, XA6, XB6}},
+ {"xscmpudp",	XX3(60,35),	XX3BF_MASK,  PPCVSX,	PPCNONE,	{BF, XA6, XB6}},
+@@ -6551,8 +6550,6 @@ const struct powerpc_opcode powerpc_opcodes[] = {
+ {"xvmsubmsp",	XX3(60,89),	XX3_MASK,    PPCVSX,	PPCNONE,	{XT6, XA6, XB6}},
+ {"xxspltib",	X(60,360),	XX1_MASK|3<<19, PPCVSX3,PPCNONE,	{XT6, IMM8}},
+ {"xxinsertw",	XX2(60,181),	XX2UIM4_MASK,PPCVSX3,	PPCNONE,	{XT6, XB6, UIMM4}},
+-{"xvcmpnesp",	XX3RC(60,91,0), XX3_MASK,    PPCVSX3,	PPCNONE,	{XT6, XA6, XB6}},
+-{"xvcmpnesp.",	XX3RC(60,91,1), XX3_MASK,    PPCVSX3,	PPCNONE,	{XT6, XA6, XB6}},
+ {"xvcvsxwsp",	XX2(60,184),	XX2_MASK,    PPCVSX,	PPCNONE,	{XT6, XB6}},
+ {"xvrspim",	XX2(60,185),	XX2_MASK,    PPCVSX,	PPCNONE,	{XT6, XB6}},
+ {"xvtdivsp",	XX3(60,93),	XX3BF_MASK,  PPCVSX,	PPCNONE,	{BF, XA6, XB6}},
+@@ -6581,8 +6578,6 @@ const struct powerpc_opcode powerpc_opcodes[] = {
+ {"xvrdpic",	XX2(60,235),	XX2_MASK,    PPCVSX,	PPCNONE,	{XT6, XB6}},
+ {"xvdivdp",	XX3(60,120),	XX3_MASK,    PPCVSX,	PPCNONE,	{XT6, XA6, XB6}},
+ {"xvmsubmdp",	XX3(60,121),	XX3_MASK,    PPCVSX,	PPCNONE,	{XT6, XA6, XB6}},
+-{"xvcmpnedp",	XX3RC(60,123,0), XX3_MASK,   PPCVSX3,	PPCNONE,	{XT6, XA6, XB6}},
+-{"xvcmpnedp.",	XX3RC(60,123,1), XX3_MASK,   PPCVSX3,	PPCNONE,	{XT6, XA6, XB6}},
+ {"xvcvsxwdp",	XX2(60,248),	XX2_MASK,    PPCVSX,	PPCNONE,	{XT6, XB6}},
+ {"xvrdpim",	XX2(60,249),	XX2_MASK,    PPCVSX,	PPCNONE,	{XT6, XB6}},
+ {"xvtdivdp",	XX3(60,125),	XX3BF_MASK,  PPCVSX,	PPCNONE,	{BF, XA6, XB6}},

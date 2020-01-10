@@ -1,0 +1,22 @@
+commit 9b44a3a57d17ea2d35823780007a38daeeaec6a4
+Author: Andreas Arnez <arnez@linux.vnet.ibm.com>
+Date:   Tue May 13 14:55:53 2014 +0200
+
+    S390: Fix erroneous offset in fill_gregset.
+    
+    This fixes a bug that leads to various failures when debugging a
+    31-bit inferior with a 64-bit gdb on s390x.
+
+Index: gdb-7.6.1/gdb/s390-nat.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/s390-nat.c
++++ gdb-7.6.1/gdb/s390-nat.c
+@@ -167,7 +167,7 @@ fill_gregset (const struct regcache *reg
+ 		  memset (p, 0, 4);
+ 		  p += 4;
+ 		}
+-	      regcache_raw_collect (regcache, reg, p + 4);
++	      regcache_raw_collect (regcache, reg, p);
+ 	    }
+ 	}
+ 

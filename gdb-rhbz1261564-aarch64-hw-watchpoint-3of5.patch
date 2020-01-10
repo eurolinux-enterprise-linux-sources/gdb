@@ -1,0 +1,107 @@
+http://sourceware.org/ml/gdb-patches/2015-02/msg00731.html
+Subject: [PATCH 5/8] Linux native: Use TRAP_BRKPT/TRAP_HWBPT
+
+This patch adjusts the native Linux target backend to tell the core
+whether a trap was caused by a breakpoint.
+
+It teaches the target to get that information out of the si_code of
+the SIGTRAP siginfo.
+
+Tested on x86-64 Fedora 20, s390 RHEL 7, and PPC64 Fedora 18.  An
+earlier version was tested on ARM Fedora 21.
+
+gdb/ChangeLog:
+2015-02-25  Pedro Alves  <palves@redhat.com>
+
+	* linux-nat.c (save_sigtrap): Check for breakpoints before
+	checking watchpoints.
+	(status_callback) [USE_SIGTRAP_SIGINFO]: Don't check whether a
+	breakpoint is inserted if relying on SIGTRAP's siginfo.si_code.
+	(check_stopped_by_breakpoint) [USE_SIGTRAP_SIGINFO]: Decide whether
+	a breakpoint triggered based on the SIGTRAP's siginfo.si_code.
+	(linux_nat_stopped_by_sw_breakpoint)
+	(linux_nat_supports_stopped_by_sw_breakpoint)
+	(linux_nat_stopped_by_hw_breakpoint)
+	(linux_nat_supports_stopped_by_hw_breakpoint): New functions.
+	(linux_nat_wait_1): Don't re-increment the PC if relying on
+	SIGTRAP's siginfo->si_code.
+	(linux_nat_add_target): Install new target methods.
+	* linux-thread-db.c (check_event): Don't account for breakpoint PC
+	offset if the target already adjusted the PC.
+	* nat/linux-ptrace.h (USE_SIGTRAP_SIGINFO): New.
+	(GDB_ARCH_TRAP_BRKPT): New.
+	(TRAP_HWBKPT): Define if not already defined.
+---
+ gdb/linux-nat.c        | 109 ++++++++++++++++++++++++++++++++++++++++++++++---
+ gdb/linux-thread-db.c  |   6 ++-
+ gdb/nat/linux-ptrace.h |  51 +++++++++++++++++++++++
+ 3 files changed, 159 insertions(+), 7 deletions(-)
+
+Index: gdb-7.6.1/gdb/linux-nat.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/linux-nat.c	2016-03-13 19:26:22.736952457 +0100
++++ gdb-7.6.1/gdb/linux-nat.c	2016-03-13 19:45:29.343367943 +0100
+@@ -1953,6 +1953,7 @@
+      otherwise handle_zombie_lwp_error would get confused.  */
+   lp->stopped = 0;
+   lp->stopped_by_watchpoint = 0;
++  lp->stopped_by_hw_breakpoint = 0;
+   registers_changed_ptid (lp->ptid);
+ }
+ 
+@@ -2874,6 +2875,15 @@
+     }
+ 
+   do_cleanups (old_chain);
++
++  {
++#define __SI_FAULT	0
++#define TRAP_HWBKPT     (__SI_FAULT|4)  /* hardware breakpoint/watchpoint */
++  siginfo_t siginfo;
++  if (linux_nat_get_siginfo (lp->ptid, &siginfo)
++      && siginfo.si_signo == SIGTRAP && siginfo.si_code == TRAP_HWBKPT)
++    lp->stopped_by_hw_breakpoint = 1;
++  }
+ }
+ 
+ /* See save_sigtrap.  */
+@@ -3162,6 +3172,17 @@
+   return 0;
+ }
+ 
++static int
++linux_nat_stopped_by_hw_breakpoint (struct target_ops *ops)
++{
++  struct lwp_info *lp = find_lwp_pid (inferior_ptid);
++
++  if (lp == NULL)
++    return 0;
++
++  return lp->stopped_by_hw_breakpoint;
++}
++
+ /* Select one LWP out of those that have events pending.  */
+ 
+ static void
+@@ -5233,6 +5254,7 @@
+   t->to_thread_address_space = linux_nat_thread_address_space;
+   t->to_stopped_by_watchpoint = linux_nat_stopped_by_watchpoint;
+   t->to_stopped_data_address = linux_nat_stopped_data_address;
++  t->to_stopped_by_hw_breakpoint = linux_nat_stopped_by_hw_breakpoint;
+ 
+   t->to_can_async_p = linux_nat_can_async_p;
+   t->to_is_async_p = linux_nat_is_async_p;
+Index: gdb-7.6.1/gdb/linux-nat.h
+===================================================================
+--- gdb-7.6.1.orig/gdb/linux-nat.h	2016-03-13 19:26:19.411928036 +0100
++++ gdb-7.6.1/gdb/linux-nat.h	2016-03-13 19:44:29.437928457 +0100
+@@ -80,6 +80,9 @@
+      watchpoint trap.  */
+   int stopped_by_watchpoint;
+ 
++  /* RHEL: TARGET_STOPPED_BY_HW_BREAKPOINT */
++  int stopped_by_hw_breakpoint;
++
+   /* On architectures where it is possible to know the data address of
+      a triggered watchpoint, STOPPED_DATA_ADDRESS_P is non-zero, and
+      STOPPED_DATA_ADDRESS contains such data address.  Otherwise,

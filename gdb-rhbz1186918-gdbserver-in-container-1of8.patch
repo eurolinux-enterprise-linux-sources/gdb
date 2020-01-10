@@ -1,0 +1,62 @@
+commit e7f0d979dd5cc4f8b658df892e93db69d6d660b7
+Author: Yao Qi <yao@codesourcery.com>
+Date:   Tue Dec 10 21:59:20 2013 +0800
+
+    Fix a bug in matching notifications.
+    
+    Due to copy-n-paste, the problem caused PR remote/15974 also exists
+    in gdbserver.  This patch fixes it in the same way.  Patch to fix
+    remote/15974 can be found:
+    
+      https://sourceware.org/ml/gdb-patches/2013-12/msg00014.html
+    
+    gdb/gdbserver:
+    
+    2013-12-11  Yao Qi  <yao@codesourcery.com>
+    
+    	* notif.c (handle_notif_ack): Return 0 if no notification
+    	matches.
+
+### a/gdb/gdbserver/ChangeLog
+### b/gdb/gdbserver/ChangeLog
+## -1,3 +1,8 @@
++2013-12-11  Yao Qi  <yao@codesourcery.com>
++
++	* notif.c (handle_notif_ack): Return 0 if no notification
++	matches.
++
+ 2013-11-20  Doug Evans  <dje@google.com>
+ 
+ 	* linux-low.c (linux_set_resume_request): Fix comment.
+--- a/gdb/gdbserver/notif.c
++++ b/gdb/gdbserver/notif.c
+@@ -78,20 +78,23 @@ notif_write_event (struct notif_server *notif, char *own_buf)
+ int
+ handle_notif_ack (char *own_buf, int packet_len)
+ {
+-  int i = 0;
+-  struct notif_server *np = NULL;
++  size_t i;
++  struct notif_server *np;
+ 
+   for (i = 0; i < ARRAY_SIZE (notifs); i++)
+     {
+-      np = notifs[i];
+-      if (strncmp (own_buf, np->ack_name, strlen (np->ack_name)) == 0
+-	  && packet_len == strlen (np->ack_name))
++      const char *ack_name = notifs[i]->ack_name;
++
++      if (strncmp (own_buf, ack_name, strlen (ack_name)) == 0
++	  && packet_len == strlen (ack_name))
+ 	break;
+     }
+ 
+-  if (np == NULL)
++  if (i == ARRAY_SIZE (notifs))
+     return 0;
+ 
++  np = notifs[i];
++
+   /* If we're waiting for GDB to acknowledge a pending event,
+      consider that done.  */
+   if (!QUEUE_is_empty (notif_event_p, np->queue))

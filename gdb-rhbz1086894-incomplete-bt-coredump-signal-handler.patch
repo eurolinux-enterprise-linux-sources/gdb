@@ -1,0 +1,254 @@
+commit f2205de0080d999c9b67872c9db471c31b53e378
+Author: Hui Zhu <teawater@gmail.com>
+Date:   Tue May 20 13:19:06 2014 +0800
+
+    Fix issue #15778: GDB Aarch64 signal frame unwinder issue
+    
+    The root cause of this issue is unwinder of "#3  <signal handler called>"
+    doesn't supply right values of registers.
+    When GDB want to get the previous frame of "#3  <signal handler called>",
+    it will call cache init function of unwinder "aarch64_linux_sigframe_init".
+    The address or the value of the registers is get from this function.
+    So the bug is inside thie function.
+    
+    I check the asm code of "#3  <signal handler called>":
+    (gdb) frame 3
+    (gdb) p $pc
+    $1 = (void (*)()) 0x7f931fa4d0
+    (gdb) disassemble $pc, +10
+    Dump of assembler code from 0x7f931fa4d0 to 0x7f931fa4da:
+    => 0x0000007f931fa4d0:	mov	x8, #0x8b                  	// #139
+       0x0000007f931fa4d4:	svc	#0x0
+       0x0000007f931fa4d8:	nop
+    
+    This is the syscall sys_rt_sigreturn, Linux kernel function "restore_sigframe"
+    will set the frame:
+    	for (i = 0; i < 31; i++)
+    		__get_user_error(regs->regs[i], &sf->uc.uc_mcontext.regs[i],
+    				 err);
+    	__get_user_error(regs->sp, &sf->uc.uc_mcontext.sp, err);
+    	__get_user_error(regs->pc, &sf->uc.uc_mcontext.pc, err);
+    The struct of uc_mcontext is:
+    struct sigcontext {
+    	__u64 fault_address;
+    	/* AArch64 registers */
+    	__u64 regs[31];
+    	__u64 sp;
+    	__u64 pc;
+    	__u64 pstate;
+    	/* 4K reserved for FP/SIMD state and future expansion */
+    	__u8 __reserved[4096] __attribute__((__aligned__(16)));
+    };
+    
+    But in GDB function "aarch64_linux_sigframe_init", the code the get address
+    of registers is:
+      for (i = 0; i < 31; i++)
+        {
+          trad_frame_set_reg_addr (this_cache,
+    			       AARCH64_X0_REGNUM + i,
+    			       sigcontext_addr + AARCH64_SIGCONTEXT_XO_OFFSET
+    			       + i * AARCH64_SIGCONTEXT_REG_SIZE);
+        }
+    
+      trad_frame_set_reg_addr (this_cache, AARCH64_FP_REGNUM, fp);
+      trad_frame_set_reg_addr (this_cache, AARCH64_LR_REGNUM, fp + 8);
+      trad_frame_set_reg_addr (this_cache, AARCH64_PC_REGNUM, fp + 8);
+    
+    The code that get pc and sp is not right, so I change the code according
+    to Linux kernel code:
+      trad_frame_set_reg_addr (this_cache, AARCH64_SP_REGNUM,
+    			   sigcontext_addr + AARCH64_SIGCONTEXT_XO_OFFSET
+    			     + 31 * AARCH64_SIGCONTEXT_REG_SIZE);
+      trad_frame_set_reg_addr (this_cache, AARCH64_PC_REGNUM,
+    			   sigcontext_addr + AARCH64_SIGCONTEXT_XO_OFFSET
+    			     + 32 * AARCH64_SIGCONTEXT_REG_SIZE);
+    
+    The issue was fixed by this change, and I did the regression test.  It
+    also fixed a lot of other XFAIL and FAIL.
+    
+    2014-05-20  Hui Zhu  <hui@codesourcery.com>
+    	    Yao Qi  <yao@codesourcery.com>
+    
+    	PR backtrace/16558
+    	* aarch64-linux-tdep.c (aarch64_linux_sigframe_init): Update comments
+    	and change address of sp and pc.
+
+Index: gdb-7.6.1/gdb/aarch64-linux-tdep.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/aarch64-linux-tdep.c
++++ gdb-7.6.1/gdb/aarch64-linux-tdep.c
+@@ -47,28 +47,30 @@
+ 
+ /* Signal frame handling.
+ 
+-      +----------+  ^
+-      | saved lr |  |
+-   +->| saved fp |--+
+-   |  |          |
+-   |  |          |
+-   |  +----------+
+-   |  | saved lr |
+-   +--| saved fp |
+-   ^  |          |
+-   |  |          |
+-   |  +----------+
+-   ^  |          |
+-   |  | signal   |
+-   |  |          |
+-   |  | saved lr |-->interrupted_function_pc
+-   +--| saved fp |
+-   |  +----------+
+-   |  | saved lr |--> default_restorer (movz x8, NR_sys_rt_sigreturn; svc 0)
+-   +--| saved fp |<- FP
+-      |          |
+-      |          |<- SP
+-      +----------+
++      +------------+  ^
++      | saved lr   |  |
++   +->| saved fp   |--+
++   |  |            |
++   |  |            |
++   |  +------------+
++   |  | saved lr   |
++   +--| saved fp   |
++   ^  |            |
++   |  |            |
++   |  +------------+
++   ^  |            |
++   |  | signal     |
++   |  |            |        SIGTRAMP_FRAME (struct rt_sigframe)
++   |  | saved regs |
++   +--| saved sp   |--> interrupted_sp
++   |  | saved pc   |--> interrupted_pc
++   |  |            |
++   |  +------------+
++   |  | saved lr   |--> default_restorer (movz x8, NR_sys_rt_sigreturn; svc 0)
++   +--| saved fp   |<- FP
++      |            |         NORMAL_FRAME
++      |            |<- SP
++      +------------+
+ 
+   On signal delivery, the kernel will create a signal handler stack
+   frame and setup the return address in LR to point at restorer stub.
+@@ -117,6 +119,8 @@
+   d28015a8        movz    x8, #0xad
+   d4000001        svc     #0x0
+ 
++  This is a system call sys_rt_sigreturn.
++
+   We detect signal frames by snooping the return code for the restorer
+   instruction sequence.
+ 
+@@ -140,7 +144,6 @@ aarch64_linux_sigframe_init (const struc
+ {
+   struct gdbarch *gdbarch = get_frame_arch (this_frame);
+   CORE_ADDR sp = get_frame_register_unsigned (this_frame, AARCH64_SP_REGNUM);
+-  CORE_ADDR fp = get_frame_register_unsigned (this_frame, AARCH64_FP_REGNUM);
+   CORE_ADDR sigcontext_addr =
+     sp
+     + AARCH64_RT_SIGFRAME_UCONTEXT_OFFSET
+@@ -154,12 +157,14 @@ aarch64_linux_sigframe_init (const struc
+ 			       sigcontext_addr + AARCH64_SIGCONTEXT_XO_OFFSET
+ 			       + i * AARCH64_SIGCONTEXT_REG_SIZE);
+     }
++  trad_frame_set_reg_addr (this_cache, AARCH64_SP_REGNUM,
++			   sigcontext_addr + AARCH64_SIGCONTEXT_XO_OFFSET
++			     + 31 * AARCH64_SIGCONTEXT_REG_SIZE);
++  trad_frame_set_reg_addr (this_cache, AARCH64_PC_REGNUM,
++			   sigcontext_addr + AARCH64_SIGCONTEXT_XO_OFFSET
++			     + 32 * AARCH64_SIGCONTEXT_REG_SIZE);
+ 
+-  trad_frame_set_reg_addr (this_cache, AARCH64_FP_REGNUM, fp);
+-  trad_frame_set_reg_addr (this_cache, AARCH64_LR_REGNUM, fp + 8);
+-  trad_frame_set_reg_addr (this_cache, AARCH64_PC_REGNUM, fp + 8);
+-
+-  trad_frame_set_id (this_cache, frame_id_build (fp, func));
++  trad_frame_set_id (this_cache, frame_id_build (sp, func));
+ }
+ 
+ static const struct tramp_frame aarch64_linux_rt_sigframe =
+Index: gdb-7.6.1/gdb/testsuite/gdb.arch/aarch64-rhbz1086894-bt-signal-handler.exp
+===================================================================
+--- /dev/null
++++ gdb-7.6.1/gdb/testsuite/gdb.arch/aarch64-rhbz1086894-bt-signal-handler.exp
+@@ -0,0 +1,35 @@
++# Copyright (C) 2014 Free Software Foundation, Inc.
++#
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 3 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License
++# along with this program.  If not, see <http://www.gnu.org/licenses/>.
++
++# Internal testing for RHEL-7.1.
++
++standard_testfile
++
++if { ![istarget "aarch64*"] } {
++        verbose "Skipping $testfile"
++        return
++}
++
++if { [prepare_for_testing ${testfile}.exp ${testfile} ${srcfile}] } {
++        return -1
++}
++
++if ![runto_main] {
++        return -1
++}
++
++gdb_test "continue" "Continuing.\r\n\r\nProgram received signal SIGSEGV.*" "run until SIGSEGV"
++
++gdb_test "backtrace" "#$decimal\\s+$hex in pause .*from.*" "backtrace on signal handler"
+Index: gdb-7.6.1/gdb/testsuite/gdb.arch/aarch64-rhbz1086894-bt-signal-handler.c
+===================================================================
+--- /dev/null
++++ gdb-7.6.1/gdb/testsuite/gdb.arch/aarch64-rhbz1086894-bt-signal-handler.c
+@@ -0,0 +1,40 @@
++/* Copyright 2014 Free Software Foundation, Inc.
++
++   This file is part of GDB.
++
++   This program is free software; you can redistribute it and/or modify
++   it under the terms of the GNU General Public License as published by
++   the Free Software Foundation; either version 3 of the License, or
++   (at your option) any later version.
++
++   This program is distributed in the hope that it will be useful,
++   but WITHOUT ANY WARRANTY; without even the implied warranty of
++   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++   GNU General Public License for more details.
++
++   You should have received a copy of the GNU General Public License
++   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
++
++/* Internal test for RHEL-7.1.  */
++
++#include <sys/types.h>
++#include <signal.h>
++#include <unistd.h>
++#include <assert.h>
++
++static void
++handle_alrm(int signo)
++{
++  kill (getpid (), SIGSEGV);
++  assert (0);
++}
++
++int
++main (int argc, char *argv[])
++{
++  signal (SIGALRM, handle_alrm);
++  alarm (1);
++  pause ();
++  assert (0);
++  return 0;
++}

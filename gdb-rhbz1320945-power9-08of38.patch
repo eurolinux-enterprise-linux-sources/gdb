@@ -1,0 +1,56 @@
+commit db76a70026ab100148eb274322fac01f1a1dd466
+Author: Alan Modra <amodra@gmail.com>
+Date:   Sat Nov 29 19:13:17 2014 +1030
+
+    Power4 should treat mftb as extended mfspr mnemonic
+    
+    On further reading of ISA manual it appears gas should have been
+    treating mftb and mftbu as extended mnemonics for mfspr, for ISA 2.03
+    and later.
+    
+    opcodes/
+            * ppc-opc.c (powerpc_opcodes): Make mftb* generate mfspr for
+            power4 and later.
+    gas/testsuite/
+            * gas/ppc/a2.d: Update for mftb change.
+            * gas/ppc/476.d: Likewise.
+
+### a/opcodes/ChangeLog
+### b/opcodes/ChangeLog
+## -1,3 +1,8 @@
++2014-11-30  Alan Modra  <amodra@gmail.com>
++
++	* ppc-opc.c (powerpc_opcodes): Make mftb* generate mfspr for
++	power4 and later.
++
+ 2014-11-28  Sandra Loosemore  <sandra@codesourcery.com>
+ 
+ 	* nios2-opc.c (nios2_r1_opcodes): Remove deleted attributes
+--- a/opcodes/ppc-opc.c
++++ b/opcodes/ppc-opc.c
+@@ -4880,9 +4880,9 @@ const struct powerpc_opcode powerpc_opcodes[] = {
+ {"mfsprg5",	XSPR(31,339,261), XSPR_MASK, PPC405|BOOKE|PPCVLE, PPCNONE, {RT}},
+ {"mfsprg6",	XSPR(31,339,262), XSPR_MASK, PPC405|BOOKE|PPCVLE, PPCNONE, {RT}},
+ {"mfsprg7",	XSPR(31,339,263), XSPR_MASK, PPC405|BOOKE|PPCVLE, PPCNONE, {RT}},
+-{"mftb",	XSPR(31,339,268), XSPR_MASK, BOOKE|PPCVLE, PPCNONE,	{RT}},
+-{"mftbl",	XSPR(31,339,268), XSPR_MASK, BOOKE|PPCVLE, PPCNONE,	{RT}},
+-{"mftbu",	XSPR(31,339,269), XSPR_MASK, BOOKE|PPCVLE, PPCNONE,	{RT}},
++{"mftbu",	XSPR(31,339,269), XSPR_MASK, POWER4|BOOKE|PPCVLE, PPCNONE, {RT}},
++{"mftb",	X(31,339),	  X_MASK,    POWER4|BOOKE|PPCVLE, PPCNONE, {RT, TBR}},
++{"mftbl",	XSPR(31,339,268), XSPR_MASK, POWER4|BOOKE|PPCVLE, PPCNONE, {RT}},
+ {"mfsprg0",	XSPR(31,339,272), XSPR_MASK, PPC|PPCVLE, PPCNONE,	{RT}},
+ {"mfsprg1",	XSPR(31,339,273), XSPR_MASK, PPC|PPCVLE, PPCNONE,	{RT}},
+ {"mfsprg2",	XSPR(31,339,274), XSPR_MASK, PPC|PPCVLE, PPCNONE,	{RT}},
+@@ -5051,9 +5051,9 @@ const struct powerpc_opcode powerpc_opcodes[] = {
+ 
+ {"tlbia",	X(31,370),	0xffffffff,  PPC,	TITAN,  	{0}},
+ 
+-{"mftbl",	XSPR(31,371,268), XSPR_MASK, PPC,	NO371,		{RT}},
+-{"mftbu",	XSPR(31,371,269), XSPR_MASK, PPC,	NO371,		{RT}},
+-{"mftb",	X(31,371),	X_MASK,      PPC|PPCA2,	NO371,		{RT, TBR}},
++{"mftbu",	XSPR(31,371,269), XSPR_MASK, PPC,	NO371|POWER4,	{RT}},
++{"mftb",	X(31,371),	X_MASK,      PPC,	NO371|POWER4,	{RT, TBR}},
++{"mftbl",	XSPR(31,371,268), XSPR_MASK, PPC,	NO371|POWER4,	{RT}},
+ 
+ {"lwaux",	X(31,373),	X_MASK,      PPC64|PPCVLE, PPCNONE,	{RT, RAL, RB}},
+ 

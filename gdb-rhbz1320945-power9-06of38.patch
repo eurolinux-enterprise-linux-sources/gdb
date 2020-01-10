@@ -1,0 +1,39 @@
+commit 12e87fac5c760b04eed4f5a5948c2dfd6ec8f6d8
+Author: Jan Beulich <jbeulich@novell.com>
+Date:   Tue Oct 21 09:56:38 2014 +0200
+
+    ppc: enable msgclr and msgsnd on Power8
+    
+    According to my reading of the spec it was an oversight for them to
+    not having got enabled when Power8 support got added.
+
+### a/opcodes/ChangeLog
+### b/opcodes/ChangeLog
+## -1,3 +1,7 @@
++2014-10-21  Jan Beulich  <jbeulich@suse.com>
++
++	* ppc-opc.c (powerpc_opcodes): Enable msgclr and msgsnd on Power8.
++
+ 2014-10-17  Jose E. Marchesi  <jose.marchesi@oracle.com>
+ 
+ 	* sparc-opc.c (sparc-opcodes): Fix several misplaced hwcap
+--- a/opcodes/ppc-opc.c
++++ b/opcodes/ppc-opc.c
+@@ -4653,7 +4653,7 @@ const struct powerpc_opcode powerpc_opcodes[] = {
+ {"addze.",	XO(31,202,0,1),	XORB_MASK,   PPCCOM|PPCVLE, PPCNONE,	{RT, RA}},
+ {"aze.",	XO(31,202,0,1),	XORB_MASK,   PWRCOM,	PPCNONE,	{RT, RA}},
+ 
+-{"msgsnd",	XRTRA(31,206,0,0), XRTRA_MASK, E500MC|PPCA2|PPCVLE, PPCNONE, {RB}},
++{"msgsnd",	XRTRA(31,206,0,0), XRTRA_MASK, E500MC|PPCA2|POWER8|PPCVLE, PPCNONE, {RB}},
+ 
+ {"mtsr",	X(31,210), XRB_MASK|(1<<20), COM,	NON32,  	{SR, RS}},
+ 
+@@ -4700,7 +4700,7 @@ const struct powerpc_opcode powerpc_opcodes[] = {
+ {"muls.",	XO(31,235,0,1),	XO_MASK,     PWRCOM,	PPCNONE,	{RT, RA, RB}},
+ 
+ {"icblce",	X(31,238),	X_MASK,      PPCCHLK,	E500MC|PPCA2,	{CT, RA, RB}},
+-{"msgclr",	XRTRA(31,238,0,0),XRTRA_MASK, E500MC|PPCA2|PPCVLE, PPCNONE, {RB}},
++{"msgclr",	XRTRA(31,238,0,0), XRTRA_MASK, E500MC|PPCA2|POWER8|PPCVLE, PPCNONE, {RB}},
+ {"mtsrin",	X(31,242),	XRA_MASK,    PPC,	NON32,  	{RS, RB}},
+ {"mtsri",	X(31,242),	XRA_MASK,    POWER,	NON32,		{RS, RB}},
+ 

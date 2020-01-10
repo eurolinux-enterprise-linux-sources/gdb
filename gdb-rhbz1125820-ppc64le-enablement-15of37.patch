@@ -1,0 +1,93 @@
+commit afe397ea85a3d09d936c93328a1f6bf640577cf3
+Author: Alan Modra <amodra@gmail.com>
+Date:   Wed Nov 6 10:20:52 2013 +1030
+
+    Correct elf64-ppc.c handling of protected symbols
+    
+    Some places in elf64-ppc.c carelessly used SYMBOL_CALLS_LOCAL when
+    the proper test is SYMBOL_REFERENCES_LOCAL for cases where we take the
+    address of a protected symbol.  This works OK for function descriptors
+    but not for ELFv2.  Setting symbols to their global entry stub a
+    little earlier is to ensure _bfd_elf_hash_symbol allows such symbols
+    in .gnu.hash.
+    
+    	* elf64-ppc.c (ppc64_elf_edit_toc): Use SYMBOL_REFERENCES_LOCAL
+    	here, not SYMBOL_CALLS_LOCAL.
+    	(ppc64_elf_relocate_section): Likewise.
+    	(size_global_entry_stubs): Set undefined symbols on their global
+    	entry stubs here..
+    	(build_global_entry_stubs): ..rather than here.
+    	(ppc64_elf_build_stubs): Don't reset glink->size before calling
+    	build_global_entry_stubs.
+
+Index: gdb-7.6.1/bfd/elf64-ppc.c
+===================================================================
+--- gdb-7.6.1.orig/bfd/elf64-ppc.c
++++ gdb-7.6.1/bfd/elf64-ppc.c
+@@ -8496,7 +8496,7 @@ ppc64_elf_edit_toc (struct bfd_link_info
+ 		  || discarded_section (sym_sec))
+ 		continue;
+ 
+-	      if (!SYMBOL_CALLS_LOCAL (info, h))
++	      if (!SYMBOL_REFERENCES_LOCAL (info, h))
+ 		continue;
+ 
+ 	      if (h != NULL)
+@@ -9344,7 +9344,13 @@ size_global_entry_stubs (struct elf_link
+     if (pent->plt.offset != (bfd_vma) -1
+ 	&& pent->addend == 0)
+       {
++	/* For ELFv2, if this symbol is not defined in a regular file
++	   and we are not generating a shared library or pie, then we
++	   need to define the symbol in the executable on a call stub.
++	   This is to avoid text relocations.  */
+ 	s->size = (s->size + 15) & -16;
++	h->root.u.def.section = s;
++	h->root.u.def.value = s->size;
+ 	s->size += 16;
+ 	break;
+       }
+@@ -12183,13 +12189,6 @@ build_global_entry_stubs (struct elf_lin
+ 	asection *plt;
+ 	bfd_vma off;
+ 
+-	/* For ELFv2, if this symbol is not defined in a regular file
+-	   and we are not generating a shared library or pie, then we
+-	   need to define the symbol in the executable on a call stub.
+-	   This is to avoid text relocations.  */
+-	h->root.u.def.section = s;
+-	h->root.u.def.value = s->size;
+-	s->size += 16;
+ 	p = s->contents + h->root.u.def.value;
+ 	plt = htab->plt;
+ 	if (!htab->elf.dynamic_sections_created
+@@ -12383,10 +12382,7 @@ ppc64_elf_build_stubs (bfd_boolean emit_
+ 
+       /* Build .glink global entry stubs.  */
+       if (htab->glink->size > htab->glink->rawsize)
+-	{
+-	  htab->glink->size = (htab->glink->rawsize + 15) & -16;
+-	  elf_link_hash_traverse (&htab->elf, build_global_entry_stubs, info);
+-	}
++	elf_link_hash_traverse (&htab->elf, build_global_entry_stubs, info);
+     }
+ 
+   if (htab->brlt->size != 0)
+@@ -13624,7 +13620,7 @@ ppc64_elf_relocate_section (bfd *output_
+ 		    if (!WILL_CALL_FINISH_DYNAMIC_SYMBOL (dyn, info->shared,
+ 							  &h->elf)
+ 			|| (info->shared
+-			    && SYMBOL_CALLS_LOCAL (info, &h->elf)))
++			    && SYMBOL_REFERENCES_LOCAL (info, &h->elf)))
+ 		      /* This is actually a static link, or it is a
+ 			 -Bsymbolic link and the symbol is defined
+ 			 locally, or the symbol was forced to be local
+@@ -14003,7 +13999,7 @@ ppc64_elf_relocate_section (bfd *output_
+ 
+ 	      if (skip)
+ 		memset (&outrel, 0, sizeof outrel);
+-	      else if (!SYMBOL_CALLS_LOCAL (info, &h->elf)
++	      else if (!SYMBOL_REFERENCES_LOCAL (info, &h->elf)
+ 		       && !is_opd
+ 		       && r_type != R_PPC64_TOC)
+ 		{

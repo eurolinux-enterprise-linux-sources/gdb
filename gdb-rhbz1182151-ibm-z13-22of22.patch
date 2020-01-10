@@ -1,0 +1,65 @@
+commit fd356fa28834fa3a9f22f9157a568264ad045010
+Author: Andreas Arnez <arnez@linux.vnet.ibm.com>
+Date:   Wed Jan 20 19:41:45 2016 +0100
+
+    gnu_vector.exp: Respect `should_kfail' for PR 8549
+    
+    The gnu_vector test case yields a new FAIL on s390x:
+    
+      FAIL: gdb.base/gnu_vector.exp: verify vector return value
+    
+    It was introduced by commit 77ae9c1933b50 "gdb.base/gnu_vector.exp:
+    Don't test output from the inferior".  That commit dropped the special
+    handling for GDB's inability (on some targets) to set the return value.
+    
+    This change re-establishes the logic from before, converting the above
+    FAIL to a KFAIL (PRMS gdb/8549).
+    
+    gdb/testsuite/ChangeLog:
+    
+    	* gdb.base/gnu_vector.exp: Re-establish handling for should_kfail
+    	when GDB can not set the vector return value.  Add more comments
+    	for clarification.
+
+### a/gdb/testsuite/ChangeLog
+### b/gdb/testsuite/ChangeLog
+## -1,3 +1,9 @@
++2016-01-20  Andreas Arnez  <arnez@linux.vnet.ibm.com>
++
++	* gdb.base/gnu_vector.exp: Re-establish handling for should_kfail
++	when GDB can not set the vector return value.  Add more comments
++	for clarification.
++
+ 2016-01-20  Antoine Tremblay  <antoine.tremblay@ericsson.com>
+ 
+ 	* gdb.trace/tspeed.exp:  Use shlib instead of libs in gdb_compile
+--- a/gdb/testsuite/gdb.base/gnu_vector.exp
++++ b/gdb/testsuite/gdb.base/gnu_vector.exp
+@@ -230,6 +230,7 @@ gdb_test_multiple "return (int4) \{4, 2, 7, 6\}" $test {
+ 	pass $test
+     }
+     -re "The location .* is unknown.\r\n.* return value .* will be ignored.\r\n" {
++	# This happens, e.g., on s390x unless using the vector ABI.
+ 	set should_kfail 1
+ 	exp_continue
+     }
+@@ -240,4 +241,18 @@ gdb_test_multiple "return (int4) \{4, 2, 7, 6\}" $test {
+ }
+ 
+ gdb_test "next" ""
+-gdb_test "p res" "\\{4, 2, 7, 6\\}.*" "verify vector return value"
++set test "verify vector return value"
++gdb_test_multiple "p res" $test {
++    -re ".*= \\{4, 2, 7, 6\\}\r\n.*$gdb_prompt $" {
++	pass $test
++    }
++    -re ".*= \\{.*\\}\r\n.*$gdb_prompt $" {
++	if { $should_kfail } {
++	    # GDB had not actually set the return value, likely due to
++	    # PR 8549.  So accept any return value and emit a KFAIL.
++	    kfail "gdb/8549" $test
++	} else {
++	    fail $test
++	}
++    }
++}

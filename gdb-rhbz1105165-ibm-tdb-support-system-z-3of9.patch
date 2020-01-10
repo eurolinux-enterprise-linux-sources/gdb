@@ -1,0 +1,1398 @@
+From 4ac33720d6022079e8b038e795e40f0e06a4012c Mon Sep 17 00:00:00 2001
+From: Ulrich Weigand <uweigand@de.ibm.com>
+Date: Fri, 13 Sep 2013 14:17:31 +0000
+Subject: [PATCH 3/3] gdb/ChangeLog: 2013-09-13  Andreas Arnez 
+ <arnez@linux.vnet.ibm.com>
+
+	* NEWS: Mention TDB support.
+	* features/s390-tdb.xml: New file.
+	* features/s390-te-linux64.xml: New file.
+	* features/s390x-te-linux64.xml: New file.
+	* features/Makefile (WHICH): Add new tdescs above.
+	(s390-te-linux64-expedite): Set.
+	(s390x-te-linux64-expedite): Set.
+	* features/s390-te-linux64.c: New file (generated).
+	* features/s390x-te-linux64.c: New file (generated).
+	* regformats/s390-te-linux64.dat: New file (generated).
+	* regformats/s390x-te-linux64.dat: New file (generated).
+	* s390-tdep.h (HWCAP_S390_HIGH_GPRS): Define.
+	(HWCAP_S390_TE): Likewise.
+	(S390_TDB_DWORD0_REGNUM): Likewise.
+	(S390_TDB_DWORD0_REGNUM): Likewise.
+	(S390_TDB_ABORT_CODE_REGNUM): Likewise.
+	(S390_TDB_CONFLICT_TOKEN_REGNUM): Likewise.
+	(S390_TDB_ATIA_REGNUM): Likewise.
+	(S390_TDB_R0_REGNUM): Likewise.
+	(S390_TDB_R1_REGNUM): Likewise.
+	(S390_TDB_R2_REGNUM): Likewise.
+	(S390_TDB_R3_REGNUM): Likewise.
+	(S390_TDB_R4_REGNUM): Likewise.
+	(S390_TDB_R5_REGNUM): Likewise.
+	(S390_TDB_R6_REGNUM): Likewise.
+	(S390_TDB_R7_REGNUM): Likewise.
+	(S390_TDB_R8_REGNUM): Likewise.
+	(S390_TDB_R9_REGNUM): Likewise.
+	(S390_TDB_R10_REGNUM): Likewise.
+	(S390_TDB_R11_REGNUM): Likewise.
+	(S390_TDB_R12_REGNUM): Likewise.
+	(S390_TDB_R13_REGNUM): Likewise.
+	(S390_TDB_R14_REGNUM): Likewise.
+	(S390_TDB_R15_REGNUM): Likewise.
+	(S390_NUM_REGS): Increase.
+	(S390_IS_TDBREGSET_REGNUM): New macro.
+	(s390_regmap_tdb): Declare.
+	(s390_sizeof_tdbregset): Define.
+	(tdesc_s390_te_linux64): Declare.
+	(tdesc_s390x_te_linux64): Likewise.
+	* s390-tdep.c: Add includes for "auxv.h", <elf.h>,
+	"features/s390-te-linux64.c", and "features/s390x-te-linux64.c".
+	(s390_regmap_tdb): New regmap.
+	(s390_supply_tdb_regset): New function.
+	(s390_tdb_regset): New regset.
+	(s390_linux64v2_regset_sections): Add TDB regset to list.
+	(s390x_linux64v2_regset_sections): Likewise.
+	(s390_regset_from_core_section): Recognize TDB core note section.
+	(s390_core_read_description): If HWCAP indicates TE support,
+	select tdesc_s390_te_linux64 or tdesc_s390_s390x_te_linux64.
+	(s390_gdbarch_init): Handle TDB regset.
+	(_initialize_s390_tdep): Initialize new tdescs.
+	* s390-nat.c (HWCAP_S390_HIGH_GPRS): Remove define.
+	(have_regset_tdb): New variable.
+	(s390_native_supply): Support register invalidation.
+	(fetch_regset): Invalidate registers if ptrace yields ENODATA.
+	(check_regset): Treat ENODATA as "regset exists".
+	(s390_linux_fetch_inferior_registers): Add TDB.
+	(s390_read_description): Check for TDB existence and select
+	appropriate tdesc.
+	* gdbserver/Makefile.in (clean): Add removal of new makefile
+	targets.
+	(s390-te-linux64.c): New makefile target.
+	(s390x-te-linux64.c): Likewise.
+	* gdbserver/configure.srv (srv_regobj): Append new objects
+	s390-te-linux64.o and s390x-te-linux64.o.
+	(srv_xmlfiles): Append new files s390-te-linux64.xml,
+	s390x-te-linux64.xml, and s390-tdb.xml.
+	* gdbserver/linux-s390-low.c (init_registers_s390_te_linux64): New
+	declaration.
+	(tdesc_s390_te_linux64): Likewise.
+	(init_registers_s390x_te_linux64): Likewise.
+	(tdesc_s390x_te_linux64): Likewise.
+	(s390_check_regset): Treat ENODATA as "regset exists".
+	(s390_arch_setup): Add TDB regset support.
+	(initialize_low_arch): Initialize registers for new tdescs.
+
+gdb/doc/ChangeLog:
+2013-09-13  Andreas Arnez  <arnez@linux.vnet.ibm.com>
+
+	* gdb.texinfo (Decimal Floating Point format): Mention S/390.
+	(Standard Target Features): Add new node to menu.
+	(S/390 and System z Features): New node.
+
+gdb/testsuite/ChangeLog:
+2013-09-13  Andreas Arnez  <arnez@linux.vnet.ibm.com>
+
+	* gdb.arch/s390-tdbregs.c: New file.
+	* gdb.arch/s390-tdbregs.exp: New file.
+---
+ gdb/ChangeLog                           |  79 +++++++++++++++++++++
+ gdb/NEWS                                |   4 ++
+ gdb/doc/ChangeLog                       |   6 ++
+ gdb/doc/gdb.texinfo                     |  38 +++++++++-
+ gdb/features/Makefile                   |   3 +
+ gdb/features/s390-tdb.xml               |  30 ++++++++
+ gdb/features/s390-te-linux64.c          | 118 ++++++++++++++++++++++++++++++++
+ gdb/features/s390-te-linux64.xml        |  25 +++++++
+ gdb/features/s390x-te-linux64.c         | 102 +++++++++++++++++++++++++++
+ gdb/features/s390x-te-linux64.xml       |  24 +++++++
+ gdb/gdbserver/Makefile.in               |   7 ++
+ gdb/gdbserver/configure.srv             |   5 ++
+ gdb/gdbserver/linux-s390-low.c          |  25 +++++--
+ gdb/regformats/s390-te-linux64.dat      |  94 +++++++++++++++++++++++++
+ gdb/regformats/s390x-te-linux64.dat     |  78 +++++++++++++++++++++
+ gdb/s390-nat.c                          |  37 ++++++----
+ gdb/s390-tdep.c                         |  85 ++++++++++++++++++++++-
+ gdb/s390-tdep.h                         |  40 ++++++++++-
+ gdb/testsuite/ChangeLog                 |   5 ++
+ gdb/testsuite/gdb.arch/s390-tdbregs.c   |  64 +++++++++++++++++
+ gdb/testsuite/gdb.arch/s390-tdbregs.exp |  75 ++++++++++++++++++++
+ 21 files changed, 921 insertions(+), 23 deletions(-)
+ create mode 100644 gdb/features/s390-tdb.xml
+ create mode 100644 gdb/features/s390-te-linux64.c
+ create mode 100644 gdb/features/s390-te-linux64.xml
+ create mode 100644 gdb/features/s390x-te-linux64.c
+ create mode 100644 gdb/features/s390x-te-linux64.xml
+ create mode 100644 gdb/regformats/s390-te-linux64.dat
+ create mode 100644 gdb/regformats/s390x-te-linux64.dat
+ create mode 100644 gdb/testsuite/gdb.arch/s390-tdbregs.c
+ create mode 100644 gdb/testsuite/gdb.arch/s390-tdbregs.exp
+
+Index: gdb-7.6.1/gdb/NEWS
+===================================================================
+--- gdb-7.6.1.orig/gdb/NEWS
++++ gdb-7.6.1/gdb/NEWS
+@@ -14,6 +14,10 @@ add-auto-load-scripts-directory director
+ 
+   ** Frame filters and frame decorators have been added.
+ 
++* On S/390 targets that provide the transactional-execution feature,
++  the program interruption transaction diagnostic block (TDB) is now
++  represented as a number of additional "registers" in GDB.
++
+ * New remote packets
+ 
+ qXfer:libraries-svr4:read's annex
+Index: gdb-7.6.1/gdb/doc/gdb.texinfo
+===================================================================
+--- gdb-7.6.1.orig/gdb/doc/gdb.texinfo
++++ gdb-7.6.1/gdb/doc/gdb.texinfo
+@@ -13737,8 +13737,8 @@ specified by the extension to support de
+ 
+ There are two encodings in use, depending on the architecture: BID (Binary
+ Integer Decimal) for x86 and x86-64, and DPD (Densely Packed Decimal) for
+-PowerPC.  @value{GDBN} will use the appropriate encoding for the configured
+-target.
++PowerPC and S/390.  @value{GDBN} will use the appropriate encoding for the
++configured target.
+ 
+ Because of a limitation in @file{libdecnumber}, the library used by @value{GDBN}
+ to manipulate decimal floating point numbers, it is not possible to convert
+@@ -42082,6 +42082,7 @@ registers using the capitalization used
+ * MIPS Features::
+ * M68K Features::
+ * PowerPC Features::
++* S/390 and System z Features::
+ * TIC6x Features::
+ @end menu
+ 
+@@ -42261,6 +42262,39 @@ contain registers @samp{ev0h} through @s
+ these to present registers @samp{ev0} through @samp{ev31} to the
+ user.
+ 
++@node S/390 and System z Features
++@subsection S/390 and System z Features
++@cindex target descriptions, S/390 features
++@cindex target descriptions, System z features
++
++The @samp{org.gnu.gdb.s390.core} feature is required for S/390 and
++System z targets.  It should contain the PSW and the 16 general
++registers.  In particular, System z targets should provide the 64-bit
++registers @samp{pswm}, @samp{pswa}, and @samp{r0} through @samp{r15}.
++S/390 targets should provide the 32-bit versions of these registers.
++A System z target that runs in 31-bit addressing mode should provide
++32-bit versions of @samp{pswm} and @samp{pswa}, as well as the general
++register's upper halves @samp{r0h} through @samp{r15h}, and their
++lower halves @samp{r0l} through @samp{r15l}.
++
++The @samp{org.gnu.gdb.s390.fpr} feature is required.  It should
++contain the 64-bit registers @samp{f0} through @samp{f15}, and
++@samp{fpc}.
++
++The @samp{org.gnu.gdb.s390.acr} feature is required.  It should
++contain the 32-bit registers @samp{acr0} through @samp{acr15}.
++
++The @samp{org.gnu.gdb.s390.linux} feature is optional.  It should
++contain the register @samp{orig_r2}, which is 64-bit wide on System z
++targets and 32-bit otherwise.  In addition, the feature may contain
++the @samp{last_break} register, whose width depends on the addressing
++mode, as well as the @samp{system_call} register, which is always
++32-bit wide.
++
++The @samp{org.gnu.gdb.s390.tdb} feature is optional.  It should
++contain the 64-bit registers @samp{tdb0}, @samp{tac}, @samp{tct},
++@samp{atia}, and @samp{tr0} through @samp{tr15}.
++
+ @node TIC6x Features
+ @subsection TMS320C6x Features
+ @cindex target descriptions, TIC6x features
+Index: gdb-7.6.1/gdb/features/Makefile
+===================================================================
+--- gdb-7.6.1.orig/gdb/features/Makefile
++++ gdb-7.6.1/gdb/features/Makefile
+@@ -49,6 +49,7 @@ WHICH = aarch64 aarch64-without-fpu \
+ 	s390-linux32 s390-linux64 s390x-linux64 \
+ 	s390-linux32v1 s390-linux64v1 s390x-linux64v1 \
+ 	s390-linux32v2 s390-linux64v2 s390x-linux64v2 \
++	s390-te-linux64 s390x-te-linux64 \
+ 	tic6x-c64xp tic6x-c64x tic6x-c62x \
+ 	tic6x-c64xp-linux tic6x-c64x-linux tic6x-c62x-linux
+ 
+@@ -82,9 +83,11 @@ s390-linux32v2-expedite = r14,r15,pswa
+ s390-linux64-expedite = r14l,r15l,pswa
+ s390-linux64v1-expedite = r14l,r15l,pswa
+ s390-linux64v2-expedite = r14l,r15l,pswa
++s390-te-linux64-expedite = r14,r15,pswa
+ s390x-linux64-expedite = r14,r15,pswa
+ s390x-linux64v1-expedite = r14,r15,pswa
+ s390x-linux64v2-expedite = r14,r15,pswa
++s390x-te-linux64-expedite = r14,r15,pswa
+ tic6x-c64xp-expedite = A15,PC
+ tic6x-c64x-expedite = A15,PC
+ tic6x-c62x-expedite = A15,PC
+Index: gdb-7.6.1/gdb/features/s390-tdb.xml
+===================================================================
+--- /dev/null
++++ gdb-7.6.1/gdb/features/s390-tdb.xml
+@@ -0,0 +1,30 @@
++<?xml version="1.0"?>
++<!-- Copyright (C) 2010-2013 Free Software Foundation, Inc.
++
++     Copying and distribution of this file, with or without modification,
++     are permitted in any medium without royalty provided the copyright
++     notice and this notice are preserved.  -->
++
++<!DOCTYPE feature SYSTEM "gdb-target.dtd">
++<feature name="org.gnu.gdb.s390.tdb">
++  <reg name="tdb0" bitsize="64" type="uint64" group="tdb"/>
++  <reg name="tac" bitsize="64" type="uint64" group="tdb"/>
++  <reg name="tct" bitsize="64" type="uint64" group="tdb"/>
++  <reg name="atia" bitsize="64" type="uint64" group="tdb"/>
++  <reg name="tr0" bitsize="64" type="uint64" group="tdb"/>
++  <reg name="tr1" bitsize="64" type="uint64" group="tdb"/>
++  <reg name="tr2" bitsize="64" type="uint64" group="tdb"/>
++  <reg name="tr3" bitsize="64" type="uint64" group="tdb"/>
++  <reg name="tr4" bitsize="64" type="uint64" group="tdb"/>
++  <reg name="tr5" bitsize="64" type="uint64" group="tdb"/>
++  <reg name="tr6" bitsize="64" type="uint64" group="tdb"/>
++  <reg name="tr7" bitsize="64" type="uint64" group="tdb"/>
++  <reg name="tr8" bitsize="64" type="uint64" group="tdb"/>
++  <reg name="tr9" bitsize="64" type="uint64" group="tdb"/>
++  <reg name="tr10" bitsize="64" type="uint64" group="tdb"/>
++  <reg name="tr11" bitsize="64" type="uint64" group="tdb"/>
++  <reg name="tr12" bitsize="64" type="uint64" group="tdb"/>
++  <reg name="tr13" bitsize="64" type="uint64" group="tdb"/>
++  <reg name="tr14" bitsize="64" type="uint64" group="tdb"/>
++  <reg name="tr15" bitsize="64" type="uint64" group="tdb"/>
++</feature>
+Index: gdb-7.6.1/gdb/features/s390-te-linux64.c
+===================================================================
+--- /dev/null
++++ gdb-7.6.1/gdb/features/s390-te-linux64.c
+@@ -0,0 +1,118 @@
++/* THIS FILE IS GENERATED.  -*- buffer-read-only: t -*- vi:set ro:
++  Original: s390-te-linux64.xml */
++
++#include "defs.h"
++#include "osabi.h"
++#include "target-descriptions.h"
++
++struct target_desc *tdesc_s390_te_linux64;
++static void
++initialize_tdesc_s390_te_linux64 (void)
++{
++  struct target_desc *result = allocate_target_description ();
++  struct tdesc_feature *feature;
++
++  set_tdesc_architecture (result, bfd_scan_arch ("s390:31-bit"));
++
++  feature = tdesc_create_feature (result, "org.gnu.gdb.s390.core");
++  tdesc_create_reg (feature, "pswm", 0, 1, "psw", 32, "uint32");
++  tdesc_create_reg (feature, "pswa", 1, 1, "psw", 32, "uint32");
++  tdesc_create_reg (feature, "r0h", 2, 1, "upper", 32, "uint32");
++  tdesc_create_reg (feature, "r0l", 3, 1, "lower", 32, "uint32");
++  tdesc_create_reg (feature, "r1h", 4, 1, "upper", 32, "uint32");
++  tdesc_create_reg (feature, "r1l", 5, 1, "lower", 32, "uint32");
++  tdesc_create_reg (feature, "r2h", 6, 1, "upper", 32, "uint32");
++  tdesc_create_reg (feature, "r2l", 7, 1, "lower", 32, "uint32");
++  tdesc_create_reg (feature, "r3h", 8, 1, "upper", 32, "uint32");
++  tdesc_create_reg (feature, "r3l", 9, 1, "lower", 32, "uint32");
++  tdesc_create_reg (feature, "r4h", 10, 1, "upper", 32, "uint32");
++  tdesc_create_reg (feature, "r4l", 11, 1, "lower", 32, "uint32");
++  tdesc_create_reg (feature, "r5h", 12, 1, "upper", 32, "uint32");
++  tdesc_create_reg (feature, "r5l", 13, 1, "lower", 32, "uint32");
++  tdesc_create_reg (feature, "r6h", 14, 1, "upper", 32, "uint32");
++  tdesc_create_reg (feature, "r6l", 15, 1, "lower", 32, "uint32");
++  tdesc_create_reg (feature, "r7h", 16, 1, "upper", 32, "uint32");
++  tdesc_create_reg (feature, "r7l", 17, 1, "lower", 32, "uint32");
++  tdesc_create_reg (feature, "r8h", 18, 1, "upper", 32, "uint32");
++  tdesc_create_reg (feature, "r8l", 19, 1, "lower", 32, "uint32");
++  tdesc_create_reg (feature, "r9h", 20, 1, "upper", 32, "uint32");
++  tdesc_create_reg (feature, "r9l", 21, 1, "lower", 32, "uint32");
++  tdesc_create_reg (feature, "r10h", 22, 1, "upper", 32, "uint32");
++  tdesc_create_reg (feature, "r10l", 23, 1, "lower", 32, "uint32");
++  tdesc_create_reg (feature, "r11h", 24, 1, "upper", 32, "uint32");
++  tdesc_create_reg (feature, "r11l", 25, 1, "lower", 32, "uint32");
++  tdesc_create_reg (feature, "r12h", 26, 1, "upper", 32, "uint32");
++  tdesc_create_reg (feature, "r12l", 27, 1, "lower", 32, "uint32");
++  tdesc_create_reg (feature, "r13h", 28, 1, "upper", 32, "uint32");
++  tdesc_create_reg (feature, "r13l", 29, 1, "lower", 32, "uint32");
++  tdesc_create_reg (feature, "r14h", 30, 1, "upper", 32, "uint32");
++  tdesc_create_reg (feature, "r14l", 31, 1, "lower", 32, "uint32");
++  tdesc_create_reg (feature, "r15h", 32, 1, "upper", 32, "uint32");
++  tdesc_create_reg (feature, "r15l", 33, 1, "lower", 32, "uint32");
++
++  feature = tdesc_create_feature (result, "org.gnu.gdb.s390.acr");
++  tdesc_create_reg (feature, "acr0", 34, 1, "access", 32, "uint32");
++  tdesc_create_reg (feature, "acr1", 35, 1, "access", 32, "uint32");
++  tdesc_create_reg (feature, "acr2", 36, 1, "access", 32, "uint32");
++  tdesc_create_reg (feature, "acr3", 37, 1, "access", 32, "uint32");
++  tdesc_create_reg (feature, "acr4", 38, 1, "access", 32, "uint32");
++  tdesc_create_reg (feature, "acr5", 39, 1, "access", 32, "uint32");
++  tdesc_create_reg (feature, "acr6", 40, 1, "access", 32, "uint32");
++  tdesc_create_reg (feature, "acr7", 41, 1, "access", 32, "uint32");
++  tdesc_create_reg (feature, "acr8", 42, 1, "access", 32, "uint32");
++  tdesc_create_reg (feature, "acr9", 43, 1, "access", 32, "uint32");
++  tdesc_create_reg (feature, "acr10", 44, 1, "access", 32, "uint32");
++  tdesc_create_reg (feature, "acr11", 45, 1, "access", 32, "uint32");
++  tdesc_create_reg (feature, "acr12", 46, 1, "access", 32, "uint32");
++  tdesc_create_reg (feature, "acr13", 47, 1, "access", 32, "uint32");
++  tdesc_create_reg (feature, "acr14", 48, 1, "access", 32, "uint32");
++  tdesc_create_reg (feature, "acr15", 49, 1, "access", 32, "uint32");
++
++  feature = tdesc_create_feature (result, "org.gnu.gdb.s390.fpr");
++  tdesc_create_reg (feature, "fpc", 50, 1, "float", 32, "uint32");
++  tdesc_create_reg (feature, "f0", 51, 1, "float", 64, "ieee_double");
++  tdesc_create_reg (feature, "f1", 52, 1, "float", 64, "ieee_double");
++  tdesc_create_reg (feature, "f2", 53, 1, "float", 64, "ieee_double");
++  tdesc_create_reg (feature, "f3", 54, 1, "float", 64, "ieee_double");
++  tdesc_create_reg (feature, "f4", 55, 1, "float", 64, "ieee_double");
++  tdesc_create_reg (feature, "f5", 56, 1, "float", 64, "ieee_double");
++  tdesc_create_reg (feature, "f6", 57, 1, "float", 64, "ieee_double");
++  tdesc_create_reg (feature, "f7", 58, 1, "float", 64, "ieee_double");
++  tdesc_create_reg (feature, "f8", 59, 1, "float", 64, "ieee_double");
++  tdesc_create_reg (feature, "f9", 60, 1, "float", 64, "ieee_double");
++  tdesc_create_reg (feature, "f10", 61, 1, "float", 64, "ieee_double");
++  tdesc_create_reg (feature, "f11", 62, 1, "float", 64, "ieee_double");
++  tdesc_create_reg (feature, "f12", 63, 1, "float", 64, "ieee_double");
++  tdesc_create_reg (feature, "f13", 64, 1, "float", 64, "ieee_double");
++  tdesc_create_reg (feature, "f14", 65, 1, "float", 64, "ieee_double");
++  tdesc_create_reg (feature, "f15", 66, 1, "float", 64, "ieee_double");
++
++  feature = tdesc_create_feature (result, "org.gnu.gdb.s390.linux");
++  tdesc_create_reg (feature, "orig_r2", 67, 1, "system", 32, "uint32");
++  tdesc_create_reg (feature, "last_break", 68, 0, "system", 32, "code_ptr");
++  tdesc_create_reg (feature, "system_call", 69, 1, "system", 32, "uint32");
++
++  feature = tdesc_create_feature (result, "org.gnu.gdb.s390.tdb");
++  tdesc_create_reg (feature, "tdb0", 70, 1, "tdb", 64, "uint64");
++  tdesc_create_reg (feature, "tac", 71, 1, "tdb", 64, "uint64");
++  tdesc_create_reg (feature, "tct", 72, 1, "tdb", 64, "uint64");
++  tdesc_create_reg (feature, "atia", 73, 1, "tdb", 64, "uint64");
++  tdesc_create_reg (feature, "tr0", 74, 1, "tdb", 64, "uint64");
++  tdesc_create_reg (feature, "tr1", 75, 1, "tdb", 64, "uint64");
++  tdesc_create_reg (feature, "tr2", 76, 1, "tdb", 64, "uint64");
++  tdesc_create_reg (feature, "tr3", 77, 1, "tdb", 64, "uint64");
++  tdesc_create_reg (feature, "tr4", 78, 1, "tdb", 64, "uint64");
++  tdesc_create_reg (feature, "tr5", 79, 1, "tdb", 64, "uint64");
++  tdesc_create_reg (feature, "tr6", 80, 1, "tdb", 64, "uint64");
++  tdesc_create_reg (feature, "tr7", 81, 1, "tdb", 64, "uint64");
++  tdesc_create_reg (feature, "tr8", 82, 1, "tdb", 64, "uint64");
++  tdesc_create_reg (feature, "tr9", 83, 1, "tdb", 64, "uint64");
++  tdesc_create_reg (feature, "tr10", 84, 1, "tdb", 64, "uint64");
++  tdesc_create_reg (feature, "tr11", 85, 1, "tdb", 64, "uint64");
++  tdesc_create_reg (feature, "tr12", 86, 1, "tdb", 64, "uint64");
++  tdesc_create_reg (feature, "tr13", 87, 1, "tdb", 64, "uint64");
++  tdesc_create_reg (feature, "tr14", 88, 1, "tdb", 64, "uint64");
++  tdesc_create_reg (feature, "tr15", 89, 1, "tdb", 64, "uint64");
++
++  tdesc_s390_te_linux64 = result;
++}
+Index: gdb-7.6.1/gdb/features/s390-te-linux64.xml
+===================================================================
+--- /dev/null
++++ gdb-7.6.1/gdb/features/s390-te-linux64.xml
+@@ -0,0 +1,25 @@
++<?xml version="1.0"?>
++<!-- Copyright (C) 2010-2013 Free Software Foundation, Inc.
++
++     Copying and distribution of this file, with or without modification,
++     are permitted in any medium without royalty provided the copyright
++     notice and this notice are preserved.  -->
++
++<!-- S/390 31-bit user-level code on a machine operating
++     in z/Architecture mode.  -->
++
++<!DOCTYPE target SYSTEM "gdb-target.dtd">
++<target>
++  <architecture>s390:31-bit</architecture>
++  <xi:include href="s390-core64.xml"/>
++  <xi:include href="s390-acr.xml"/>
++  <xi:include href="s390-fpr.xml"/>
++
++  <feature name="org.gnu.gdb.s390.linux">
++    <reg name="orig_r2" bitsize="32" type="uint32" group="system"/>
++    <reg name="last_break" bitsize="32" type="code_ptr" group="system" save-restore="no"/>
++    <reg name="system_call" bitsize="32" type="uint32" group="system"/>
++  </feature>
++
++  <xi:include href="s390-tdb.xml"/>
++</target>
+Index: gdb-7.6.1/gdb/features/s390x-te-linux64.c
+===================================================================
+--- /dev/null
++++ gdb-7.6.1/gdb/features/s390x-te-linux64.c
+@@ -0,0 +1,102 @@
++/* THIS FILE IS GENERATED.  -*- buffer-read-only: t -*- vi:set ro:
++  Original: s390x-te-linux64.xml */
++
++#include "defs.h"
++#include "osabi.h"
++#include "target-descriptions.h"
++
++struct target_desc *tdesc_s390x_te_linux64;
++static void
++initialize_tdesc_s390x_te_linux64 (void)
++{
++  struct target_desc *result = allocate_target_description ();
++  struct tdesc_feature *feature;
++
++  set_tdesc_architecture (result, bfd_scan_arch ("s390:64-bit"));
++
++  feature = tdesc_create_feature (result, "org.gnu.gdb.s390.core");
++  tdesc_create_reg (feature, "pswm", 0, 1, "psw", 64, "uint64");
++  tdesc_create_reg (feature, "pswa", 1, 1, "psw", 64, "uint64");
++  tdesc_create_reg (feature, "r0", 2, 1, "general", 64, "uint64");
++  tdesc_create_reg (feature, "r1", 3, 1, "general", 64, "uint64");
++  tdesc_create_reg (feature, "r2", 4, 1, "general", 64, "uint64");
++  tdesc_create_reg (feature, "r3", 5, 1, "general", 64, "uint64");
++  tdesc_create_reg (feature, "r4", 6, 1, "general", 64, "uint64");
++  tdesc_create_reg (feature, "r5", 7, 1, "general", 64, "uint64");
++  tdesc_create_reg (feature, "r6", 8, 1, "general", 64, "uint64");
++  tdesc_create_reg (feature, "r7", 9, 1, "general", 64, "uint64");
++  tdesc_create_reg (feature, "r8", 10, 1, "general", 64, "uint64");
++  tdesc_create_reg (feature, "r9", 11, 1, "general", 64, "uint64");
++  tdesc_create_reg (feature, "r10", 12, 1, "general", 64, "uint64");
++  tdesc_create_reg (feature, "r11", 13, 1, "general", 64, "uint64");
++  tdesc_create_reg (feature, "r12", 14, 1, "general", 64, "uint64");
++  tdesc_create_reg (feature, "r13", 15, 1, "general", 64, "uint64");
++  tdesc_create_reg (feature, "r14", 16, 1, "general", 64, "uint64");
++  tdesc_create_reg (feature, "r15", 17, 1, "general", 64, "uint64");
++
++  feature = tdesc_create_feature (result, "org.gnu.gdb.s390.acr");
++  tdesc_create_reg (feature, "acr0", 18, 1, "access", 32, "uint32");
++  tdesc_create_reg (feature, "acr1", 19, 1, "access", 32, "uint32");
++  tdesc_create_reg (feature, "acr2", 20, 1, "access", 32, "uint32");
++  tdesc_create_reg (feature, "acr3", 21, 1, "access", 32, "uint32");
++  tdesc_create_reg (feature, "acr4", 22, 1, "access", 32, "uint32");
++  tdesc_create_reg (feature, "acr5", 23, 1, "access", 32, "uint32");
++  tdesc_create_reg (feature, "acr6", 24, 1, "access", 32, "uint32");
++  tdesc_create_reg (feature, "acr7", 25, 1, "access", 32, "uint32");
++  tdesc_create_reg (feature, "acr8", 26, 1, "access", 32, "uint32");
++  tdesc_create_reg (feature, "acr9", 27, 1, "access", 32, "uint32");
++  tdesc_create_reg (feature, "acr10", 28, 1, "access", 32, "uint32");
++  tdesc_create_reg (feature, "acr11", 29, 1, "access", 32, "uint32");
++  tdesc_create_reg (feature, "acr12", 30, 1, "access", 32, "uint32");
++  tdesc_create_reg (feature, "acr13", 31, 1, "access", 32, "uint32");
++  tdesc_create_reg (feature, "acr14", 32, 1, "access", 32, "uint32");
++  tdesc_create_reg (feature, "acr15", 33, 1, "access", 32, "uint32");
++
++  feature = tdesc_create_feature (result, "org.gnu.gdb.s390.fpr");
++  tdesc_create_reg (feature, "fpc", 34, 1, "float", 32, "uint32");
++  tdesc_create_reg (feature, "f0", 35, 1, "float", 64, "ieee_double");
++  tdesc_create_reg (feature, "f1", 36, 1, "float", 64, "ieee_double");
++  tdesc_create_reg (feature, "f2", 37, 1, "float", 64, "ieee_double");
++  tdesc_create_reg (feature, "f3", 38, 1, "float", 64, "ieee_double");
++  tdesc_create_reg (feature, "f4", 39, 1, "float", 64, "ieee_double");
++  tdesc_create_reg (feature, "f5", 40, 1, "float", 64, "ieee_double");
++  tdesc_create_reg (feature, "f6", 41, 1, "float", 64, "ieee_double");
++  tdesc_create_reg (feature, "f7", 42, 1, "float", 64, "ieee_double");
++  tdesc_create_reg (feature, "f8", 43, 1, "float", 64, "ieee_double");
++  tdesc_create_reg (feature, "f9", 44, 1, "float", 64, "ieee_double");
++  tdesc_create_reg (feature, "f10", 45, 1, "float", 64, "ieee_double");
++  tdesc_create_reg (feature, "f11", 46, 1, "float", 64, "ieee_double");
++  tdesc_create_reg (feature, "f12", 47, 1, "float", 64, "ieee_double");
++  tdesc_create_reg (feature, "f13", 48, 1, "float", 64, "ieee_double");
++  tdesc_create_reg (feature, "f14", 49, 1, "float", 64, "ieee_double");
++  tdesc_create_reg (feature, "f15", 50, 1, "float", 64, "ieee_double");
++
++  feature = tdesc_create_feature (result, "org.gnu.gdb.s390.linux");
++  tdesc_create_reg (feature, "orig_r2", 51, 1, "system", 64, "uint64");
++  tdesc_create_reg (feature, "last_break", 52, 0, "system", 64, "code_ptr");
++  tdesc_create_reg (feature, "system_call", 53, 1, "system", 32, "uint32");
++
++  feature = tdesc_create_feature (result, "org.gnu.gdb.s390.tdb");
++  tdesc_create_reg (feature, "tdb0", 54, 1, "tdb", 64, "uint64");
++  tdesc_create_reg (feature, "tac", 55, 1, "tdb", 64, "uint64");
++  tdesc_create_reg (feature, "tct", 56, 1, "tdb", 64, "uint64");
++  tdesc_create_reg (feature, "atia", 57, 1, "tdb", 64, "uint64");
++  tdesc_create_reg (feature, "tr0", 58, 1, "tdb", 64, "uint64");
++  tdesc_create_reg (feature, "tr1", 59, 1, "tdb", 64, "uint64");
++  tdesc_create_reg (feature, "tr2", 60, 1, "tdb", 64, "uint64");
++  tdesc_create_reg (feature, "tr3", 61, 1, "tdb", 64, "uint64");
++  tdesc_create_reg (feature, "tr4", 62, 1, "tdb", 64, "uint64");
++  tdesc_create_reg (feature, "tr5", 63, 1, "tdb", 64, "uint64");
++  tdesc_create_reg (feature, "tr6", 64, 1, "tdb", 64, "uint64");
++  tdesc_create_reg (feature, "tr7", 65, 1, "tdb", 64, "uint64");
++  tdesc_create_reg (feature, "tr8", 66, 1, "tdb", 64, "uint64");
++  tdesc_create_reg (feature, "tr9", 67, 1, "tdb", 64, "uint64");
++  tdesc_create_reg (feature, "tr10", 68, 1, "tdb", 64, "uint64");
++  tdesc_create_reg (feature, "tr11", 69, 1, "tdb", 64, "uint64");
++  tdesc_create_reg (feature, "tr12", 70, 1, "tdb", 64, "uint64");
++  tdesc_create_reg (feature, "tr13", 71, 1, "tdb", 64, "uint64");
++  tdesc_create_reg (feature, "tr14", 72, 1, "tdb", 64, "uint64");
++  tdesc_create_reg (feature, "tr15", 73, 1, "tdb", 64, "uint64");
++
++  tdesc_s390x_te_linux64 = result;
++}
+Index: gdb-7.6.1/gdb/features/s390x-te-linux64.xml
+===================================================================
+--- /dev/null
++++ gdb-7.6.1/gdb/features/s390x-te-linux64.xml
+@@ -0,0 +1,24 @@
++<?xml version="1.0"?>
++<!-- Copyright (C) 2010-2013 Free Software Foundation, Inc.
++
++     Copying and distribution of this file, with or without modification,
++     are permitted in any medium without royalty provided the copyright
++     notice and this notice are preserved.  -->
++
++<!-- S/390 64-bit user-level code.  -->
++
++<!DOCTYPE target SYSTEM "gdb-target.dtd">
++<target>
++  <architecture>s390:64-bit</architecture>
++  <xi:include href="s390x-core64.xml"/>
++  <xi:include href="s390-acr.xml"/>
++  <xi:include href="s390-fpr.xml"/>
++
++  <feature name="org.gnu.gdb.s390.linux">
++    <reg name="orig_r2" bitsize="64" type="uint64" group="system"/>
++    <reg name="last_break" bitsize="64" type="code_ptr" group="system" save-restore="no"/>
++    <reg name="system_call" bitsize="32" type="uint32" group="system"/>
++  </feature>
++
++  <xi:include href="s390-tdb.xml"/>
++</target>
+Index: gdb-7.6.1/gdb/gdbserver/Makefile.in
+===================================================================
+--- gdb-7.6.1.orig/gdb/gdbserver/Makefile.in
++++ gdb-7.6.1/gdb/gdbserver/Makefile.in
+@@ -329,6 +329,9 @@ clean:
+ 	rm -f powerpc-isa205-altivec32l.c powerpc-isa205-vsx32l.c powerpc-isa205-altivec64l.c
+ 	rm -f powerpc-isa205-vsx64l.c
+ 	rm -f s390-linux32.c s390-linux64.c s390x-linux64.c
++	rm -f s390-linux32v1.c s390-linux32v2.c s390-linux64v1.c
++	rm -f s390-linux64v2.c s390x-linux64v1.c s390x-linux64v2.c
++	rm -f s390-te-linux32.c s390-te-linux64.c
+ 	rm -f tic6x-c64xp-linux.c tic6x-c64x-linux.c tic6x-c62x-linux.c
+ 	rm -f xml-builtin.c stamp-xml
+ 	rm -f i386-avx.c i386-avx-linux.c
+@@ -658,12 +661,16 @@ s390-linux64v1.c : $(srcdir)/../regforma
+ 	$(SHELL) $(regdat_sh) $(srcdir)/../regformats/s390-linux64v1.dat s390-linux64v1.c
+ s390-linux64v2.c : $(srcdir)/../regformats/s390-linux64v2.dat $(regdat_sh)
+ 	$(SHELL) $(regdat_sh) $(srcdir)/../regformats/s390-linux64v2.dat s390-linux64v2.c
++s390-te-linux64.c : $(srcdir)/../regformats/s390-te-linux64.dat $(regdat_sh)
++	$(SHELL) $(regdat_sh) $(srcdir)/../regformats/s390-te-linux64.dat s390-te-linux64.c
+ s390x-linux64.c : $(srcdir)/../regformats/s390x-linux64.dat $(regdat_sh)
+ 	$(SHELL) $(regdat_sh) $(srcdir)/../regformats/s390x-linux64.dat s390x-linux64.c
+ s390x-linux64v1.c : $(srcdir)/../regformats/s390x-linux64v1.dat $(regdat_sh)
+ 	$(SHELL) $(regdat_sh) $(srcdir)/../regformats/s390x-linux64v1.dat s390x-linux64v1.c
+ s390x-linux64v2.c : $(srcdir)/../regformats/s390x-linux64v2.dat $(regdat_sh)
+ 	$(SHELL) $(regdat_sh) $(srcdir)/../regformats/s390x-linux64v2.dat s390x-linux64v2.c
++s390x-te-linux64.c : $(srcdir)/../regformats/s390x-te-linux64.dat $(regdat_sh)
++	$(SHELL) $(regdat_sh) $(srcdir)/../regformats/s390x-te-linux64.dat s390x-te-linux64.c
+ 
+ tic6x-c64xp-linux.c : $(srcdir)/../regformats/tic6x-c64xp-linux.dat $(regdat_sh)
+ 	$(SHELL) $(regdat_sh) $(srcdir)/../regformats/tic6x-c64xp-linux.dat tic6x-c64xp-linux.c
+Index: gdb-7.6.1/gdb/gdbserver/configure.srv
+===================================================================
+--- gdb-7.6.1.orig/gdb/gdbserver/configure.srv
++++ gdb-7.6.1/gdb/gdbserver/configure.srv
+@@ -259,9 +259,11 @@ case "${target}" in
+ 			srv_regobj="${srv_regobj} s390-linux64.o"
+ 			srv_regobj="${srv_regobj} s390-linux64v1.o"
+ 			srv_regobj="${srv_regobj} s390-linux64v2.o"
++			srv_regobj="${srv_regobj} s390-te-linux64.o"
+ 			srv_regobj="${srv_regobj} s390x-linux64.o"
+ 			srv_regobj="${srv_regobj} s390x-linux64v1.o"
+ 			srv_regobj="${srv_regobj} s390x-linux64v2.o"
++			srv_regobj="${srv_regobj} s390x-te-linux64.o"
+ 			srv_tgtobj="linux-low.o linux-osdata.o linux-s390-low.o linux-procfs.o"
+ 			srv_tgtobj="${srv_tgtobj} linux-ptrace.o"
+ 			srv_xmlfiles="s390-linux32.xml"
+@@ -270,14 +272,17 @@ case "${target}" in
+ 			srv_xmlfiles="${srv_xmlfiles} s390-linux64.xml"
+ 			srv_xmlfiles="${srv_xmlfiles} s390-linux64v1.xml"
+ 			srv_xmlfiles="${srv_xmlfiles} s390-linux64v2.xml"
++			srv_xmlfiles="${srv_xmlfiles} s390-te-linux64.xml"
+ 			srv_xmlfiles="${srv_xmlfiles} s390x-linux64.xml"
+ 			srv_xmlfiles="${srv_xmlfiles} s390x-linux64v1.xml"
+ 			srv_xmlfiles="${srv_xmlfiles} s390x-linux64v2.xml"
++			srv_xmlfiles="${srv_xmlfiles} s390x-te-linux64.xml"
+ 			srv_xmlfiles="${srv_xmlfiles} s390-core32.xml"
+ 			srv_xmlfiles="${srv_xmlfiles} s390-core64.xml"
+ 			srv_xmlfiles="${srv_xmlfiles} s390x-core64.xml"
+ 			srv_xmlfiles="${srv_xmlfiles} s390-acr.xml"
+ 			srv_xmlfiles="${srv_xmlfiles} s390-fpr.xml"
++			srv_xmlfiles="${srv_xmlfiles} s390-tdb.xml"
+ 			srv_linux_usrregs=yes
+ 			srv_linux_regsets=yes
+ 			srv_linux_thread_db=yes
+Index: gdb-7.6.1/gdb/gdbserver/linux-s390-low.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/gdbserver/linux-s390-low.c
++++ gdb-7.6.1/gdb/gdbserver/linux-s390-low.c
+@@ -59,6 +59,12 @@ void init_registers_s390x_linux64v1 (voi
+ /* Defined in auto-generated file s390x-linux64v2.c.  */
+ void init_registers_s390x_linux64v2 (void);
+ 
++/* Defined in auto-generated file s390x-te-linux64.c.  */
++void init_registers_s390x_te_linux64 (void);
++
++/* Defined in auto-generated file s390-te-linux64.c.  */
++void init_registers_s390_te_linux64 (void);
++
+ #define s390_num_regs 52
+ 
+ static int s390_regmap[] = {
+@@ -365,10 +371,10 @@ s390_check_regset (int pid, int regset,
+   iov.iov_base = buf;
+   iov.iov_len = regsize;
+ 
+-  if (ptrace (PTRACE_GETREGSET, pid, (long) regset, (long) &iov) < 0)
+-    return 0;
+-  else
++  if (ptrace (PTRACE_GETREGSET, pid, (long) regset, (long) &iov) >= 0
++      || errno == ENODATA)
+     return 1;
++  return 0;
+ }
+ 
+ static void
+@@ -382,6 +388,7 @@ s390_arch_setup (void)
+     = s390_check_regset (pid, NT_S390_LAST_BREAK, 8);
+   int have_regset_system_call
+     = s390_check_regset (pid, NT_S390_SYSTEM_CALL, 4);
++  int have_regset_tdb = s390_check_regset (pid, NT_S390_TDB, 256);
+ 
+   /* Update target_regsets according to available register sets.  */
+   for (regset = target_regsets; regset->fill_function != NULL; regset++)
+@@ -394,6 +401,8 @@ s390_arch_setup (void)
+ 	case NT_S390_SYSTEM_CALL:
+ 	  regset->size = have_regset_system_call? 4 : 0;
+ 	  break;
++	case NT_S390_TDB:
++	  regset->size = have_regset_tdb ? 256 : 0;
+ 	default:
+ 	  break;
+ 	}
+@@ -421,6 +430,8 @@ s390_arch_setup (void)
+ 
+     if (pswm & 1)
+       {
++	if (have_regset_tdb)
++	  init_registers_s390x_te_linux64 ();
+ 	if (have_regset_system_call)
+ 	  init_registers_s390x_linux64v2 ();
+ 	else if (have_regset_last_break)
+@@ -433,6 +444,8 @@ s390_arch_setup (void)
+        using the full 64-bit GPRs.  */
+     else if (s390_get_hwcap () & HWCAP_S390_HIGH_GPRS)
+       {
++	if (have_regset_tdb)
++	  init_registers_s390_te_linux64 ();
+ 	if (have_regset_system_call)
+ 	  init_registers_s390_linux64v2 ();
+ 	else if (have_regset_last_break)
+Index: gdb-7.6.1/gdb/regformats/s390-te-linux64.dat
+===================================================================
+--- /dev/null
++++ gdb-7.6.1/gdb/regformats/s390-te-linux64.dat
+@@ -0,0 +1,94 @@
++# DO NOT EDIT: generated from s390-te-linux64.xml
++name:s390_te_linux64
++xmltarget:s390-te-linux64.xml
++expedite:r14,r15,pswa
++32:pswm
++32:pswa
++32:r0h
++32:r0l
++32:r1h
++32:r1l
++32:r2h
++32:r2l
++32:r3h
++32:r3l
++32:r4h
++32:r4l
++32:r5h
++32:r5l
++32:r6h
++32:r6l
++32:r7h
++32:r7l
++32:r8h
++32:r8l
++32:r9h
++32:r9l
++32:r10h
++32:r10l
++32:r11h
++32:r11l
++32:r12h
++32:r12l
++32:r13h
++32:r13l
++32:r14h
++32:r14l
++32:r15h
++32:r15l
++32:acr0
++32:acr1
++32:acr2
++32:acr3
++32:acr4
++32:acr5
++32:acr6
++32:acr7
++32:acr8
++32:acr9
++32:acr10
++32:acr11
++32:acr12
++32:acr13
++32:acr14
++32:acr15
++32:fpc
++64:f0
++64:f1
++64:f2
++64:f3
++64:f4
++64:f5
++64:f6
++64:f7
++64:f8
++64:f9
++64:f10
++64:f11
++64:f12
++64:f13
++64:f14
++64:f15
++32:orig_r2
++32:last_break
++32:system_call
++64:tdb0
++64:tac
++64:tct
++64:atia
++64:tr0
++64:tr1
++64:tr2
++64:tr3
++64:tr4
++64:tr5
++64:tr6
++64:tr7
++64:tr8
++64:tr9
++64:tr10
++64:tr11
++64:tr12
++64:tr13
++64:tr14
++64:tr15
+Index: gdb-7.6.1/gdb/regformats/s390x-te-linux64.dat
+===================================================================
+--- /dev/null
++++ gdb-7.6.1/gdb/regformats/s390x-te-linux64.dat
+@@ -0,0 +1,78 @@
++# DO NOT EDIT: generated from s390x-te-linux64.xml
++name:s390x_te_linux64
++xmltarget:s390x-te-linux64.xml
++expedite:r14,r15,pswa
++64:pswm
++64:pswa
++64:r0
++64:r1
++64:r2
++64:r3
++64:r4
++64:r5
++64:r6
++64:r7
++64:r8
++64:r9
++64:r10
++64:r11
++64:r12
++64:r13
++64:r14
++64:r15
++32:acr0
++32:acr1
++32:acr2
++32:acr3
++32:acr4
++32:acr5
++32:acr6
++32:acr7
++32:acr8
++32:acr9
++32:acr10
++32:acr11
++32:acr12
++32:acr13
++32:acr14
++32:acr15
++32:fpc
++64:f0
++64:f1
++64:f2
++64:f3
++64:f4
++64:f5
++64:f6
++64:f7
++64:f8
++64:f9
++64:f10
++64:f11
++64:f12
++64:f13
++64:f14
++64:f15
++64:orig_r2
++64:last_break
++32:system_call
++64:tdb0
++64:tac
++64:tct
++64:atia
++64:tr0
++64:tr1
++64:tr2
++64:tr3
++64:tr4
++64:tr5
++64:tr6
++64:tr7
++64:tr8
++64:tr9
++64:tr10
++64:tr11
++64:tr12
++64:tr13
++64:tr14
++64:tr15
+Index: gdb-7.6.1/gdb/s390-nat.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/s390-nat.c
++++ gdb-7.6.1/gdb/s390-nat.c
+@@ -37,10 +37,6 @@
+ #include <sys/ucontext.h>
+ #include <elf.h>
+ 
+-#ifndef HWCAP_S390_HIGH_GPRS
+-#define HWCAP_S390_HIGH_GPRS 512
+-#endif
+-
+ #ifndef PTRACE_GETREGSET
+ #define PTRACE_GETREGSET 0x4204
+ #endif
+@@ -51,6 +47,7 @@
+ 
+ static int have_regset_last_break = 0;
+ static int have_regset_system_call = 0;
++static int have_regset_tdb = 0;
+ 
+ /* Map registers to gregset/ptrace offsets.
+    These arrays are defined in s390-tdep.c.  */
+@@ -72,7 +69,7 @@ s390_native_supply (struct regcache *reg
+ 		    const gdb_byte *regp)
+ {
+   for (; map[0] >= 0; map += 2)
+-    regcache_raw_supply (regcache, map[1], regp + map[0]);
++    regcache_raw_supply (regcache, map[1], regp ? regp + map[0] : NULL);
+ }
+ 
+ /* Collect the register REGNO out of the regset described by MAP from
+@@ -315,9 +312,14 @@ fetch_regset (struct regcache *regcache,
+   iov.iov_len = regsize;
+ 
+   if (ptrace (PTRACE_GETREGSET, tid, (long) regset, (long) &iov) < 0)
+-    perror_with_name (_("Couldn't get register set"));
+-
+-  s390_native_supply (regcache, regmap, buf);
++    {
++      if (errno == ENODATA)
++	s390_native_supply (regcache, regmap, NULL);
++      else
++	perror_with_name (_("Couldn't get register set"));
++    }
++  else
++    s390_native_supply (regcache, regmap, buf);
+ }
+ 
+ /* Store all registers in the kernel's register set whose number is REGSET,
+@@ -353,10 +355,10 @@ check_regset (int tid, int regset, int r
+   iov.iov_base = buf;
+   iov.iov_len = regsize;
+ 
+-  if (ptrace (PTRACE_GETREGSET, tid, (long) regset, (long) &iov) < 0)
+-    return 0;
+-  else
++  if (ptrace (PTRACE_GETREGSET, tid, (long) regset, (long) &iov) >= 0
++      || errno == ENODATA)
+     return 1;
++  return 0;
+ }
+ 
+ /* Fetch register REGNUM from the child process.  If REGNUM is -1, do
+@@ -383,6 +385,11 @@ s390_linux_fetch_inferior_registers (str
+     if (regnum == -1 || regnum == S390_SYSTEM_CALL_REGNUM)
+       fetch_regset (regcache, tid, NT_S390_SYSTEM_CALL, 4,
+ 		    s390_regmap_system_call);
++
++  if (have_regset_tdb)
++    if (regnum == -1 || S390_IS_TDBREGSET_REGNUM (regnum))
++      fetch_regset (regcache, tid, NT_S390_TDB, s390_sizeof_tdbregset,
++		    s390_regmap_tdb);
+ }
+ 
+ /* Store register REGNUM back into the child process.  If REGNUM is
+@@ -625,6 +632,8 @@ s390_read_description (struct target_ops
+     = check_regset (tid, NT_S390_LAST_BREAK, 8);
+   have_regset_system_call
+     = check_regset (tid, NT_S390_SYSTEM_CALL, 4);
++  have_regset_tdb
++    = check_regset (tid, NT_S390_TDB, s390_sizeof_tdbregset);
+ 
+ #ifdef __s390x__
+   /* If GDB itself is compiled as 64-bit, we are running on a machine in
+@@ -634,12 +643,14 @@ s390_read_description (struct target_ops
+      that mode, report s390 architecture with 64-bit GPRs.  */
+ 
+   if (s390_target_wordsize () == 8)
+-    return (have_regset_system_call? tdesc_s390x_linux64v2 :
++    return (have_regset_tdb ? tdesc_s390x_te_linux64 :
++	    have_regset_system_call? tdesc_s390x_linux64v2 :
+ 	    have_regset_last_break? tdesc_s390x_linux64v1 :
+ 	    tdesc_s390x_linux64);
+ 
+   if (s390_get_hwcap () & HWCAP_S390_HIGH_GPRS)
+-    return (have_regset_system_call? tdesc_s390_linux64v2 :
++    return (have_regset_tdb ? tdesc_s390_te_linux64 :
++	    have_regset_system_call? tdesc_s390_linux64v2 :
+ 	    have_regset_last_break? tdesc_s390_linux64v1 :
+ 	    tdesc_s390_linux64);
+ #endif
+Index: gdb-7.6.1/gdb/s390-tdep.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/s390-tdep.c
++++ gdb-7.6.1/gdb/s390-tdep.c
+@@ -44,6 +44,7 @@
+ #include "prologue-value.h"
+ #include "linux-tdep.h"
+ #include "s390-tdep.h"
++#include "auxv.h"
+ 
+ #include "stap-probe.h"
+ #include "ax.h"
+@@ -51,6 +52,7 @@
+ #include "user-regs.h"
+ #include "cli/cli-utils.h"
+ #include <ctype.h>
++#include <elf.h>
+ 
+ #include "features/s390-linux32.c"
+ #include "features/s390-linux32v1.c"
+@@ -58,9 +60,11 @@
+ #include "features/s390-linux64.c"
+ #include "features/s390-linux64v1.c"
+ #include "features/s390-linux64v2.c"
++#include "features/s390-te-linux64.c"
+ #include "features/s390x-linux64.c"
+ #include "features/s390x-linux64v1.c"
+ #include "features/s390x-linux64v2.c"
++#include "features/s390x-te-linux64.c"
+ 
+ /* The tdep structure.  */
+ 
+@@ -568,6 +572,30 @@ const short s390_regmap_system_call[] =
+     -1, -1
+   };
+ 
++const short s390_regmap_tdb[] =
++  {
++    0x00, S390_TDB_DWORD0_REGNUM,
++    0x08, S390_TDB_ABORT_CODE_REGNUM,
++    0x10, S390_TDB_CONFLICT_TOKEN_REGNUM,
++    0x18, S390_TDB_ATIA_REGNUM,
++    0x80, S390_TDB_R0_REGNUM,
++    0x88, S390_TDB_R1_REGNUM,
++    0x90, S390_TDB_R2_REGNUM,
++    0x98, S390_TDB_R3_REGNUM,
++    0xa0, S390_TDB_R4_REGNUM,
++    0xa8, S390_TDB_R5_REGNUM,
++    0xb0, S390_TDB_R6_REGNUM,
++    0xb8, S390_TDB_R7_REGNUM,
++    0xc0, S390_TDB_R8_REGNUM,
++    0xc8, S390_TDB_R9_REGNUM,
++    0xd0, S390_TDB_R10_REGNUM,
++    0xd8, S390_TDB_R11_REGNUM,
++    0xe0, S390_TDB_R12_REGNUM,
++    0xe8, S390_TDB_R13_REGNUM,
++    0xf0, S390_TDB_R14_REGNUM,
++    0xf8, S390_TDB_R15_REGNUM,
++    -1, -1
++  };
+ 
+ 
+ /* Supply register REGNUM from the register set REGSET to register cache 
+@@ -579,7 +607,25 @@ s390_supply_regset (const struct regset
+   const short *map;
+   for (map = regset->descr; map[0] >= 0; map += 2)
+     if (regnum == -1 || regnum == map[1])
+-      regcache_raw_supply (regcache, map[1], (const char *)regs + map[0]);
++      regcache_raw_supply (regcache, map[1],
++			   regs ? (const char *)regs + map[0] : NULL);
++}
++
++/* Supply the TDB regset.  Like s390_supply_regset, but invalidate the
++   TDB registers unless the TDB format field is valid.  */
++
++static void
++s390_supply_tdb_regset (const struct regset *regset, struct regcache *regcache,
++		    int regnum, const void *regs, size_t len)
++{
++  ULONGEST tdw;
++  enum register_status ret;
++  int i;
++
++  s390_supply_regset (regset, regcache, regnum, regs, len);
++  ret = regcache_cooked_read_unsigned (regcache, S390_TDB_DWORD0_REGNUM, &tdw);
++  if (ret != REG_VALID || (tdw >> 56) != 1)
++    s390_supply_regset (regset, regcache, regnum, NULL, len);
+ }
+ 
+ /* Collect register REGNUM from the register cache REGCACHE and store
+@@ -639,6 +685,12 @@ static const struct regset s390_system_c
+   s390_collect_regset
+ };
+ 
++static const struct regset s390_tdb_regset = {
++  s390_regmap_tdb,
++  s390_supply_tdb_regset,
++  s390_collect_regset
++};
++
+ static struct core_regset_section s390_linux32_regset_sections[] =
+ {
+   { ".reg", s390_sizeof_gregset, "general-purpose" },
+@@ -687,6 +739,7 @@ static struct core_regset_section s390_l
+   { ".reg-s390-high-gprs", 16*4, "s390 GPR upper halves" },
+   { ".reg-s390-last-break", 8, "s930 last-break address" },
+   { ".reg-s390-system-call", 4, "s390 system-call" },
++  { ".reg-s390-tdb", s390_sizeof_tdbregset, "s390 TDB" },
+   { NULL, 0}
+ };
+ 
+@@ -711,6 +764,7 @@ static struct core_regset_section s390x_
+   { ".reg2", s390_sizeof_fpregset, "floating-point" },
+   { ".reg-s390-last-break", 8, "s930 last-break address" },
+   { ".reg-s390-system-call", 4, "s390 system-call" },
++  { ".reg-s390-tdb", s390_sizeof_tdbregset, "s390 TDB" },
+   { NULL, 0}
+ };
+ 
+@@ -739,6 +793,9 @@ s390_regset_from_core_section (struct gd
+   if (strcmp (sect_name, ".reg-s390-system-call") == 0 && sect_size >= 4)
+     return &s390_system_call_regset;
+ 
++  if (strcmp (sect_name, ".reg-s390-tdb") == 0 && sect_size >= 256)
++    return &s390_tdb_regset;
++
+   return NULL;
+ }
+ 
+@@ -750,6 +807,9 @@ s390_core_read_description (struct gdbar
+   asection *v1 = bfd_get_section_by_name (abfd, ".reg-s390-last-break");
+   asection *v2 = bfd_get_section_by_name (abfd, ".reg-s390-system-call");
+   asection *section = bfd_get_section_by_name (abfd, ".reg");
++  CORE_ADDR hwcap = 0;
++
++  target_auxv_search (target, AT_HWCAP, &hwcap);
+   if (!section)
+     return NULL;
+ 
+@@ -757,14 +817,16 @@ s390_core_read_description (struct gdbar
+     {
+     case s390_sizeof_gregset:
+       if (high_gprs)
+-	return (v2? tdesc_s390_linux64v2 :
++	return ((hwcap & HWCAP_S390_TE) ? tdesc_s390_te_linux64 :
++		v2? tdesc_s390_linux64v2 :
+ 		v1? tdesc_s390_linux64v1 : tdesc_s390_linux64);
+       else
+ 	return (v2? tdesc_s390_linux32v2 :
+ 		v1? tdesc_s390_linux32v1 : tdesc_s390_linux32);
+ 
+     case s390x_sizeof_gregset:
+-      return (v2? tdesc_s390x_linux64v2 :
++      return ((hwcap & HWCAP_S390_TE) ? tdesc_s390x_te_linux64 :
++	      v2? tdesc_s390x_linux64v2 :
+ 	      v1? tdesc_s390x_linux64v1 : tdesc_s390x_linux64);
+ 
+     default:
+@@ -3011,6 +3073,11 @@ s390_gdbarch_init (struct gdbarch_info i
+ 	"r0h", "r1h", "r2h", "r3h", "r4h", "r5h", "r6h", "r7h",
+ 	"r8h", "r9h", "r10h", "r11h", "r12h", "r13h", "r14h", "r15h"
+       };
++      static const char *const tdb_regs[] = {
++	"tdb0", "tac", "tct", "atia",
++	"tr0", "tr1", "tr2", "tr3", "tr4", "tr5", "tr6", "tr7",
++	"tr8", "tr9", "tr10", "tr11", "tr12", "tr13", "tr14", "tr15"
++      };
+       const struct tdesc_feature *feature;
+       int i, valid_p = 1;
+ 
+@@ -3088,6 +3155,16 @@ s390_gdbarch_init (struct gdbarch_info i
+ 	    valid_p = 0;
+ 	}
+ 
++      /* Transaction diagnostic block.  */
++      feature = tdesc_find_feature (tdesc, "org.gnu.gdb.s390.tdb");
++      if (feature)
++	{
++	  for (i = 0; i < ARRAY_SIZE (tdb_regs); i++)
++	    valid_p &= tdesc_numbered_register (feature, tdesc_data,
++						S390_TDB_DWORD0_REGNUM + i,
++						tdb_regs[i]);
++	}
++
+       if (!valid_p)
+ 	{
+ 	  tdesc_data_cleanup (tdesc_data);
+@@ -3304,7 +3381,9 @@ _initialize_s390_tdep (void)
+   initialize_tdesc_s390_linux64 ();
+   initialize_tdesc_s390_linux64v1 ();
+   initialize_tdesc_s390_linux64v2 ();
++  initialize_tdesc_s390_te_linux64 ();
+   initialize_tdesc_s390x_linux64 ();
+   initialize_tdesc_s390x_linux64v1 ();
+   initialize_tdesc_s390x_linux64v2 ();
++  initialize_tdesc_s390x_te_linux64 ();
+ }
+Index: gdb-7.6.1/gdb/s390-tdep.h
+===================================================================
+--- gdb-7.6.1.orig/gdb/s390-tdep.h
++++ gdb-7.6.1/gdb/s390-tdep.h
+@@ -19,6 +19,16 @@
+ #ifndef S390_TDEP_H
+ #define S390_TDEP_H
+ 
++/* Hardware capabilities. */
++
++#ifndef HWCAP_S390_HIGH_GPRS
++#define HWCAP_S390_HIGH_GPRS 512
++#endif
++
++#ifndef HWCAP_S390_TE
++#define HWCAP_S390_TE 1024
++#endif
++
+ /* Register information.  */
+ 
+ /* Program Status Word.  */
+@@ -98,8 +108,29 @@
+ #define S390_ORIG_R2_REGNUM 67
+ #define S390_LAST_BREAK_REGNUM 68
+ #define S390_SYSTEM_CALL_REGNUM 69
++/* Transaction diagnostic block.  */
++#define S390_TDB_DWORD0_REGNUM 70
++#define S390_TDB_ABORT_CODE_REGNUM 71
++#define S390_TDB_CONFLICT_TOKEN_REGNUM 72
++#define S390_TDB_ATIA_REGNUM 73
++#define S390_TDB_R0_REGNUM 74
++#define S390_TDB_R1_REGNUM 75
++#define S390_TDB_R2_REGNUM 76
++#define S390_TDB_R3_REGNUM 77
++#define S390_TDB_R4_REGNUM 78
++#define S390_TDB_R5_REGNUM 79
++#define S390_TDB_R6_REGNUM 80
++#define S390_TDB_R7_REGNUM 81
++#define S390_TDB_R8_REGNUM 82
++#define S390_TDB_R9_REGNUM 83
++#define S390_TDB_R10_REGNUM 84
++#define S390_TDB_R11_REGNUM 85
++#define S390_TDB_R12_REGNUM 86
++#define S390_TDB_R13_REGNUM 87
++#define S390_TDB_R14_REGNUM 88
++#define S390_TDB_R15_REGNUM 89
+ /* Total.  */
+-#define S390_NUM_REGS 70
++#define S390_NUM_REGS 90
+ 
+ /* Special register usage.  */
+ #define S390_SP_REGNUM S390_R15_REGNUM
+@@ -114,6 +145,9 @@
+ #define S390_IS_FPREGSET_REGNUM(i)			\
+   ((i) >= S390_FPC_REGNUM && (i) <= S390_F15_REGNUM)
+ 
++#define S390_IS_TDBREGSET_REGNUM(i)				\
++  ((i) >= S390_TDB_DWORD0_REGNUM && (i) <= S390_TDB_R15_REGNUM)
++
+ /* Core file register sets, defined in s390-tdep.c.  */
+ #define s390_sizeof_gregset 0x90
+ extern const short s390_regmap_gregset[];
+@@ -124,6 +158,8 @@ extern const short s390_regmap_fpregset[
+ extern const short s390_regmap_last_break[];
+ extern const short s390x_regmap_last_break[];
+ extern const short s390_regmap_system_call[];
++extern const short s390_regmap_tdb[];
++#define s390_sizeof_tdbregset 0x100
+ 
+ /* GNU/Linux target descriptions.  */
+ extern struct target_desc *tdesc_s390_linux32;
+@@ -132,9 +168,11 @@ extern struct target_desc *tdesc_s390_li
+ extern struct target_desc *tdesc_s390_linux64;
+ extern struct target_desc *tdesc_s390_linux64v1;
+ extern struct target_desc *tdesc_s390_linux64v2;
++extern struct target_desc *tdesc_s390_te_linux64;
+ extern struct target_desc *tdesc_s390x_linux64;
+ extern struct target_desc *tdesc_s390x_linux64v1;
+ extern struct target_desc *tdesc_s390x_linux64v2;
++extern struct target_desc *tdesc_s390x_te_linux64;
+ 
+ #endif
+ 
+Index: gdb-7.6.1/gdb/testsuite/gdb.arch/s390-tdbregs.c
+===================================================================
+--- /dev/null
++++ gdb-7.6.1/gdb/testsuite/gdb.arch/s390-tdbregs.c
+@@ -0,0 +1,64 @@
++/* Copyright 2008-2013 Free Software Foundation, Inc.
++
++   This file is part of GDB.
++
++   This program is free software; you can redistribute it and/or modify
++   it under the terms of the GNU General Public License as published by
++   the Free Software Foundation; either version 3 of the License, or
++   (at your option) any later version.
++
++   This program is distributed in the hope that it will be useful,
++   but WITHOUT ANY WARRANTY; without even the implied warranty of
++   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++   GNU General Public License for more details.
++
++   You should have received a copy of the GNU General Public License
++   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
++
++#include <stdio.h>
++
++static void
++my_tbegin ()
++{
++  __asm__ volatile
++    ( "1:  .byte 0xe5,0x60,0x00,0x00,0xff,0x00\n"
++      "    jnz 1b"
++      : /* no return value */
++      : /* no inputs */
++      : "cc", "memory" );
++}
++
++static void
++my_tend ()
++{
++  __asm__ volatile
++    ( "    .byte 0xb2,0xf8,0x00,0x00"
++      : /* no return value */
++      : /* no inputs */
++      : "cc", "memory" );
++}
++
++void
++try_transaction (void)
++{
++  my_tbegin ();
++  my_tend ();
++}
++
++void
++crash_in_transaction (void)
++{
++  volatile char *p = 0;
++
++  my_tbegin ();
++  *p = 5;			/* FAULT */
++  my_tend ();
++}
++
++int
++main (int argc, char *argv[])
++{
++  try_transaction ();
++  crash_in_transaction ();
++  return 0;
++}
+Index: gdb-7.6.1/gdb/testsuite/gdb.arch/s390-tdbregs.exp
+===================================================================
+--- /dev/null
++++ gdb-7.6.1/gdb/testsuite/gdb.arch/s390-tdbregs.exp
+@@ -0,0 +1,75 @@
++# Copyright 2004-2013 Free Software Foundation, Inc.
++
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 3 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License
++# along with this program.  If not, see <http://www.gnu.org/licenses/>.
++
++# Please email any bugs, comments, and/or additions to this file to:
++# bug-gdb@gnu.org
++
++# This file is part of the gdb testsuite.
++
++
++if { ![istarget s390-*-*] && ![istarget s390x-*-* ] } {
++    verbose "Skipping s390 TDB register tests."
++    return
++}
++
++set testfile "s390-tdbregs"
++set srcfile ${testfile}.c
++set binfile ${objdir}/${subdir}/${testfile}
++
++if { [get_compiler_info] } {
++    return -1
++}
++
++if { [gdb_compile "${srcdir}/${subdir}/${srcfile}" "${binfile}" \
++      executable [list debug]] != "" } {
++    fail "compile failed"
++    return
++}
++
++gdb_exit
++gdb_start
++gdb_reinitialize_dir $srcdir/$subdir
++gdb_load ${binfile}
++
++if { ![runto_main] } then {
++    gdb_suppress_tests
++}
++
++gdb_test_multiple "next" "check for TE support" {
++    -re "Program received signal SIGILL,.*\r\n$gdb_prompt $" {
++	unsupported "No TE support."
++	return
++    }
++    -re "\[0-9\]+.*\r\n$gdb_prompt $" {
++	pass "TE support available"
++    }
++    -re "$gdb_prompt $" {
++	unsupported "No TE support (unknown error)."
++	return
++    }
++}
++
++set crashline [gdb_get_line_number "FAULT"]
++
++gdb_test "print \$tdb0" "\\\$\[0-9\]+ = <unavailable>" "tdb0 unavailable"
++gdb_test "print \$tr0" "\\\$\[0-9\]+ = <unavailable>" "tr0 unavailable"
++gdb_test "next" \
++    "Program received signal SIGSEGV, .*" \
++    "crash in transaction"
++gdb_test "print/x \$tdb0" "\\\$\[0-9\]+ = 0x1.*" "tdb0 available"
++gdb_test "set print symbol-filename" "" "set print symbol-filename"
++gdb_test "print/a \$atia" \
++    "<crash_in_transaction.*:$crashline>" \
++    "ATIA points to crash"

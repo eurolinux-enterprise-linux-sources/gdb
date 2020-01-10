@@ -1,0 +1,148 @@
+From 6682d9595ed8d9b9bba5470bfd7fd1ccd378f19a Mon Sep 17 00:00:00 2001
+From: Andreas Arnez <arnez at linux dot vnet dot ibm dot com>
+Date: Tue, 5 Nov 2013 18:43:50 +0100
+Subject: [PATCH] S390: Fix TDB regset recognition
+
+When checking for the presence of the TDB regset, the current code
+interprets ENODATA from PTRACE_GETREGSET as an indication that the TDB
+regset *could* occur on this system, but the inferior stopped outside
+a transaction.  However, the Linux kernel actually reports ENODATA
+even on systems without the transactional execution facility.  Thus
+the logic is now changed to check the TE field in the HWCAP as well.
+
+This version also checks the existence of the TDB regset -- just to be
+on the safe side when running on TE-enabled hardware with a kernel
+that does not offer the TDB regset for some reason.
+
+gdb/
+	* s390-linux-nat.c (s390_read_description): Consider the TE field
+	in the HWCAP for determining 'have_regset_tdb'.
+
+gdbserver/
+	* linux-s390-low.c (HWCAP_S390_TE): New define.
+	(s390_arch_setup): Consider the TE field in the HWCAP for
+	determining 'have_regset_tdb'.
+---
+ gdb/ChangeLog                  |  5 +++++
+ gdb/gdbserver/ChangeLog        |  6 ++++++
+ gdb/gdbserver/linux-s390-low.c | 48 ++++++++++++++++++++++++++----------------
+ gdb/s390-linux-nat.c           |  5 +++--
+ 4 files changed, 44 insertions(+), 20 deletions(-)
+
+Index: gdb-7.6.1/gdb/gdbserver/linux-s390-low.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/gdbserver/linux-s390-low.c
++++ gdb-7.6.1/gdb/gdbserver/linux-s390-low.c
+@@ -32,6 +32,10 @@
+ #define HWCAP_S390_HIGH_GPRS 512
+ #endif
+ 
++#ifndef HWCAP_S390_TE
++#define HWCAP_S390_TE 1024
++#endif
++
+ #ifndef PTRACE_GETREGSET
+ #define PTRACE_GETREGSET 0x4204
+ #endif
+@@ -390,23 +394,6 @@ s390_arch_setup (void)
+     = s390_check_regset (pid, NT_S390_SYSTEM_CALL, 4);
+   int have_regset_tdb = s390_check_regset (pid, NT_S390_TDB, 256);
+ 
+-  /* Update target_regsets according to available register sets.  */
+-  for (regset = target_regsets; regset->fill_function != NULL; regset++)
+-    if (regset->get_request == PTRACE_GETREGSET)
+-      switch (regset->nt_type)
+-	{
+-	case NT_S390_LAST_BREAK:
+-	  regset->size = have_regset_last_break? 8 : 0;
+-	  break;
+-	case NT_S390_SYSTEM_CALL:
+-	  regset->size = have_regset_system_call? 4 : 0;
+-	  break;
+-	case NT_S390_TDB:
+-	  regset->size = have_regset_tdb ? 256 : 0;
+-	default:
+-	  break;
+-	}
+-
+   /* Assume 31-bit inferior process.  */
+   if (have_regset_system_call)
+     init_registers_s390_linux32v2 ();
+@@ -424,6 +411,7 @@ s390_arch_setup (void)
+   {
+     unsigned int pswm;
+     struct regcache *regcache = new_register_cache ();
++
+     fetch_inferior_registers (regcache, find_regno ("pswm"));
+     collect_register_by_name (regcache, "pswm", &pswm);
+     free_register_cache (regcache);
+@@ -431,8 +419,12 @@ s390_arch_setup (void)
+     if (pswm & 1)
+       {
+ 	if (have_regset_tdb)
++	  have_regset_tdb =
++	    (s390_get_hwcap () & HWCAP_S390_TE) != 0;
++
++	if (have_regset_tdb)
+ 	  init_registers_s390x_te_linux64 ();
+-	if (have_regset_system_call)
++	else if (have_regset_system_call)
+ 	  init_registers_s390x_linux64v2 ();
+ 	else if (have_regset_last_break)
+ 	  init_registers_s390x_linux64v1 ();
+@@ -445,6 +437,9 @@ s390_arch_setup (void)
+     else if (s390_get_hwcap () & HWCAP_S390_HIGH_GPRS)
+       {
+ 	if (have_regset_tdb)
++	  have_regset_tdb = (s390_get_hwcap () & HWCAP_S390_TE) != 0;
++
++	if (have_regset_tdb)
+ 	  init_registers_s390_te_linux64 ();
+ 	if (have_regset_system_call)
+ 	  init_registers_s390_linux64v2 ();
+@@ -458,6 +453,22 @@ s390_arch_setup (void)
+       }
+   }
+ #endif
++  /* Update target_regsets according to available register sets.  */
++  for (regset = target_regsets; regset->fill_function != NULL; regset++)
++    if (regset->get_request == PTRACE_GETREGSET)
++      switch (regset->nt_type)
++	{
++	case NT_S390_LAST_BREAK:
++	  regset->size = have_regset_last_break? 8 : 0;
++	  break;
++	case NT_S390_SYSTEM_CALL:
++	  regset->size = have_regset_system_call? 4 : 0;
++	  break;
++	case NT_S390_TDB:
++	  regset->size = have_regset_tdb ? 256 : 0;
++	default:
++	  break;
++	}
+ }
+ 
+ 
+Index: gdb-7.6.1/gdb/s390-nat.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/s390-nat.c
++++ gdb-7.6.1/gdb/s390-nat.c
+@@ -632,8 +632,6 @@ s390_read_description (struct target_ops
+     = check_regset (tid, NT_S390_LAST_BREAK, 8);
+   have_regset_system_call
+     = check_regset (tid, NT_S390_SYSTEM_CALL, 4);
+-  have_regset_tdb
+-    = check_regset (tid, NT_S390_TDB, s390_sizeof_tdbregset);
+ 
+ #ifdef __s390x__
+   /* If GDB itself is compiled as 64-bit, we are running on a machine in
+@@ -642,6 +640,9 @@ s390_read_description (struct target_ops
+      addressing mode, but the kernel supports using 64-bit registers in
+      that mode, report s390 architecture with 64-bit GPRs.  */
+ 
++  have_regset_tdb = (s390_get_hwcap () & HWCAP_S390_TE) ?
++    check_regset (tid, NT_S390_TDB, s390_sizeof_tdbregset) : 0;
++
+   if (s390_target_wordsize () == 8)
+     return (have_regset_tdb ? tdesc_s390x_te_linux64 :
+ 	    have_regset_system_call? tdesc_s390x_linux64v2 :

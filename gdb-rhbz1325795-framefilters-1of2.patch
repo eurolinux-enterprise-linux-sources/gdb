@@ -1,0 +1,123 @@
+commit 4c9a21f6a57e0e2e382aac327f6edaa1475dd3f1
+Author: Tom Tromey <tromey@redhat.com>
+Date:   Wed Jan 22 08:44:41 2014 -0700
+
+    fix erroneous error-handling in frame filter code
+    
+    This fixes PR python/16487.
+    
+    The bug here is that the function-name-handling code in py_print_frame
+    had a small logic error (really a misplaced closing brace).  This
+    error could lead to a Py_DECREF(NULL), which crashes.
+    
+    This patch fixes the bug in the obvious way.
+    
+    Built and regtested on x86-64 Fedora 18.  New test case included.
+    
+    2014-01-23  Tom Tromey  <tromey@redhat.com>
+    
+    	PR python/16487:
+    	* python/py-framefilter.c (py_print_frame): Don't call Py_DECREF
+    	on a NULL pointer.  Move "goto error" to correct place.
+    
+    2014-01-23  Tom Tromey  <tromey@redhat.com>
+    
+    	PR python/16487:
+    	* gdb.python/py-framefilter.exp: Add test using "Error" filter.
+    	* gdb.python/py-framefilter.py (ErrorInName, ErrorFilter): New
+    	classes.
+
+### a/gdb/ChangeLog
+### b/gdb/ChangeLog
+## -1,5 +1,11 @@
+ 2014-01-23  Tom Tromey  <tromey@redhat.com>
+ 
++	PR python/16487:
++	* python/py-framefilter.c (py_print_frame): Don't call Py_DECREF
++	on a NULL pointer.  Move "goto error" to correct place.
++
++2014-01-23  Tom Tromey  <tromey@redhat.com>
++
+ 	PR python/16491:
+ 	* python/py-framefilter.c (apply_frame_filter): Call
+ 	ensure_python_env after computing gdbarch.
+--- a/gdb/python/py-framefilter.c
++++ b/gdb/python/py-framefilter.c
+@@ -1218,11 +1218,11 @@ py_print_frame (PyObject *filter, int flags, enum py_frame_args args_type,
+ 		  gdbpy_convert_exception (except);
+ 		  goto error;
+ 		}
++	      Py_DECREF (py_func);
+ 	    }
+-	  Py_DECREF (py_func);
++	  else
++	    goto error;
+ 	}
+-      else
+-	goto error;
+     }
+ 
+ 
+### a/gdb/testsuite/ChangeLog
+### b/gdb/testsuite/ChangeLog
+## -1,5 +1,12 @@
+ 2014-01-23  Tom Tromey  <tromey@redhat.com>
+ 
++	PR python/16487:
++	* gdb.python/py-framefilter.exp: Add test using "Error" filter.
++	* gdb.python/py-framefilter.py (ErrorInName, ErrorFilter): New
++	classes.
++
++2014-01-23  Tom Tromey  <tromey@redhat.com>
++
+ 	PR python/16491:
+ 	* gdb.python/py-framefilter.py (Reverse_Function.function): Read a
+ 	string from an inferior frame.
+--- a/gdb/testsuite/gdb.python/py-framefilter.exp
++++ b/gdb/testsuite/gdb.python/py-framefilter.exp
+@@ -177,6 +177,17 @@ gdb_test "bt 1" \
+     "#0  end_func \\(foo=21, bar=\"Param\", fb=, bf=\{nothing = \"Foo Bar\", f = 42, s = 19\}\\) at .*py-framefilter.c.*" \
+     "bt 1 no addresss"
+ 
++gdb_test_no_output "set python print-stack message" \
++    "Set python print-stack to message for Error filter"
++gdb_test_no_output  "enable frame-filter global Error" \
++    "enable frame-filter global Error"
++set test "bt 1 with Error filter"
++gdb_test_multiple "bt 1" $test {
++    -re "Python Exception .*whoops:.*$gdb_prompt $" {
++	pass $test
++    }
++}
++
+ remote_file host delete ${remote_python_file}
+ 
+ # Test with no debuginfo
+--- a/gdb/testsuite/gdb.python/py-framefilter.py
++++ b/gdb/testsuite/gdb.python/py-framefilter.py
+@@ -128,5 +128,25 @@ class FrameElider ():
+     def filter (self, frame_iter):
+         return ElidingIterator (frame_iter)
+ 
++# A simple decorator that gives an error when computing the function.
++class ErrorInName(FrameDecorator):
++    def __init__(self, frame):
++        FrameDecorator.__init__(self, frame)
++
++    def function(self):
++        raise RuntimeError('whoops')
++
++# A filter that supplies buggy frames.  Disabled by default.
++class ErrorFilter():
++    def __init__ (self):
++        self.name = "Error"
++        self.priority = 1
++        self.enabled = False
++        gdb.frame_filters [self.name] = self
++
++    def filter(self, frame_iter):
++        return itertools.imap(ErrorInName, frame_iter)
++
+ FrameFilter()
+ FrameElider()
++ErrorFilter()

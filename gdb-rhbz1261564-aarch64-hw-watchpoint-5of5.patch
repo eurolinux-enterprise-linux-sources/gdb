@@ -1,0 +1,160 @@
+http://sourceware.org/ml/gdb-patches/2015-02/msg00734.html
+Subject: [PATCH 7/8] gdbserver/Linux: Use TRAP_BRKPT/TRAP_HWBPT
+
+This patch adjusts gdbserver's Linux backend to tell gdbserver core
+(and ultimately GDB) whether a trap was caused by a breakpoint.
+
+It teaches the backend to get that information out of the si_code of
+the SIGTRAP siginfo.
+
+gdb/gdbserver/ChangeLog:
+2015-02-25  Pedro Alves  <palves@redhat.com>
+
+        * linux-low.c (check_stopped_by_breakpoint) [USE_SIGTRAP_SIGINFO]:
+	Decide whether a breakpoint triggered based on the SIGTRAP's
+	siginfo.si_code.
+        (thread_still_has_status_pending_p) [USE_SIGTRAP_SIGINFO]: Don't check whether a
+        breakpoint is inserted if relying on SIGTRAP's siginfo.si_code.
+	(linux_low_filter_event): Check for breakpoints before checking
+	watchpoints.
+	(linux_wait_1): Don't re-increment the PC if relying on SIGTRAP's
+	siginfo.si_code.
+        (linux_stopped_by_sw_breakpoint)
+        (linux_supports_stopped_by_sw_breakpoint)
+        (linux_stopped_by_hw_breakpoint)
+        (linux_supports_stopped_by_hw_breakpoint): New functions.
+        (linux_target_ops): Install new target methods.
+---
+ gdb/gdbserver/linux-low.c | 122 +++++++++++++++++++++++++++++++++++++++++++---
+ 1 file changed, 116 insertions(+), 6 deletions(-)
+
+Index: gdb-7.6.1/gdb/gdbserver/linux-low.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/gdbserver/linux-low.c	2016-03-13 21:42:34.115589901 +0100
++++ gdb-7.6.1/gdb/gdbserver/linux-low.c	2016-03-13 21:45:00.625644976 +0100
+@@ -1360,6 +1360,8 @@
+   return (struct lwp_info*) find_inferior (&all_lwps, same_lwp, &ptid);
+ }
+ 
++static void save_stop_reason (struct lwp_info *lwp);
++
+ static struct lwp_info *
+ linux_wait_for_lwp (ptid_t ptid, int *wstatp, int options)
+ {
+@@ -1465,6 +1467,10 @@
+ 
+ 	  current_inferior = saved_inferior;
+ 	}
++
++      /* RHEL */
++      if (!child->stopped_by_watchpoint)
++	save_stop_reason (child);
+     }
+ 
+   /* Store the STOP_PC, with adjustment applied.  This depends on the
+@@ -1847,6 +1853,47 @@
+    being stepped.  */
+ ptid_t step_over_bkpt;
+ 
++// gdb/nat/linux-ptrace.h
++#if defined __i386__ || defined __x86_64__
++# define GDB_ARCH_IS_TRAP_BRKPT(X) ((X) == SI_KERNEL)
++# define GDB_ARCH_IS_TRAP_HWBKPT(X) ((X) == TRAP_HWBKPT)
++#elif defined __powerpc__
++# define GDB_ARCH_IS_TRAP_BRKPT(X) ((X) == SI_KERNEL || (X) == TRAP_BRKPT)
++# define GDB_ARCH_IS_TRAP_HWBKPT(X) ((X) == TRAP_HWBKPT)
++#elif defined __mips__
++# define GDB_ARCH_IS_TRAP_BRKPT(X) ((X) == SI_KERNEL)
++# define GDB_ARCH_IS_TRAP_HWBKPT(X) ((X) == SI_KERNEL)
++#else
++# define GDB_ARCH_IS_TRAP_BRKPT(X) ((X) == TRAP_BRKPT)
++# define GDB_ARCH_IS_TRAP_HWBKPT(X) ((X) == TRAP_HWBKPT)
++#endif
++
++// gdb/nat/linux-ptrace.h
++#ifndef TRAP_HWBKPT
++# define TRAP_HWBKPT 4
++#endif
++
++static void
++save_stop_reason (struct lwp_info *lwp)
++{
++  siginfo_t siginfo;
++
++  if (ptrace (PTRACE_GETSIGINFO, lwpid_of (lwp),
++              (PTRACE_ARG3_TYPE) 0, &siginfo) == 0)
++    {
++      if (siginfo.si_signo == SIGTRAP)
++        {
++          if (GDB_ARCH_IS_TRAP_HWBKPT (siginfo.si_code))
++	    {
++              /* This can indicate either a hardware breakpoint or
++                 hardware watchpoint.  Check debug registers.  */
++//              if (!check_stopped_by_watchpoint (lwp))
++		lwp->stopped_by_hw_breakpoint = 1;
++	    }
++	}
++    }
++}
++
+ /* Wait for an event from child PID.  If PID is -1, wait for any
+    child.  Store the stop status through the status pointer WSTAT.
+    OPTIONS is passed to the waitpid call.  Return 0 if no child stop
+@@ -3332,6 +3396,7 @@
+   errno = 0;
+   lwp->stopped = 0;
+   lwp->stopped_by_watchpoint = 0;
++  lwp->stopped_by_hw_breakpoint = 0;
+   lwp->stepping = step;
+   ptrace (step ? PTRACE_SINGLESTEP : PTRACE_CONT, lwpid_of (lwp),
+ 	  (PTRACE_ARG3_TYPE) 0,
+@@ -4856,6 +4921,26 @@
+     return 1;
+ }
+ 
++/* Implement the to_stopped_by_hw_breakpoint target_ops
++   method.  */
++
++static int
++linux_stopped_by_hw_breakpoint (void)
++{
++  struct lwp_info *lwp = get_thread_lwp (current_inferior);
++
++  return lwp->stopped_by_hw_breakpoint;
++}
++
++/* Implement the to_supports_stopped_by_hw_breakpoint target_ops
++   method.  */
++
++static int
++linux_supports_stopped_by_hw_breakpoint (void)
++{
++  return 1; // RHEL
++}
++
+ static int
+ linux_stopped_by_watchpoint (void)
+ {
+@@ -5946,6 +6031,8 @@
+   linux_read_auxv,
+   linux_insert_point,
+   linux_remove_point,
++  linux_stopped_by_hw_breakpoint,
++  linux_supports_stopped_by_hw_breakpoint,
+   linux_stopped_by_watchpoint,
+   linux_stopped_data_address,
+ #if defined(__UCLIBC__) && defined(HAS_NOMMU)
+Index: gdb-7.6.1/gdb/gdbserver/linux-low.h
+===================================================================
+--- gdb-7.6.1.orig/gdb/gdbserver/linux-low.h	2016-03-13 21:45:52.861021138 +0100
++++ gdb-7.6.1/gdb/gdbserver/linux-low.h	2016-03-13 21:46:00.668077363 +0100
+@@ -223,6 +223,9 @@
+      watchpoint trap.  */
+   int stopped_by_watchpoint;
+ 
++  /* RHEL: TARGET_STOPPED_BY_HW_BREAKPOINT */
++  int stopped_by_hw_breakpoint;
++
+   /* On architectures where it is possible to know the data address of
+      a triggered watchpoint, STOPPED_DATA_ADDRESS is non-zero, and
+      contains such data address.  Only valid if STOPPED_BY_WATCHPOINT

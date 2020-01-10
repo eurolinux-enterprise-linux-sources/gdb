@@ -1,0 +1,69 @@
+commit 2492f0d005f0390eabb3deb58aa7db7fcd716763
+Author: Andreas Arnez <arnez@linux.vnet.ibm.com>
+Date:   Fri May 8 12:50:47 2015 +0200
+
+    S390: Fix for inadvertently setting 24-bit mode in fill_gregset
+    
+    On 64-bit S390 platforms, for programs compiled with -m31, it could
+    happen that GDB inadvertently cleared the inferior's 31-bit addressing
+    mode bit and left the inferior running in 24-bit addressing mode.  In
+    particular this occurred with checkpoint.exp, when the "restore"
+    command needed to create a new regcache copy: At the time when the
+    PSWM register was copied over, the addressing mode bit was taken from
+    the PSWA register, which was still zero since it had not been copied
+    yet.  And when the PSWA register was copied, the addressing mode was
+    not updated again.
+    
+    The fix affects fill_gregset, where the bits "belonging" to each of
+    the PSWA and PSWM registers are now carefully separated.  The
+    addressing mode bit is no longer touched when writing PSWM, and --
+    more importantly -- it *is* written when writing PSWA.
+    
+    gdb/ChangeLog:
+    
+    	* s390-linux-nat.c (fill_gregset): Avoid relying on the PSWA
+    	register in the regcache when treating the PSWM register, and vice
+    	versa.
+
+Index: gdb-7.6.1/gdb/s390-nat.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/s390-nat.c
++++ gdb-7.6.1/gdb/s390-nat.c
+@@ -174,19 +174,28 @@ fill_gregset (const struct regcache *reg
+ 	  enum bfd_endian byte_order = gdbarch_byte_order (gdbarch);
+ 	  ULONGEST pswa, pswm;
+ 	  gdb_byte buf[4];
++	  gdb_byte *pswm_p = (gdb_byte *) regp + 0;
++	  gdb_byte *pswa_p = (gdb_byte *) regp + 8;
+ 
+-	  regcache_raw_collect (regcache, S390_PSWM_REGNUM, buf);
+-	  pswm = extract_unsigned_integer (buf, 4, byte_order);
+-	  regcache_raw_collect (regcache, S390_PSWA_REGNUM, buf);
+-	  pswa = extract_unsigned_integer (buf, 4, byte_order);
++	  pswm = extract_unsigned_integer (pswm_p, 8, byte_order);
+ 
+ 	  if (regno == -1 || regno == S390_PSWM_REGNUM)
+-	    store_unsigned_integer (psw_p[0], 8, byte_order,
+-				    ((pswm & 0xfff7ffff) << 32) |
+-				    (pswa & 0x80000000));
++	    {
++	      pswm &= 0x80000000;
++	      regcache_raw_collect (regcache, S390_PSWM_REGNUM, buf);
++	      pswm |= (extract_unsigned_integer (buf, 4, byte_order)
++		       & 0xfff7ffff) << 32;
++	    }
+ 	  if (regno == -1 || regno == S390_PSWA_REGNUM)
+-	    store_unsigned_integer (psw_p[1], 8, byte_order,
+-				    pswa & 0x7fffffff);
++	    {
++	      regcache_raw_collect (regcache, S390_PSWA_REGNUM, buf);
++	      pswa = extract_unsigned_integer (buf, 4, byte_order);
++	      pswm ^= (pswm ^ pswa) & 0x80000000;
++	      pswa &= 0x7fffffff;
++	      store_unsigned_integer (pswa_p, 8, byte_order, pswa);
++	    }
++
++	  store_unsigned_integer (pswm_p, 8, byte_order, pswm);
+ 	}
+       return;
+     }

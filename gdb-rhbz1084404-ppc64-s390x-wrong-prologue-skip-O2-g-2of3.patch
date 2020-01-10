@@ -1,0 +1,98 @@
+From gdb-patches-return-123876-listarch-gdb-patches=sources dot redhat dot com at sourceware dot org Mon Jun 29 16:37:14 2015
+Return-Path: <gdb-patches-return-123876-listarch-gdb-patches=sources dot redhat dot com at sourceware dot org>
+Delivered-To: listarch-gdb-patches at sources dot redhat dot com
+Received: (qmail 98411 invoked by alias); 29 Jun 2015 16:37:14 -0000
+Mailing-List: contact gdb-patches-help at sourceware dot org; run by ezmlm
+Precedence: bulk
+List-Id: <gdb-patches.sourceware.org>
+List-Subscribe: <mailto:gdb-patches-subscribe at sourceware dot org>
+List-Archive: <http://sourceware.org/ml/gdb-patches/>
+List-Post: <mailto:gdb-patches at sourceware dot org>
+List-Help: <mailto:gdb-patches-help at sourceware dot org>, <http://sourceware dot org/ml/#faqs>
+Sender: gdb-patches-owner at sourceware dot org
+Delivered-To: mailing list gdb-patches at sourceware dot org
+Received: (qmail 98402 invoked by uid 89); 29 Jun 2015 16:37:13 -0000
+Authentication-Results: sourceware.org; auth=none
+X-Virus-Found: No
+X-Spam-SWARE-Status: No, score=-3.5 required=5.0 tests=AWL,BAYES_00,KAM_LAZY_DOMAIN_SECURITY,RP_MATCHES_RCVD,SPF_HELO_PASS autolearn=no version=3.3.2
+X-HELO: mx1.redhat.com
+Received: from mx1.redhat.com (HELO mx1.redhat.com) (209.132.183.28) by sourceware.org (qpsmtpd/0.93/v0.84-503-g423c35a) with (AES256-GCM-SHA384 encrypted) ESMTPS; Mon, 29 Jun 2015 16:37:13 +0000
+Received: from int-mx11.intmail.prod.int.phx2.redhat.com (int-mx11.intmail.prod.int.phx2.redhat.com [10.5.11.24])	by mx1.redhat.com (Postfix) with ESMTPS id DF7D48EA29	for <gdb-patches@sourceware.org>; Mon, 29 Jun 2015 16:37:11 +0000 (UTC)
+Received: from host1.jankratochvil.net (ovpn-116-41.ams2.redhat.com [10.36.116.41])	by int-mx11.intmail.prod.int.phx2.redhat.com (8.14.4/8.14.4) with ESMTP id t5TGb8I0022607	(version=TLSv1/SSLv3 cipher=DHE-RSA-AES256-GCM-SHA384 bits=256 verify=NO)	for <gdb-patches@sourceware.org>; Mon, 29 Jun 2015 12:37:11 -0400
+Date: Mon, 29 Jun 2015 18:37:08 +0200
+From: Jan Kratochvil <jan dot kratochvil at redhat dot com>
+To: gdb-patches at sourceware dot org
+Subject: [testsuite patch] Fix testsuite regression by: Do not skip prologue for asm (.S) files
+Message-ID: <20150629163708.GA28795@host1.jankratochvil.net>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="wac7ysb48OaltWcw"
+Content-Disposition: inline
+User-Agent: Mutt/1.5.23 (2014-03-12)
+X-IsSubscribed: yes
+
+
+--wac7ysb48OaltWcw
+Content-Type: text/plain; charset=us-ascii
+Content-Disposition: inline
+
+Hi,
+
+I have somehow missed gdb.asm/asm-source.exp PASS->FAIL even on x86_64.
+
+It has no longer valid assumption that "break" breaks after the prologue even
+in assembler.  So I have changed this assumption of the testfile.
+
+Tested it FAIL->PASSes on x86_64, ppc64 and s390x.
+
+OK for check-in?
+
+
+Jan
+
+--wac7ysb48OaltWcw
+Content-Type: text/plain; charset=us-ascii
+Content-Disposition: inline; filename=2
+
+gdb/testsuite/
+2015-06-29  Jan Kratochvil  <jan.kratochvil@redhat.com>
+
+	* gdb.asm/asm-source.exp (f at main): Stop at gdbasm_enter.
+	(n at main): New.
+	* gdb.asm/asmsrc1.s: Add comment "mark: main enter".
+
+Index: gdb-7.6.1/gdb/testsuite/gdb.asm/asm-source.exp
+===================================================================
+--- gdb-7.6.1.orig/gdb/testsuite/gdb.asm/asm-source.exp
++++ gdb-7.6.1/gdb/testsuite/gdb.asm/asm-source.exp
+@@ -272,6 +272,7 @@ if { [istarget "m6811-*-*"] || [istarget
+ }
+ 
+ # Collect some line numbers.
++set line_enter      [expr [gdb_get_line_number "main enter" "asmsrc1.s"] + 1]
+ set line_main       [expr [gdb_get_line_number "main start" "asmsrc1.s"] + 1]
+ set line_call_foo2  [expr [gdb_get_line_number "call foo2"  "asmsrc1.s"] + 1]
+ set line_search_comment [expr [gdb_get_line_number "search" "asmsrc1.s"] + 1]
+@@ -295,7 +296,10 @@ if ![runto_main] then {
+ }
+ 
+ # Execute the `f' command and see if the result includes source info.
+-gdb_test "f" "asmsrc1\[.\]s:$line_main.*several_nops" "f at main"
++gdb_test "f" "asmsrc1\[.\]s:$line_enter.*gdbasm_enter" "f at main"
++
++# Execute the `n' command.
++gdb_test "n" "$line_main\[ 	\]*.*several_nops" "n at main"
+ 
+ # See if we properly `next' over a macro with several insns.
+ gdb_test "n" "$line_call_foo2\[ 	\]*.*foo2" "next over macro"
+Index: gdb-7.6.1/gdb/testsuite/gdb.asm/asmsrc1.s
+===================================================================
+--- gdb-7.6.1.orig/gdb/testsuite/gdb.asm/asmsrc1.s
++++ gdb-7.6.1/gdb/testsuite/gdb.asm/asmsrc1.s
+@@ -34,6 +34,7 @@
+ 
+ 	.global main
+ 	gdbasm_declare main
++	comment "mark: main enter"
+ 	gdbasm_enter
+ 
+ 	comment "Call a macro that consists of several lines of assembler code."

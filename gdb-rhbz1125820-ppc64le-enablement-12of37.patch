@@ -1,0 +1,115 @@
+commit e8910a83af41c3dbfd00191b2720d4094f8d9532
+Author: Alan Modra <amodra@gmail.com>
+Date:   Tue Oct 29 16:34:35 2013 +1030
+
+    Replace DT_PPC_TLSOPT with DT_PPC_OPT.
+    
+    This removes the DT_PPC_TLSOPT/DT_PPC64_TLSOPT dynamic tag and replaces
+    it with DT_PPC_OPT/DT_PPC64_OPT tag to provide the same functionality
+    and more.  This isn't backwards compatible, but the TLSOPT tag hasn't
+    been used since the tls optimisation support was never submitted to
+    glibc.
+    
+    /include/elf/
+    	* ppc.h (DT_PPC_TLSOPT): Delete.
+    	(DT_PPC_OPT, PPC_OPT_TLS): Define.
+    	* ppc64.h (DT_PPC64_TLSOPT): Delete.
+    	(DT_PPC64_OPT, PPC64_OPT_TLS, PPC64_OPT_MULTI_TOC): Define.
+    bfd/
+    	* elf32-ppc.c (ppc_elf_size_dynamic_sections): Use new DT_PPC_OPT
+    	tag to specify tls optimisation.
+    	* elf64-ppc.c (ppc64_elf_size_dynamic_sections): Likewise.
+    	(ppc64_elf_finish_dynamic_sections): Specify whether multiple
+    	toc pointers are used via DT_PPC64_OPT.
+    binutils/
+    	* readelf.c (get_ppc_dynamic_type): Replace PPC_TLSOPT with PPC_OPT.
+    	(get_ppc64_dynamic_type): Replace PPC64_TLSOPT with PPC64_OPT.
+
+Index: gdb-7.6.1/bfd/elf32-ppc.c
+===================================================================
+--- gdb-7.6.1.orig/bfd/elf32-ppc.c
++++ gdb-7.6.1/bfd/elf32-ppc.c
+@@ -6443,7 +6443,7 @@ ppc_elf_size_dynamic_sections (bfd *outp
+ 	  if (!htab->no_tls_get_addr_opt
+ 	      && htab->tls_get_addr != NULL
+ 	      && htab->tls_get_addr->plt.plist != NULL
+-	      && !add_dynamic_entry (DT_PPC_TLSOPT, 0))
++	      && !add_dynamic_entry (DT_PPC_OPT, PPC_OPT_TLS))
+ 	    return FALSE;
+ 	}
+ 
+Index: gdb-7.6.1/bfd/elf64-ppc.c
+===================================================================
+--- gdb-7.6.1.orig/bfd/elf64-ppc.c
++++ gdb-7.6.1/bfd/elf64-ppc.c
+@@ -9580,6 +9580,8 @@ ppc64_elf_size_dynamic_sections (bfd *ou
+ 
+   if (htab->elf.dynamic_sections_created)
+     {
++      bfd_boolean tls_opt;
++
+       /* Add some entries to the .dynamic section.  We fill in the
+ 	 values later, in ppc64_elf_finish_dynamic_sections, but we
+ 	 must add the entries now so that we get the correct size for
+@@ -9611,11 +9613,14 @@ ppc64_elf_size_dynamic_sections (bfd *ou
+ 	    return FALSE;
+ 	}
+ 
+-      if (!htab->no_tls_get_addr_opt
+-	  && htab->tls_get_addr_fd != NULL
+-	  && htab->tls_get_addr_fd->elf.plt.plist != NULL
+-	  && !add_dynamic_entry (DT_PPC64_TLSOPT, 0))
+-	return FALSE;
++      tls_opt = (!htab->no_tls_get_addr_opt
++		 && htab->tls_get_addr_fd != NULL
++		 && htab->tls_get_addr_fd->elf.plt.plist != NULL);
++      if (tls_opt || !htab->opd_abi)
++	{
++	  if (!add_dynamic_entry (DT_PPC64_OPT, tls_opt ? PPC64_OPT_TLS : 0))
++	    return FALSE;
++	}
+ 
+       if (relocs)
+ 	{
+@@ -14394,6 +14399,11 @@ ppc64_elf_finish_dynamic_sections (bfd *
+ 	      dyn.d_un.d_ptr = s->vma;
+ 	      break;
+ 
++	    case DT_PPC64_OPT:
++	      if (htab->do_multi_toc && htab->multi_toc_needed)
++		dyn.d_un.d_val |= PPC64_OPT_MULTI_TOC;
++	      break;
++
+ 	    case DT_PPC64_OPDSZ:
+ 	      s = bfd_get_section_by_name (output_bfd, ".opd");
+ 	      if (s == NULL)
+Index: gdb-7.6.1/include/elf/ppc.h
+===================================================================
+--- gdb-7.6.1.orig/include/elf/ppc.h
++++ gdb-7.6.1/include/elf/ppc.h
+@@ -176,7 +176,8 @@ END_RELOC_NUMBERS (R_PPC_max)
+ #define DT_PPC_GOT		(DT_LOPROC)
+ 
+ /* Specify that tls descriptors should be optimized.  */
+-#define DT_PPC_TLSOPT		(DT_LOPROC + 1)
++#define DT_PPC_OPT		(DT_LOPROC + 1)
++#define PPC_OPT_TLS		1
+ 
+ /* Processor specific flags for the ELF header e_flags field.  */
+ 
+Index: gdb-7.6.1/include/elf/ppc64.h
+===================================================================
+--- gdb-7.6.1.orig/include/elf/ppc64.h
++++ gdb-7.6.1/include/elf/ppc64.h
+@@ -225,7 +225,9 @@ ppc64_encode_local_entry(unsigned int va
+ #define DT_PPC64_OPD		(DT_LOPROC + 1)
+ #define DT_PPC64_OPDSZ		(DT_LOPROC + 2)
+ 
+-/* Specify that tls descriptors should be optimized.  */
+-#define DT_PPC64_TLSOPT		(DT_LOPROC + 3)
++/* Specify whether various optimisations are possible.  */
++#define DT_PPC64_OPT		(DT_LOPROC + 3)
++#define PPC64_OPT_TLS		1
++#define PPC64_OPT_MULTI_TOC	2
+ 
+ #endif /* _ELF_PPC64_H */

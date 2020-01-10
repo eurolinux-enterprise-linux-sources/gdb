@@ -1,0 +1,68 @@
+commit 56d4c712a8fa3a3e06a2ae91881ef4d702e5b491
+Author: Tom Tromey <tromey@redhat.com>
+Date:   Wed Jan 22 08:52:15 2014 -0700
+
+    avoid python exception in FrameDecorator.py
+    
+    This fixes a bug in FrameDecorator.py.
+    
+    FrameVars seems to assume that Frame.block can return None if there is
+    no block.  However, it actually throws an exception.
+    
+    I saw this bug while developing a frame filter, but unfortunately I
+    don't know how to reproduce it.  It seems to me that the SAL tests in
+    _is_limited_frame should exclude the bad cases; and in my attempts to
+    write a test they do.
+    
+    Nevertheless I think the fix is reasonably obvious and ought to go in.
+    
+    2014-01-23  Tom Tromey  <tromey@redhat.com>
+    
+    	PR python/16485:
+    	* python/lib/gdb/FrameDecorator.py: (FrameVars.fetch_frame_args):
+    	Handle exception from frame.block.
+    	(FrameVars.fetch_frame_locals): Likewise.
+
+### a/gdb/ChangeLog
+### b/gdb/ChangeLog
+## -1,5 +1,12 @@
+ 2014-01-23  Tom Tromey  <tromey@redhat.com>
+ 
++	PR python/16485:
++	* python/lib/gdb/FrameDecorator.py: (FrameVars.fetch_frame_args):
++	Handle exception from frame.block.
++	(FrameVars.fetch_frame_locals): Likewise.
++
++2014-01-23  Tom Tromey  <tromey@redhat.com>
++
+ 	PR python/16487:
+ 	* python/py-framefilter.c (py_print_frame): Don't call Py_DECREF
+ 	on a NULL pointer.  Move "goto error" to correct place.
+--- a/gdb/python/lib/gdb/FrameDecorator.py
++++ b/gdb/python/lib/gdb/FrameDecorator.py
+@@ -258,7 +258,10 @@ class FrameVars(object):
+         are no frame local variables, return an empty list."""
+         lvars = []
+ 
+-        block = self.frame.block()
++        try:
++            block = self.frame.block()
++        except RuntimeError:
++            block = None
+ 
+         while block != None:
+             if block.is_global or block.is_static:
+@@ -279,7 +282,12 @@ class FrameVars(object):
+         there are no frame argument variables, return an empty list."""
+ 
+         args = []
+-        block = self.frame.block()
++
++        try:
++            block = self.frame.block()
++        except RuntimeError:
++            block = None
++
+         while block != None:
+             if block.function != None:
+                 break

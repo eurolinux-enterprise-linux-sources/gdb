@@ -1,0 +1,33 @@
+commit d63167affc2a56189e3ba2cc47dd9a3451208b59
+Author: Ulrich Weigand <ulrich.weigand@de.ibm.com>
+Date:   Tue Feb 4 18:26:26 2014 +0100
+
+    PowerPC64 little-endian fixes: structure passing
+    
+    When passing a small structure in a GPR, the ABI specifies that it
+    should be passed in the least-significant bytes of the register
+    (or stack slot).  On big-endian systems, this means the value
+    needs to be stored at an offset, which is what current code does.
+    
+    However, on little-endian systems, the least-significant bytes are
+    addresses with offset 0.  This patch fixes that.
+    
+    gdb/ChangeLog:
+    
+    	* ppc-sysv-tdep.c (ppc64_sysv_abi_push_val): Use correct
+    	offset on little-endian when passing small structures.
+
+Index: gdb-7.6.1/gdb/ppc-sysv-tdep.c
+===================================================================
+--- gdb-7.6.1.orig/gdb/ppc-sysv-tdep.c
++++ gdb-7.6.1/gdb/ppc-sysv-tdep.c
+@@ -1149,7 +1149,8 @@ ppc64_sysv_abi_push_val (struct gdbarch
+      doubleword are right-aligned and those larger are left-aligned.
+      GCC versions before 3.4 implemented this incorrectly; see
+      <http://gcc.gnu.org/gcc-3.4/powerpc-abi.html>.  */
+-  if (len < tdep->wordsize)
++  if (len < tdep->wordsize
++      && gdbarch_byte_order (gdbarch) == BFD_ENDIAN_BIG)
+     offset = tdep->wordsize - len;
+ 
+   if (argpos->regcache)
