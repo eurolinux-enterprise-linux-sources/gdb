@@ -1,0 +1,60 @@
+commit c179febe79bf2fe2f64852c827813fc46da819f5
+Author: Sergio Lopez <slp@redhat.com>
+Date:   Mon Dec 4 09:17:15 2017 +0100
+
+    Document the new "-a" command line option for gcore
+    
+    gdb/ChangeLog:
+    2017-11-29  Sergio Lopez  <slp@redhat.com>
+    
+            * NEWS (Changes since GDB 8.0): Announce new "-a"
+            command line option for gcore.
+    
+    gdb/doc/ChangeLog:
+    2017-11-29  Sergio Lopez  <slp@redhat.com>
+    
+            * gdb.texinfo (gcore man): Document new "-a" command line option.
+
+Index: gdb-7.6.1/gdb/NEWS
+===================================================================
+--- gdb-7.6.1.orig/gdb/NEWS	2017-12-06 20:58:33.885856147 +0100
++++ gdb-7.6.1/gdb/NEWS	2017-12-06 20:59:03.174045646 +0100
+@@ -12,6 +12,11 @@
+   Control whether mappings marked with the VM_DONTDUMP flag should be
+   dumped when generating a core file.
+ 
++* New command line options (gcore)
++
++-a
++  Dump all memory mappings.
++
+ * Newly installed $prefix/bin/gcore acts as a shell interface for the
+   GDB command gcore.
+ 
+Index: gdb-7.6.1/gdb/doc/gdb.texinfo
+===================================================================
+--- gdb-7.6.1.orig/gdb/doc/gdb.texinfo	2017-12-06 20:58:22.471782297 +0100
++++ gdb-7.6.1/gdb/doc/gdb.texinfo	2017-12-06 20:58:33.891856186 +0100
+@@ -43242,7 +43242,7 @@
+ 
+ @format
+ @c man begin SYNOPSIS gcore
+-gcore [-o @var{filename}] @var{pid}
++gcore [-a] [-o @var{filename}] @var{pid}
+ @c man end
+ @end format
+ 
+@@ -43256,6 +43256,13 @@
+ 
+ @c man begin OPTIONS gcore
+ @table @env
++@item -a
++Dump all memory mappings.  The actual effect of this option depends on
++the Operating System.  On @sc{gnu}/Linux, it will disable
++@code{use-coredump-filter} (@pxref{set use-coredump-filter}) and
++enable @code{dump-excluded-mappings} (@pxref{set
++dump-excluded-mappings}).
++
+ @item -o @var{filename}
+ The optional argument
+ @var{filename} specifies the file name where to put the core dump.

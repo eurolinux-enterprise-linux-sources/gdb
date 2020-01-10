@@ -42,7 +42,7 @@ Version: 7.6.1
 
 # The release always contains a leading reserved number, start it at 1.
 # `upstream' is not a part of `name' to stay fully rpm dependencies compatible for the testing.
-Release: 100%{?dist}
+Release: 100%{?dist}.1
 
 License: GPLv3+ and GPLv3+ with exceptions and GPLv2+ and GPLv2+ with exceptions and GPL+ and LGPLv2+ and BSD and Public Domain
 Group: Development/Debuggers
@@ -888,6 +888,13 @@ Patch1207: gdb-rhbz1320945-power9-36of38.patch
 Patch1208: gdb-rhbz1320945-power9-37of38.patch
 Patch1209: gdb-rhbz1320945-power9-38of38.patch
 
+# Fix gcore for memory regions with VM_DONTDUMP (RH BZ 1524312, Sergio Lopez).
+Patch1264: gdb-rhbz1518243-gcore-VM_DONTDUMP-1of5.patch
+Patch1265: gdb-rhbz1518243-gcore-VM_DONTDUMP-2of5.patch
+Patch1266: gdb-rhbz1518243-gcore-VM_DONTDUMP-3of5.patch
+Patch1267: gdb-rhbz1518243-gcore-VM_DONTDUMP-4of5.patch
+Patch1268: gdb-rhbz1518243-gcore-VM_DONTDUMP-5of5.patch
+
 %if 0%{!?rhel:1} || 0%{?rhel} > 6
 # RL_STATE_FEDORA_GDB would not be found for:
 # Patch642: gdb-readline62-ask-more-rh.patch
@@ -1414,6 +1421,11 @@ find -name "*.info*"|xargs rm -f
 %patch1207 -p1
 %patch1208 -p1
 %patch1209 -p1
+%patch1264 -p1
+%patch1265 -p1
+%patch1266 -p1
+%patch1267 -p1
+%patch1268 -p1
 
 %if 0%{?scl:1}
 %patch836 -p1 -R
@@ -1939,6 +1951,9 @@ fi
 %endif # 0%{!?el5:1} || "%{_target_cpu}" == "noarch"
 
 %changelog
+* Mon Dec 11 2017 Jan Kratochvil <jan.kratochvil@redhat.com> - 7.6.1-100.el7_4.1
+- Fix gcore for memory regions with VM_DONTDUMP (RH BZ 1524312, Sergio Lopez).
+
 * Tue Jun 13 2017 Jan Kratochvil <jan.kratochvil@redhat.com> - 7.6.1-100.el7
 - [ppc*] IBM Power9 backport extension (RH BZ 1320945).
 

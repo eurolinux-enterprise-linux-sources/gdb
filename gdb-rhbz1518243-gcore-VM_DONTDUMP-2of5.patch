@@ -1,0 +1,67 @@
+commit 1e52e8495a074c9d1f7ef17f13b9060b76be6f41
+Author: Sergio Lopez <slp@redhat.com>
+Date:   Mon Dec 4 09:17:13 2017 +0100
+
+    Document new {set,show} dump-excluded-mappings commands.
+    
+    gdb/ChangeLog:
+    2017-11-29  Sergio Lopez  <slp@redhat.com>
+    
+            * NEWS (Changes since GDB 8.0): Announce {set,show}
+            dump_excluded_mappings commands.
+    
+    gdb/doc/ChangeLog:
+    2017-11-29  Sergio Lopez  <slp@redhat.com>
+    
+            * gdb.texinfo (gcore): Mention new {set,show}
+            dump-excluded-mappings commands.
+            (set dump-excluded-mappings): Document new command.
+
+Index: gdb-7.6.1/gdb/NEWS
+===================================================================
+--- gdb-7.6.1.orig/gdb/NEWS	2017-12-06 20:56:34.005080504 +0100
++++ gdb-7.6.1/gdb/NEWS	2017-12-06 20:56:52.510200234 +0100
+@@ -7,6 +7,11 @@
+   Add entries to the list of directories from which to load auto-loaded
+   scripts.
+ 
++set dump-excluded-mappings
++show dump-excluded-mappings
++  Control whether mappings marked with the VM_DONTDUMP flag should be
++  dumped when generating a core file.
++
+ * Newly installed $prefix/bin/gcore acts as a shell interface for the
+   GDB command gcore.
+ 
+Index: gdb-7.6.1/gdb/doc/gdb.texinfo
+===================================================================
+--- gdb-7.6.1.orig/gdb/doc/gdb.texinfo	2017-12-06 20:56:30.604058498 +0100
++++ gdb-7.6.1/gdb/doc/gdb.texinfo	2017-12-06 20:56:34.015080568 +0100
+@@ -10318,7 +10318,9 @@
+ 
+ On @sc{gnu}/Linux, this command can take into account the value of the
+ file @file{/proc/@var{pid}/coredump_filter} when generating the core
+-dump (@pxref{set use-coredump-filter}).
++dump (@pxref{set use-coredump-filter}), and by default honors the
++@code{VM_DONTDUMP} flag for mappings where it is present in the file
++@file{/proc/@var{pid}/smaps} (@pxref{set dump-excluded-mappings}).
+ 
+ @kindex set use-coredump-filter
+ @anchor{set use-coredump-filter}
+@@ -10348,6 +10350,16 @@
+ (anonymous private mappings), @code{1} (anonymous shared mappings),
+ @code{4} (ELF headers) and @code{5} (private huge pages) are active.
+ This will cause these memory mappings to be dumped automatically.
++
++@kindex set dump-excluded-mappings
++@anchor{set dump-excluded-mappings}
++@item set dump-excluded-mappings on
++@itemx set dump-excluded-mappings off
++If @code{on} is specified, @value{GDBN} will dump memory mappings
++marked with the @code{VM_DONTDUMP} flag.  This flag is represented in
++the file @file{/proc/@var{pid}/smaps} with the acronym @code{dd}.
++
++The default value is @code{off}.
+ @end table
+ 
+ @node Character Sets
